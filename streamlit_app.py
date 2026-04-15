@@ -4,19 +4,21 @@ import sqlite3
 from datetime import datetime
 import urllib.parse
 import io
-import time
-import threading
+import plotly.express as px
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="GESTOR SUPERTV4K", layout="wide")
+st.set_page_config(page_title="PAINEL SUPERTV4K", layout="wide", page_icon="📊")
 
-# Estilização Profissional
+# --- ESTILIZAÇÃO CSS PREMIUM ---
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: white; }
-    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 22px; font-weight: bold; }
-    .stButton>button { border-radius: 8px; font-weight: bold; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { background-color: #ff0000; color: white; }
+    .main { background-color: #0b0e14; }
+    [data-testid="stMetricValue"] { color: #00f2ff !important; font-family: 'Courier New', monospace; }
+    .stExpander { border: 1px solid #1f2937 !important; border-radius: 10px !important; background-color: #111827 !important; }
+    .stButton>button { border-radius: 5px; height: 3em; background-image: linear-gradient(to right, #1e3a8a, #3b82f6); color: white; border: none; }
+    .stButton>button:hover { background-image: linear-gradient(to right, #3b82f6, #1e3a8a); }
+    .info-box { padding: 15px; border-radius: 10px; background: #1f2937; border-left: 5px solid #3b82f6; margin-bottom: 10px; }
+    .user-pass { background-color: #000; padding: 5px 10px; border-radius: 5px; color: #00ff00; font-family: monospace; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -30,43 +32,27 @@ def init_db():
                   vencimento DATE, custo REAL, mensalidade REAL, observacao TEXT, logo BLOB)''')
     c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
+    
+    colunas = [("custo", "REAL DEFAULT 0.0"), ("mensalidade", "REAL DEFAULT 0.0"), ("logo", "BLOB")]
+    for col, tipo in colunas:
+        try: c.execute(f"ALTER TABLE clientes ADD COLUMN {col} {tipo}")
+        except: pass
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- LÓGICA DE AUTOMAÇÃO (RODA EM SEGUNDO PLANO) ---
-def verificar_agendamento():
-    """Verifica o horário e prepara os alertas automaticamente"""
-    while True:
-        agora = datetime.now().strftime("%H:%M")
-        # Horários configurados: Manhã (09:00) e Noite (19:30)
-        if agora in ["09:00", "19:30"]:
-            # Aqui poderíamos integrar com uma API de WhatsApp (como a Evolution API ou Z-API)
-            # Por enquanto, ele gera um log interno para o administrador
-            pass
-        time.sleep(60) # Verifica a cada minuto
-
-# Inicia a automação em uma thread separada para não travar o app
-if 'automacao_ativa' not in st.session_state:
-    threading.Thread(target=verificar_agendamento, daemon=True).start()
-    st.session_state['automacao_ativa'] = True
-
-# --- FUNÇÕES DE APOIO ---
+# --- FUNÇÕES DE SUPORTE ---
 def obter_regua(venc_data):
     hoje = datetime.now().date()
     pix = "62.326.879/0001-13"
-    try:
-        if isinstance(venc_data, str):
-            venc_data = datetime.strptime(venc_data, '%Y-%m-%d').date()
-        dias = (venc_data - hoje).days
-        
-        if dias == 3: return "Vence em 3 dias", f"Sua Assinatura Vence em 3️⃣ dias! PIX: {pix}", "🟨", dias
-        elif dias == 1: return "Vence Amanhã", f"Atenção! Sua assinatura vence AMANHÃ ⏰! PIX: {pix}", "🟧", dias
-        elif dias == 0: return "Vence HOJE", f"HOJE É O DIA! Não fique sem sinal. Renove agora via PIX: {pix}", "🟥", dias
-        elif dias < 0: return "VENCIDO", f"Sinal Interrompido 🚨! Pague o PIX para reativar agora: {pix}", "🚨", dias
-        return f"{dias} dias", "", "🟩", dias
-    except: return "Erro", "", "❌", 0
+    venc_data = datetime.strptime(str(venc_data), '%Y-%m-%d').date() if isinstance(venc_data, str) else venc_data
+    dias = (venc_data - hoje).days
+    if dias == 3: return "Vence em 3 dias", f"⚠️ Sua Assinatura Vence em 3 dias! PIX: {pix}", "🟨", dias
+    elif dias == 1: return "Vence Amanhã", f"⏰ Vence Amanhã! Garanta sua renovação. PIX: {pix}", "🟧", dias
+    elif dias == 0: return "Vence Hoje", f"🚨 Vence HOJE! Não fique sem sinal. PIX: {pix}", "🟥", dias
+    elif dias < 0: return "VENCIDO", f"❌ Assinatura Vencida! Renove agora. PIX: {pix}", "🚨", dias
+    return f"{dias} dias", "", "🟩", dias
 
 def get_servidores():
     conn = sqlite3.connect('supertv_gestao.db')
@@ -74,87 +60,113 @@ def get_servidores():
     conn.close()
     return lista
 
-# --- INTERFACE PRINCIPAL ---
-col_logo1, col_logo2 = st.columns(2)
-with col_logo1: st.image("https://i.imgur.com/CKq9BVx.png", width=300)
-with col_logo2: st.image("https://i.imgur.com/OkUAPQa.png", width=300)
-
+# --- CARREGAMENTO DE DADOS ---
 conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
 
-# --- DASHBOARD ---
-if not df.empty:
-    df['status_info'] = df['vencimento'].apply(obter_regua)
-    total = len(df)
-    vencidos = len(df[df['status_info'].apply(lambda x: x[2] == "🚨")])
-    alerta_3d = len(df[df['status_info'].apply(lambda x: 0 <= x[3] <= 3)])
-    bruto = df['mensalidade'].sum()
-    liquido = bruto - df['custo'].sum()
-else:
-    total = vencidos = alerta_3d = bruto = liquido = 0
+# --- BARRA LATERAL (FILTROS) ---
+with st.sidebar:
+    st.image("https://i.imgur.com/CKq9BVx.png", width=200)
+    st.title("⚙️ Filtros")
+    busca = st.text_input("🔍 Buscar por Nome:")
+    servs_at = get_servidores()
+    filtro_serv = st.multiselect("📡 Filtrar Servidor:", servs_at)
+    st.divider()
+    st.write("Versão Pro 2.0")
 
-tab1, tab2, tab3, tab4 = st.tabs(["👥 CLIENTES", "➕ NOVO", "🤖 AUTOMAÇÃO/COBRANÇA", "⚙️ CONFIG"])
+# --- CÁLCULOS ---
+if not df.empty:
+    df['status_regua'] = df['vencimento'].apply(obter_regua)
+    total_clientes = len(df)
+    vencidos = len(df[df['status_regua'].apply(lambda x: x[2] == "🚨")])
+    em_dia = total_clientes - vencidos
+    bruto = df['mensalidade'].sum()
+    custos = df['custo'].sum()
+    liquido = bruto - custos
+else:
+    total_clientes = vencidos = em_dia = bruto = custos = liquido = 0
+
+# --- TELA PRINCIPAL ---
+st.title("📊 Gestão Supertv4k")
+
+# Dash de Métricas com CSS
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Total de Clientes", total_clientes)
+c2.metric("Vencidos", vencidos, delta=f"{vencidos}", delta_color="inverse")
+c3.metric("Faturamento Bruto", f"R$ {bruto:,.2f}")
+c4.metric("Lucro Líquido", f"R$ {liquido:,.2f}")
+
+st.divider()
+
+tab1, tab2, tab3, tab4 = st.tabs(["👥 LISTAGEM", "📈 SAÚDE DA BASE", "📢 COBRANÇA", "🛠️ CONFIG"])
 
 with tab1:
-    st.subheader("📊 RESUMO")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("CLIENTES", total)
-    m2.metric("VENCIDOS", vencidos, delta_color="inverse")
-    m3.metric("LUCRO LÍQUIDO", f"R$ {liquido:,.2f}")
-    m4.metric("ALERTA (3 DIAS)", alerta_3d)
-    
-    busca = st.text_input("🔍 PESQUISAR NOME DO CLIENTE...")
-    if not df.empty:
-        for _, r in df.iterrows():
-            if busca.lower() in r['nome'].lower():
-                status, msg, icon, dias = obter_regua(r['vencimento'])
-                with st.expander(f"{icon} {r['nome']} | {status}"):
-                    c1, c2, c3 = st.columns([1, 2, 2])
-                    with c1:
-                        if r['logo']: st.image(r['logo'], width=100)
-                        else: st.write("📷 S/ LOGO")
-                    with c2:
-                        st.write(f"**USUÁRIO:** `{r['usuario']}`")
-                        st.write(f"**SENHA:** `{r['senha']}`")
-                        st.write(f"**WHATSAPP:** {r['whatsapp']}")
-                    with c3:
-                        st.write(f"**MENSALIDADE:** R$ {r['mensalidade']:.2f}")
-                        st.write(f"**VENCIMENTO:** {r['vencimento']}")
-                        st.write(f"**OBS:** {r['observacao']}")
+    # Filtragem do DF
+    df_display = df.copy()
+    if busca:
+        df_display = df_display[df_display['nome'].str.contains(busca, case=False)]
+    if filtro_serv:
+        df_display = df_display[df_display['servidor'].isin(filtro_serv)]
+
+    if not df_display.empty:
+        for _, r in df_display.iterrows():
+            status, _, icon, _ = obter_regua(r['vencimento'])
+            with st.expander(f"{icon} {r['nome']} | {r['servidor']} | {status}"):
+                col_img, col_info, col_fin = st.columns([1, 2, 2])
+                with col_img:
+                    if r['logo']: st.image(r['logo'], width=100)
+                    else: st.info("Sem Logo")
+                with col_info:
+                    st.markdown(f"**USUÁRIO:** <span class='user-pass'>{r['usuario']}</span>", unsafe_allow_html=True)
+                    st.markdown(f"**SENHA:** <span class='user-pass'>{r['senha']}</span>", unsafe_allow_html=True)
+                    st.write(f"📱 WhatsApp: {r['whatsapp']}")
+                with col_fin:
+                    st.write(f"📅 Vencimento: {r['vencimento']}")
+                    st.write(f"💰 Mensalidade: R$ {r['mensalidade']:.2f}")
+                    st.write(f"💳 Custo: R$ {r['custo']:.2f}")
+                
+                # Ações rápidas
+                b1, b2, b3 = st.columns(3)
+                if b1.button("📝 EDITAR", key=f"e_{r['id']}"):
+                    st.session_state[f"edit_{r['id']}"] = True
+                if b2.button("🗑️ EXCLUIR", key=f"d_{r['id']}"):
+                    c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM clientes WHERE id=?", (r['id'],)); c.commit(); st.rerun()
+                if b3.button("🔄 RENOVAR 30D", key=f"r_{r['id']}"):
+                    nova = (datetime.strptime(str(r['vencimento']), '%Y-%m-%d') + pd.Timedelta(days=30)).date()
+                    c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET vencimento=? WHERE id=?", (str(nova), r['id'])); c.commit(); st.rerun()
+
+with tab2:
+    if total_clientes > 0:
+        st.subheader("📊 Distribuição de Clientes")
+        fig = px.pie(values=[em_dia, vencidos], names=['Em Dia', 'Vencidos'], hole=.4, color_discrete_sequence=['#00ff00', '#ff0000'])
+        st.plotly_chart(fig)
+        
+        st.subheader("💸 Detalhamento Financeiro")
+        f1, f2 = st.columns(2)
+        f1.info(f"Custo Total Mensal: R$ {custos:,.2f}")
+        f2.success(f"Lucro Estimado: R$ {liquido:,.2f}")
+    else:
+        st.warning("Sem dados para gerar gráficos.")
 
 with tab3:
-    st.subheader("🤖 CENTRAL DE AUTOMAÇÃO")
-    st.info(f"🕒 Próximos envios automáticos agendados para: **09:00** e **19:30** (Horário de Brasília)")
-    
-    # Filtro automático de quem precisa receber mensagem HOJE
-    lista_cobranca = []
-    if not df.empty:
-        for _, r in df.iterrows():
-            status, msg, icon, dias = obter_regua(r['vencimento'])
-            if dias <= 3: # Avisar com 3 dias de antecedência até vencidos
-                lista_cobranca.append(r)
-    
-    if lista_cobranca:
-        st.warning(f"Existem {len(lista_cobranca)} clientes na fila de cobrança para hoje.")
-        if st.button("🚀 DISPARAR LEMBRETES AGORA (MANUAL)"):
-            for s in lista_cobranca:
-                _, msg_f, _, _ = obter_regua(s['vencimento'])
-                # Formata link para facilitar o clique
-                link = f"https://wa.me/{s['whatsapp']}?text={urllib.parse.quote(msg_f)}"
-                st.write(f"✅ Link gerado para {s['nome']}")
-                st.link_button(f"Enviar para {s['nome']}", link)
+    st.subheader("🚀 Central de Cobrança")
+    # Lógica de cobrança simplificada e profissional
+    cobrancas = [r for _, r in df.iterrows() if obter_regua(r['vencimento'])[3] <= 3]
+    if cobrancas:
+        for c in cobrancas:
+            status, msg, icon, _ = obter_regua(c['vencimento'])
+            st.write(f"{icon} **{c['nome']}** ({status})")
+            link = f"https://wa.me/{c['whatsapp']}?text={urllib.parse.quote(msg)}"
+            st.link_button(f"Enviar WhatsApp para {c['nome']}", link)
     else:
-        st.success("Tudo em dia! Nenhuma cobrança pendente para os horários agendados.")
-
-# --- MANUTENÇÃO DE CÓDIGO (TABS 2 E 4 SEGUEM A LÓGICA DO SEU OFICIAL) ---
-with tab2:
-    with st.form("novo_cli"):
-        st.subheader("Cadastro Rápido")
-        # ... (Campos de cadastro do seu script oficial)
-        st.form_submit_button("CADASTRAR")
+        st.success("Nenhuma cobrança pendente para os próximos 3 dias!")
 
 with tab4:
-    st.subheader("Configurações do Sistema")
-    # ... (Gestão de servidores e backup)
+    st.subheader("⚙️ Configurações de Sistema")
+    # Espaço para Backup e Gestão de Servidores (Como no seu script anterior)
+    if st.button("📥 Exportar Backup Excel"):
+        buf = io.BytesIO()
+        df.to_excel(buf, index=False)
+        st.download_button("Clique para Baixar", buf.getvalue(), "backup_supertv.xlsx")
 
