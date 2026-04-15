@@ -88,7 +88,7 @@ else:
     total_clientes = vencidos = em_dia = bruto = custos = liquido = 0
 
 # --- TELA PRINCIPAL ---
-st.title("📊 Gestão Supertv4k")
+st.title("GESTÃO DE CLIENTES")
 
 # Dash de Métricas com CSS
 c1, c2, c3, c4 = st.columns(4)
@@ -138,19 +138,19 @@ with tab1:
 
 with tab2:
     if total_clientes > 0:
-        st.subheader("📊 Distribuição de Clientes")
+        st.subheader("📊 GRÁFICO DE RENOVAÇÕES")
         fig = px.pie(values=[em_dia, vencidos], names=['Em Dia', 'Vencidos'], hole=.4, color_discrete_sequence=['#00ff00', '#ff0000'])
         st.plotly_chart(fig)
         
-        st.subheader("💸 Detalhamento Financeiro")
+        st.subheader("💸 DETALHAMENTO FINANCEIRO")
         f1, f2 = st.columns(2)
-        f1.info(f"Custo Total Mensal: R$ {custos:,.2f}")
-        f2.success(f"Lucro Estimado: R$ {liquido:,.2f}")
+        f1.info(f"CUSTO TOTAL : R$ {custos:,.2f}")
+        f2.success(f"LUCRO ESTIMADO: R$ {liquido:,.2f}")
     else:
         st.warning("Sem dados para gerar gráficos.")
 
 with tab3:
-    st.subheader("🚀 Central de Cobrança")
+    st.subheader("🚀CENTRAL DE COBRANÇAS")
     # Lógica de cobrança simplificada e profissional
     cobrancas = [r for _, r in df.iterrows() if obter_regua(r['vencimento'])[3] <= 3]
     if cobrancas:
@@ -163,7 +163,7 @@ with tab3:
         st.success("Nenhuma cobrança pendente para os próximos 3 dias!")
 
 with tab4:
-    st.subheader("⚙️ Configurações de Sistema")
+    st.subheader("⚙️ CONFIGURAÇÕES")
     # Espaço para Backup e Gestão de Servidores (Como no seu script anterior)
     if st.button("📥 Exportar Backup Excel"):
         buf = io.BytesIO()
