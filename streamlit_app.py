@@ -8,12 +8,11 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS COMPLETA (DESIGN METALIZADO E TEXTO BRANCO) ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO, TEXTO BRANCO E SOMBRA FORTE) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     
-    /* Centralização das Logos */
     .logo-container {
         display: flex;
         justify-content: center;
@@ -21,7 +20,6 @@ st.markdown("""
         margin-bottom: 25px;
     }
 
-    /* Cards de Métricas (Organizados de 2 em 2) */
     .metric-card {
         background-color: #161b22;
         padding: 15px;
@@ -33,7 +31,7 @@ st.markdown("""
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
     .metric-value { font-size: 24px; font-weight: bold; color: #ff0000; margin-top: 5px; }
     
-    /* BOTÕES GERAIS E DE FORMULÁRIO */
+    /* BOTÕES GERAIS */
     div.stButton > button, 
     div.stDownloadButton > button, 
     div.stFormSubmitButton > button,
@@ -47,26 +45,39 @@ st.markdown("""
         height: 50px !important;
         width: 100% !important;
         text-transform: uppercase !important;
-        transition: 0.4s !important;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.3) !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7) !important;
     }
 
-    /* O FAMOSO BOTÃO DO CLIENTE (EXPANDER) */
+    /* ESTILO DO CABEÇALHO DO CLIENTE (EXPANDER) */
     .stExpander { border: none !important; margin-bottom: 15px !important; }
     .stExpander > details > summary {
         background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
         color: #ffffff !important;
-        padding: 12px 15px !important;
+        padding: 15px !important;
         border-radius: 12px !important;
         border: 2px solid #ffffff44 !important;
         list-style: none !important;
     }
 
-    /* EFEITO HOVER */
+    /* FORMATAÇÃO DO TEXTO DENTRO DO BOTÃO */
+    .header-top {
+        font-size: 24px !important; /* Nome e User maiores */
+        font-weight: 900 !important;
+        display: block;
+        text-shadow: 3px 3px 5px rgba(0,0,0,0.8) !important;
+        line-height: 1.2;
+    }
+    .header-bottom {
+        font-size: 16px !important; /* Senha e Sistema embaixo */
+        font-weight: 700 !important;
+        display: block;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
+        margin-top: 5px;
+    }
+
     button:hover, summary:hover, a:hover {
         transform: scale(1.01) !important;
         filter: brightness(1.1) !important;
-        box-shadow: 0px 0px 20px rgba(255, 0, 0, 0.5) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -97,8 +108,8 @@ st.markdown('<div class="logo-container">', unsafe_allow_html=True)
 col_a, col_b, col_c = st.columns([1, 4, 1])
 with col_b:
     img_col1, img_col2 = st.columns(2)
-    img_col1.image("https://i.imgur.com/CKq9BVx.png", use_container_width=True) # Supertv4k
-    img_col2.image("https://i.imgur.com/OkUAPQa.png", use_container_width=True) # Gestão
+    img_col1.image("https://i.imgur.com/CKq9BVx.png", use_container_width=True)
+    img_col2.image("https://i.imgur.com/OkUAPQa.png", use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 5. CARREGAR DADOS ---
@@ -106,122 +117,92 @@ conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
 
-# --- 6. DASHBOARD DE MÉTRICAS (DUAS EM DUAS) ---
+# --- 6. MÉTRICAS ---
 if not df.empty:
     hoje = datetime.now().date()
     df['venc_dt'] = pd.to_datetime(df['vencimento']).dt.date
     df['dias_res'] = (df['venc_dt'] - hoje).apply(lambda x: x.days)
-    
     total, bruto, custos = len(df), df['mensalidade'].sum(), df['custo'].sum()
     em_dia = len(df[df['dias_res'] > 0])
     vencidos = len(df[df['dias_res'] < 0])
     vence_3d = len(df[(df['dias_res'] >= 0) & (df['dias_res'] <= 3)])
 
     m1, m2 = st.columns(2)
-    with m1: st.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value">{total}</div></div>', unsafe_allow_html=True)
-    with m2: st.markdown(f'<div class="metric-card"><div class="metric-label">EM DIA</div><div class="metric-value">{em_dia}</div></div>', unsafe_allow_html=True)
-    
+    m1.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value">{total}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-card"><div class="metric-label">EM DIA</div><div class="metric-value">{em_dia}</div></div>', unsafe_allow_html=True)
     m3, m4 = st.columns(2)
-    with m3: st.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value">{vencidos}</div></div>', unsafe_allow_html=True)
-    with m4: st.markdown(f'<div class="metric-card"><div class="metric-label">VENCE EM 3 DIAS</div><div class="metric-value">{vence_3d}</div></div>', unsafe_allow_html=True)
-    
+    m3.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value">{vencidos}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">VENCE EM 3 DIAS</div><div class="metric-value">{vence_3d}</div></div>', unsafe_allow_html=True)
     m5, m6 = st.columns(2)
-    with m5: st.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
-    with m6: st.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value">R$ {bruto-custos:,.2f}</div></div>', unsafe_allow_html=True)
-    
+    m5.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
+    m6.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value">R$ {bruto-custos:,.2f}</div></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="metric-card"><div class="metric-label">CUSTOS COM CRÉDITOS</div><div class="metric-value">R$ {custos:,.2f}</div></div>', unsafe_allow_html=True)
 
 st.divider()
 
-# --- 7. ABAS PRINCIPAIS ---
+# --- 7. ABAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["👤 GESTÃO", "➕ CADASTRAR", "📢 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
-    busca = st.text_input("🔍 PESQUISAR CLIENTE OU USUÁRIO")
+    busca = st.text_input("🔍 PESQUISAR NOME OU USUÁRIO")
     if not df.empty:
         for _, r in df.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
                 
-                # DESIGN DO CABEÇALHO: NOME (CIMA) | INFO (BAIXO)
-                header_format = f"👤 {r['nome'].upper()} \n U: {r['usuario']} | S: {r['senha']} | ({r.get('sistema', 'IPTV')})"
+                # NOVO FORMATO DE TEXTO DO BOTÃO
+                header_html = f"""
+                <span class="header-top">👤 {r['nome'].upper()} | {r['usuario']}</span>
+                <span class="header-bottom">SENHA: {r['senha']} | SISTEMA: {r.get('sistema', 'IPTV')}</span>
+                """
                 
-                with st.expander(header_format):
-                    # Forçando o texto branco e grande dentro do expander via Markdown
-                    st.markdown(f"""
-                    <div style='background-color: #161b22; padding: 10px; border-radius: 5px; border-left: 5px solid red;'>
-                        <h2 style='color: white; margin-bottom: 0px;'>{r['nome'].upper()}</h2>
-                        <p style='color: #c0c0c0; font-size: 18px;'><b>User:</b> {r['usuario']} | <b>Senha:</b> {r['senha']} | <b>Sist:</b> {r.get('sistema', 'IPTV')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    with st.form(key=f"edit_form_{r['id']}"):
+                with st.expander(header_html):
+                    with st.form(key=f"edit_{r['id']}"):
                         c1, c2 = st.columns(2)
-                        en = c1.text_input("Nome", value=r['nome'])
-                        ew = c2.text_input("WhatsApp", value=r['whatsapp'])
-                        
+                        en, ew = c1.text_input("Nome", value=r['nome']), c2.text_input("WhatsApp", value=r['whatsapp'])
                         c3, c4 = st.columns(2)
-                        eu = c3.text_input("Usuário", value=r['usuario'])
-                        es = c4.text_input("Senha", value=r['senha'])
-                        
+                        eu, es = c3.text_input("Usuário", value=r['usuario']), c4.text_input("Senha", value=r['senha'])
                         srv_list = get_servidores()
                         esrv = st.selectbox("Servidor", srv_list, index=srv_list.index(r['servidor']) if r['servidor'] in srv_list else 0)
-                        
                         c5, c6, c7 = st.columns(3)
                         ev = c5.date_input("Vencimento", value=pd.to_datetime(r['vencimento']).date())
                         em = c6.number_input("Mensalidade R$", value=float(r['mensalidade']))
                         esis = c7.radio("Sistema", ["IPTV", "P2P"], index=0 if r.get('sistema') == "IPTV" else 1, horizontal=True)
-                        
                         st.divider()
                         b_save, b_renew, b_del = st.columns(3)
-                        
                         if b_save.form_submit_button("💾 SALVAR"):
-                            conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=?, sistema=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, esis, r['id']))
-                            conn.commit(); st.rerun()
-
+                            c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=?, sistema=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, esis, r['id'])); c.commit(); st.rerun()
                         if b_renew.form_submit_button("🔄 +30 DIAS"):
-                            nova_data = pd.to_datetime(r['vencimento']).date() + timedelta(days=30)
-                            conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (str(nova_data), r['id']))
-                            conn.commit(); st.success("Renovado!"); st.rerun()
-                        
+                            nova = pd.to_datetime(r['vencimento']).date() + timedelta(days=30)
+                            c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET vencimento=? WHERE id=?", (str(nova), r['id'])); c.commit(); st.rerun()
                         if b_del.form_submit_button("🗑️ EXCLUIR"):
-                            conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
-                            conn.commit(); st.rerun()
+                            c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM clientes WHERE id=?", (r['id'],)); c.commit(); st.rerun()
 
 with tab2:
-    with st.form("cad_novo", clear_on_submit=True):
+    with st.form("cad"):
         st.subheader("🚀 Novo Cliente")
         f1, f2 = st.columns(2); n = f1.text_input("NOME"); w = f2.text_input("WHATSAPP")
         f3, f4 = st.columns(2); u = f3.text_input("USER"); s = f4.text_input("SENHA")
         srv = st.selectbox("SERVIDOR", get_servidores())
         v = st.date_input("VENCIMENTO", value=datetime.now() + timedelta(days=30))
         f5, f6, f7 = st.columns(3)
-        cu = f5.number_input("CUSTO", 0.0); me = f6.number_input("VALOR", 35.0)
+        cu, me = f5.number_input("CUSTO", 0.0), f6.number_input("VALOR", 35.0)
         si = f7.radio("SISTEMA", ["IPTV", "P2P"], horizontal=True)
         if st.form_submit_button("🚀 CADASTRAR AGORA"):
-            conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade, sistema) VALUES (?,?,?,?,?,?,?,?,?)", (n, w, u, s, srv, str(v), cu, me, si))
-            conn.commit(); st.success("Cadastrado!"); st.rerun()
+            c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade, sistema) VALUES (?,?,?,?,?,?,?,?,?)", (n, w, u, s, srv, str(v), cu, me, si)); c.commit(); st.rerun()
 
 with tab3:
-    st.subheader("📢 Cobrança")
-    pix_chave = "62.326.879/0001-13"
+    st.subheader("📢 Central de Cobrança")
+    pix = "62.326.879/0001-13"
     if not df.empty:
-        df_c = df[df['dias_res'] <= 3]
-        for _, c in df_c.iterrows():
-            msg = f"Olá {c['nome']}! Sua assinatura Supertv4k vence em breve. Renove via PIX: {pix_chave}"
-            st.link_button(f"📲 ENVIAR PARA {c['nome']}", f"https://wa.me/{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+        for _, cl in df[df['dias_res'] <= 3].iterrows():
+            st.link_button(f"📲 ENVIAR PARA {cl['nome']}", f"https://wa.me/{cl['whatsapp']}?text=Sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}")
 
 with tab4:
-    st.subheader("⚙️ Ajustes")
-    ns = st.text_input("Nome do Servidor")
+    st.subheader("⚙️ Configurações")
+    ns = st.text_input("Novo Servidor")
     if st.button("➕ ADICIONAR"):
         if ns:
-            conn = sqlite3.connect('supertv_gestao.db'); conn.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns,)); conn.commit(); st.rerun()
-    st.divider()
+            c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns,)); c.commit(); st.rerun()
     if not df.empty:
-        buf = io.BytesIO()
-        df.to_excel(buf, index=False)
-        st.download_button("📥 BAIXAR EXCEL (BACKUP)", data=buf.getvalue(), file_name="backup_supertv.xlsx")
+        buf = io.BytesIO(); df.to_excel(buf, index=False)
+        st.download_button("📥 BAIXAR EXCEL", data=buf.getvalue(), file_name="backup_supertv.xlsx")
