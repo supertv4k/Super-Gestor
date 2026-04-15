@@ -8,35 +8,12 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN REFINADO) ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO E SOMBRAS) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    
-    /* Ajuste das Logos: Empilhadas e Próximas */
-    .logo-wrapper {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 20px;
-    }
-    .logo-gestao {
-        max-width: 350px;
-        margin-bottom: -15px; /* Puxa a logo de baixo para mais perto */
-    }
-    .logo-supertv {
-        max-width: 180px; /* Supertv4k menor embaixo */
-    }
-
-    .metric-card {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 12px;
-        text-align: center;
-        border: 1px solid #30363d;
-        margin-bottom: 10px;
-    }
+    .logo-container { display: flex; justify-content: center; align-items: center; margin-bottom: 25px; }
+    .metric-card { background-color: #161b22; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #30363d; margin-bottom: 10px; }
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
     .metric-value { font-size: 22px; font-weight: bold; color: #ff0000; margin-top: 5px; }
     
@@ -84,39 +61,47 @@ conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
 
-# Manter estado de seleção
+# --- 5. LÓGICA DE SELEÇÃO (CORRIGIDA) ---
 if 'selecionados' not in st.session_state:
     st.session_state.selecionados = []
 
-# --- 5. HEADER (LOGOS EMPILHADAS) ---
-st.markdown(f"""
-    <div class="logo-wrapper">
-        <img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao">
-        <img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv">
-    </div>
-""", unsafe_allow_html=True)
+# --- 6. HEADER ---
+st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+c1, c2, c3 = st.columns([1, 4, 1])
+with c2:
+    l1, l2 = st.columns(2)
+    l1.image("https://i.imgur.com/CKq9BVx.png", use_container_width=True)
+    l2.image("https://i.imgur.com/OkUAPQa.png", use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MÉTRICAS ---
+# --- PAINEL DE MÉTRICAS COMPLETO (RESTAURADO) ---
 if not df.empty:
     hoje = datetime.now().date()
     df['venc_dt'] = pd.to_datetime(df['vencimento']).dt.date
     df['dias_res'] = (df['venc_dt'] - hoje).apply(lambda x: x.days)
     
+    total = len(df)
+    vencidos = len(df[df['dias_res'] < 0])
+    vence_3d = len(df[(df['dias_res'] >= 0) & (df['dias_res'] <= 3)])
+    bruto = df['mensalidade'].sum()
+    custos = df['custo'].sum()
+    liquido = bruto - custos
+
     m1, m2 = st.columns(2)
-    m1.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
-    m2.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
+    m1.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value">{total}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value">{vencidos}</div></div>', unsafe_allow_html=True)
     
     m3, m4 = st.columns(2)
-    m3.markdown(f'<div class="metric-card"><div class="metric-label">VENCE EM 3 DIAS</div><div class="metric-value">{len(df[(df["dias_res"] >= 0) & (df["dias_res"] <= 3)])}</div></div>', unsafe_allow_html=True)
-    m4.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value">R$ {df["mensalidade"].sum():,.2f}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-card"><div class="metric-label">VENCE EM 3 DIAS</div><div class="metric-value">{vence_3d}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
     
     m5, m6 = st.columns(2)
-    m5.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value">R$ {df["mensalidade"].sum() - df["custo"].sum():,.2f}</div></div>', unsafe_allow_html=True)
-    m6.markdown(f'<div class="metric-card"><div class="metric-label">CUSTO CRÉDITOS</div><div class="metric-value">R$ {df["custo"].sum():,.2f}</div></div>', unsafe_allow_html=True)
+    m5.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value">R$ {liquido:,.2f}</div></div>', unsafe_allow_html=True)
+    m6.markdown(f'<div class="metric-card"><div class="metric-label">CUSTO CRÉDITOS</div><div class="metric-value">R$ {custos:,.2f}</div></div>', unsafe_allow_html=True)
 
 st.divider()
 
-# --- 6. ABAS ---
+# --- 7. ABAS ---
 t1, t2, t3, t4 = st.tabs(["👤 GESTÃO", "➕ NOVO", "📢 COBRANÇA", "⚙️ AJUSTES"])
 
 with t1:
@@ -156,46 +141,66 @@ with t2:
 with t3:
     st.subheader("📢 Central de Cobrança")
     pix = "62.326.879/0001-13"
+    
     if not df.empty:
         df_aviso = df[df['dias_res'] <= 3].copy()
+        ids_vencendo = df_aviso['id'].tolist()
         
         c_sel, c_limp = st.columns(2)
         if c_sel.button("✅ SELECIONAR TODOS"):
-            st.session_state.selecionados = df_aviso['id'].tolist()
+            st.session_state.selecionados = ids_vencendo
             st.rerun()
         if c_limp.button("❌ LIMPAR SELEÇÃO"):
             st.session_state.selecionados = []
             st.rerun()
 
+        # Lista de clientes para marcar
         for _, cl in df_aviso.iterrows():
             is_checked = cl['id'] in st.session_state.selecionados
+            # Se o usuário clicar manualmente, atualizamos a lista
             check = st.checkbox(f"Pagar: {cl['nome']} (Vence: {cl['vencimento']})", value=is_checked, key=f"cb_{cl['id']}")
+            
             if check and cl['id'] not in st.session_state.selecionados:
                 st.session_state.selecionados.append(cl['id'])
             elif not check and cl['id'] in st.session_state.selecionados:
                 st.session_state.selecionados.remove(cl['id'])
         
         st.divider()
+
         if st.session_state.selecionados:
+            st.write("### 📲 Enviar Avisos")
             for sel_id in st.session_state.selecionados:
-                c_data = df[df['id'] == sel_id].iloc[0]
-                msg = f"Olá {c_data['nome']}! Sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}"
-                st.link_button(f"ENVIAR PARA {c_data['nome']}", f"https://wa.me/{c_data['whatsapp']}?text={urllib.parse.quote(msg)}")
+                # Localiza o cliente na lista original pelo ID
+                cliente_data = df[df['id'] == sel_id].iloc[0]
+                msg = f"Olá {cliente_data['nome']}! Sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}"
+                st.link_button(f"ENVIAR PARA {cliente_data['nome']}", f"https://wa.me/{cliente_data['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with t4:
-    st.subheader("⚙️ Ajustes")
+    st.subheader("⚙️ Ajustes e Backup")
+    
+    # Restaurado: Adicionar Servidor
+    st.markdown("### ➕ Servidores")
     ns = st.text_input("Nome do Novo Servidor")
     if st.button("ADICIONAR SERVIDOR"):
         if ns:
             c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns,)); c.commit(); st.rerun()
+
     st.divider()
-    file_up = st.file_uploader("📥 Importar Excel", type=["xlsx"])
+
+    # Restaurado: Backup e Importação
+    st.markdown("### 📥 Importar Excel")
+    file_up = st.file_uploader("Selecione o arquivo", type=["xlsx"])
     if file_up and st.button("PROCESSAR UPLOAD"):
         data_up = pd.read_excel(file_up)
         conn = sqlite3.connect('supertv_gestao.db')
         data_up.to_sql('clientes', conn, if_exists='append', index=False); conn.close()
-        st.rerun()
+        st.success("Importado com sucesso!"); st.rerun()
+
+    st.divider()
+    
     if not df.empty:
-        tow = io.BytesIO()
-        df.to_excel(tow, index=False)
-        st.download_button("📤 BAIXAR BACKUP", data=tow.getvalue(), file_name="backup_supertv4k.xlsx")
+        towrite = io.BytesIO()
+        df.to_excel(towrite, index=False)
+        st.download_button("📤 BAIXAR BACKUP EXCEL", data=towrite.getvalue(), file_name="backup_supertv4k.xlsx")
+
+
