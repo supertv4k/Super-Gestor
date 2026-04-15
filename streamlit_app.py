@@ -110,14 +110,14 @@ else:
 tab1, tab2, tab3, tab4 = st.tabs(["👤CLIENTES", "➕ADD CLIENTE", "🚨COBRANÇA", "📡➕ ADD SERV"])
 
 with tab1:
-    st.subheader("📊LEVANTAMENTO")
+    st.subheader("📊 LEVANTAMENTO")
     d1, d2 , d3 , d4 = st.columns(4)
     d1.metric("TOTAL DE CLIENTES", f"{total_clientes}")
     d2.metric("EM DIA", f"{em_dia}")
     d3.metric("VENCIDOS", f"{vencidos}")
     d4.metric("VENCE EM 3️⃣ DIAS", f"{vencendo_3_dias}")
 
-    st.markdown("📈FINANCEIRO")
+    st.markdown("#### 📈 FINANCEIRO")
     f1, f2, f3 = st.columns(3)
     f1.metric("BRUTO", f"R$ {faturamento_bruto:,.2f}")
     f2.metric("LÍQUIDO", f"R$ {faturamento_liquido:,.2f}")
