@@ -8,7 +8,7 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO) ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO PERSONALIZADO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -27,17 +27,32 @@ st.markdown("""
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
     .metric-value { font-size: 22px; font-weight: bold; color: #ff0000; margin-top: 5px; }
     
+    /* ESTILO GERAL DOS BOTÕES */
     div.stButton > button, div.stDownloadButton > button, div.stFormSubmitButton > button, [data-testid="stLinkButton"] > a {
-        background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
-        color: #ffffff !important; font-weight: 900 !important; font-size: 16px !important;
-        border-radius: 10px !important; border: 2px solid #ffffff44 !important;
-        height: 50px !important; width: 100% !important; text-transform: uppercase !important;
+        color: #ffffff !important; font-weight: 900 !important; font-size: 14px !important;
+        border-radius: 10px !important; border: 1px solid #ffffff44 !important;
+        height: 45px !important; width: 100% !important; text-transform: uppercase !important;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.7) !important;
+        transition: 0.3s;
     }
+
+    /* BOTÃO SALVAR (AZUL COM DEGRADÊ CINZA METALIZADO) */
+    div.stFormSubmitButton > button[kind="primaryFormSubmit"], 
+    div.stFormSubmitButton > button:first-child,
+    button[description="salvar_btn"] {
+        background: linear-gradient(135deg, #0052D4 0%, #929ED1 50%, #E0EAFC 100%) !important;
+        color: white !important;
+    }
+
+    /* BOTÃO EXCLUIR (VERMELHO) - Identificado pelo label via CSS seletor */
+    button[data-testid="baseButton-secondaryFormSubmit"] {
+        background: linear-gradient(135deg, #FF0000 0%, #8B0000 100%) !important;
+    }
+
     .stExpander > details > summary { 
         background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important; 
         color: #ffffff !important; padding: 15px !important; border-radius: 10px !important; 
-        font-weight: 800 !important; font-size: 20px !important; 
+        font-weight: 800 !important; font-size: 18px !important; 
     }
     </style>
     """, unsafe_allow_html=True)
@@ -56,7 +71,10 @@ def init_db():
 
 def get_servidores():
     conn = sqlite3.connect('supertv_gestao.db')
-    lista = pd.read_sql_query("SELECT nome FROM lista_servidores ORDER BY nome", conn)['nome'].tolist()
+    try:
+        lista = pd.read_sql_query("SELECT nome FROM lista_servidores ORDER BY nome", conn)['nome'].tolist()
+    except:
+        lista = []
     conn.close()
     return lista if lista else ["UNIPlAY", "MUNDOGF", "P2BRAZ"]
 
@@ -72,7 +90,7 @@ if 'selecionados' not in st.session_state: st.session_state.selecionados = []
 # --- 5. HEADER (LOGOS) ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. PAINEL DE MÉTRICAS COMPLETO ---
+# --- 6. PAINEL DE MÉTRICAS ---
 if not df.empty:
     hoje = datetime.now().date()
     df['venc_dt'] = pd.to_datetime(df['vencimento']).dt.date
@@ -103,18 +121,37 @@ with tab1:
         for _, r in df.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
                 with st.expander(f"👤 {r['nome'].upper()} / {r['usuario']}"):
+                    # Formulário de Edição com Botões Lado a Lado
                     with st.form(key=f"ed_{r['id']}"):
                         col1, col2 = st.columns(2)
                         en = col1.text_input("Nome", value=r['nome'])
                         ew = col2.text_input("WhatsApp", value=r['whatsapp'])
                         eu = col1.text_input("Usuário", value=r['usuario'])
                         es = col2.text_input("Senha", value=r['senha'])
+                        
                         srvs = get_servidores()
                         esrv = st.selectbox("Servidor", srvs, index=srvs.index(r['servidor']) if r['servidor'] in srvs else 0)
-                        ev = st.date_input("Vencimento", value=pd.to_datetime(r['vencimento']).date())
-                        em = st.number_input("Valor", value=float(r['mensalidade']))
-                        if st.form_submit_button("💾 SALVAR"):
-                            c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, r['id'])); c.commit(); st.rerun()
+                        
+                        col3, col4 = st.columns(2)
+                        ev = col3.date_input("Vencimento", value=pd.to_datetime(r['vencimento']).date())
+                        em = col4.number_input("Valor Mensalidade", value=float(r['mensalidade']))
+                        
+                        st.write("---")
+                        # Colunas para os botões ficarem lado a lado
+                        b_col1, b_col2 = st.columns(2)
+                        
+                        save_btn = b_col1.form_submit_button("💾 SALVAR")
+                        del_btn = b_col2.form_submit_button("🗑️ EXCLUIR")
+                        
+                        if save_btn:
+                            c = sqlite3.connect('supertv_gestao.db')
+                            c.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, r['id']))
+                            c.commit(); st.success("Atualizado!"); st.rerun()
+                        
+                        if del_btn:
+                            c = sqlite3.connect('supertv_gestao.db')
+                            c.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
+                            c.commit(); st.warning("Cliente Excluído!"); st.rerun()
 
 with tab2:
     st.subheader("🚀 Cadastro de Novo Cliente")
@@ -135,10 +172,7 @@ with tab2:
                 conn = sqlite3.connect('supertv_gestao.db')
                 conn.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade) VALUES (?,?,?,?,?,?,?,?)", (n_n, w_n, u_n, s_n, srv_n, str(v_n), c_n, m_n))
                 conn.commit(); conn.close()
-                st.success("Cadastrado! Voltando para Gestão...")
-                st.rerun()
-            else:
-                st.error("Preencha Nome e Usuário!")
+                st.success("Cadastrado!"); st.rerun()
 
 with tab3:
     st.subheader("📢 Central de Cobrança")
@@ -153,8 +187,6 @@ with tab3:
             dias = cl['dias_res']
             status = "VENCE HOJE" if dias == 0 else (f"VENCE EM {dias} DIAS" if dias > 0 else f"VENCIDO HÁ {abs(dias)} DIAS")
             data_formatada = pd.to_datetime(cl['vencimento']).strftime('%d/%m/%Y')
-            
-            # Label atualizado com Nome, Data e Status de dias
             label = f"🔔 {cl['nome']} | Vencimento: {data_formatada} ({status})"
             
             check = st.checkbox(label, value=(cl['id'] in st.session_state.selecionados), key=f"cob_{cl['id']}")
