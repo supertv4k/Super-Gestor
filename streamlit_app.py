@@ -12,10 +12,44 @@ st.set_page_config(page_title="CLIENTES", layout="wide")
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 20px; }
     .stButton>button { border-radius: 8px; font-weight: bold; width: 100%; }
     div[data-baseweb="radio"] > div { flex-direction: row !important; gap: 20px; }
     .stCheckbox { margin-bottom: -15px; }
+    
+    /* ESTILO DO NOVO DASHBOARD CENTRALIZADO */
+    .dashboard-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 25px;
+        font-family: sans-serif;
+        margin-bottom: 35px;
+        padding: 25px;
+        background-color: #1a1c23;
+        border-radius: 15px;
+    }
+    .dashboard-row {
+        display: flex;
+        justify-content: center;
+        gap: 80px;
+        width: 100%;
+    }
+    .stat-card {
+        text-align: center;
+        min-width: 200px;
+    }
+    .stat-title {
+        font-size: 15px;
+        text-transform: uppercase;
+        color: #ffffff; /* Títulos em Branco */
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+    .stat-value {
+        font-size: 30px;
+        font-weight: 800;
+        color: #ff4b4b; /* Valores em Vermelho */
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,23 +133,51 @@ else:
 tab1, tab2, tab3, tab4 = st.tabs(["👥 CLIENTES", "➕ ADD CLIENTE", "📢 COBRANÇA", "📡 SERVIDORES"])
 
 with tab1:
-    # --- DASHBOARD CORRIGIDO (Lado a Lado) ---
-    st.subheader("📊 Resumo Operacional")
-    d1, d2, d3, d4 = st.columns(4)
-    d1.metric("Total Clientes", f"{total_clientes}")
-    d2.metric("Em Dia", f"{em_dia}")
-    d3.metric("Vencidos", f"{vencidos}")
-    d4.metric("Vence em 3 dias", f"{vencendo_3_dias}")
-
-    st.markdown("### 💰 Financeiro")
-    # AQUI ESTÁ A CORREÇÃO: 3 colunas bem distribuídas
-    f1, f2, f3 = st.columns(3)
-    f1.metric("Bruto", f"R$ {faturamento_bruto:,.2f}")
-    f2.metric("Líquido", f"R$ {faturamento_liquido:,.2f}")
-    f3.metric("Custos", f"R$ {custos_totais:,.2f}")
+    # --- NOVO DASHBOARD CENTRALIZADO E COLORIDO ---
+    st.markdown(f"""
+        <div class="dashboard-container">
+            <div class="dashboard-row">
+                <div class="stat-card">
+                    <div class="stat-title">Total de clientes</div>
+                    <div class="stat-value">{total_clientes}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Clientes em dia</div>
+                    <div class="stat-value">{em_dia}</div>
+                </div>
+            </div>
+            <div class="dashboard-row">
+                <div class="stat-card">
+                    <div class="stat-title">Vencidos</div>
+                    <div class="stat-value">{vencidos}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Vence em 3 dias</div>
+                    <div class="stat-value">{vencendo_3_dias}</div>
+                </div>
+            </div>
+            <div class="dashboard-row">
+                <div class="stat-card">
+                    <div class="stat-title">Lucro Bruto</div>
+                    <div class="stat-value">R$ {faturamento_bruto:,.2f}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Lucro Líquido</div>
+                    <div class="stat-value">R$ {faturamento_liquido:,.2f}</div>
+                </div>
+            </div>
+            <div class="dashboard-row">
+                <div class="stat-card">
+                    <div class="stat-title">Custos com Créditos</div>
+                    <div class="stat-value">R$ {custos_totais:,.2f}</div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
     st.divider()
     
+    # --- BUSCA E LISTAGEM ---
     busca = st.text_input("🔍 Buscar cliente...")
     
     servs_at = get_servidores()
