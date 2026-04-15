@@ -117,7 +117,7 @@ with tab1:
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, r['id'])); c.commit(); st.rerun()
 
 with tab2:
-    st.subheader("🚀 CADASTRO NOVO CLIENTE")
+    st.subheader("🚀 Cadastro de Novo Cliente")
     with st.form("form_novo", clear_on_submit=True):
         f1, f2 = st.columns(2)
         n_n = f1.text_input("NOME COMPLETO")
@@ -141,7 +141,7 @@ with tab2:
                 st.error("Preencha Nome e Usuário!")
 
 with tab3:
-    st.subheader("🚦CENTRAL DE COBRANÇAS")
+    st.subheader("📢 Central de Cobrança")
     pix_chave = "62.326.879/0001-13"
     if not df.empty:
         df_aviso = df[df['dias_res'] <= 3].copy()
@@ -169,22 +169,23 @@ with tab3:
                 st.link_button(f"ENVIAR PARA {cli['nome']}", f"https://wa.me/{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ ADD SERV E BECKUPS"); st.markdown("### ➕SERVIDORES")
-ns = st.text_input("NOVO SERVIDOR")
+    st.subheader("⚙️ Ajustes e Backup")
+    st.markdown("### ➕ Servidores")
+    ns = st.text_input("Novo Servidor")
     if st.button("ADICIONAR SERVIDOR"):
         if ns:
             c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns,)); c.commit(); st.rerun()
     st.divider()
-    st.markdown("### 💾 GERENCIAR DADOS")
+    st.markdown("### 💾 Gerenciar Dados")
     col_up, col_down = st.columns(2)
     with col_up:
-        st.write("📥 **UPLOAD LISTA**")
+        st.write("📥 **Importar Excel**")
         f_up = st.file_uploader("Arquivo .xlsx", type=["xlsx"])
         if f_up and st.button("PROCESSAR UPLOAD"):
             pd.read_excel(f_up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
             st.success("Importado!"); st.rerun()
     with col_down:
-        st.write("📤 **DOWLOAD LISTA**")
+        st.write("📤 **Baixar Backup**")
         if not df.empty:
             tow = io.BytesIO(); df.to_excel(tow, index=False)
             st.download_button(label="📥 DOWNLOAD EXCEL", data=tow.getvalue(), file_name="backup_supertv4k.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
