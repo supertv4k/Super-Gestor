@@ -73,10 +73,6 @@ def get_servidores():
     conn.close()
     return lista
 
-# --- LOGICA DE NAVEGAÇÃO ---
-if "aba_ativa" not in st.session_state:
-    st.session_state.aba_ativa = 0
-
 # --- INTERFACE ---
 st.image("https://i.imgur.com/CKq9BVx.png", width=250)
 st.title("👥 GESTÃO DE CLIENTES")
@@ -99,21 +95,20 @@ if not df.empty:
 else:
     total_clientes = em_dia = vencidos = vencendo_3_dias = faturamento_bruto = custos_totais = faturamento_liquido = 0
 
-# Tabs com controle de estado
 tab1, tab2, tab3, tab4 = st.tabs(["👥 CLIENTES", "➕ ADD CLIENTE", "🚨 AVISO WHATSAPP", "📡 SERVIDORES"])
 
 with tab1:
-    # --- DASHBOARD LINHA ABAIXO DA BUSCA ---
+    # Dashboard rápido
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Clientes", f"{total_clientes}")
-    c2.metric("Em Dia", f"{em_dia}", delta_color="normal")
-    c3.metric("Vencidos", f"{vencidos}", delta="-Vencidos", delta_color="inverse")
+    c2.metric("Em Dia", f"{em_dia}")
+    c3.metric("Vencidos", f"{vencidos}")
     c4.metric("Vence em 3 dias", f"{vencendo_3_dias}")
 
     c5, c6, c7 = st.columns(3)
-    c5.metric("Bruto (Mensalidades)", f"R$ {faturamento_bruto:,.2f}")
+    c5.metric("Bruto", f"R$ {faturamento_bruto:,.2f}")
     c6.metric("Líquido", f"R$ {faturamento_liquido:,.2f}")
-    c7.metric("Guardar (Custos)", f"R$ {custos_totais:,.2f}", delta="Pagar Servidores", delta_color="inverse")
+    c7.metric("Custos", f"R$ {custos_totais:,.2f}")
     
     st.divider()
     busca = st.text_input("🔍 Buscar cliente...")
@@ -125,6 +120,7 @@ with tab1:
                 status, _, icon, _ = obter_regua(r['vencimento'])
                 edit_key = f"ed_{r['id']}"
                 if edit_key not in st.session_state: st.session_state[edit_key] = False
+                
                 with st.expander(f"{icon} {r['nome']} | {r['sistema']} | {status}"):
                     if not st.session_state[edit_key]:
                         col1, col2, col3 = st.columns([1, 2, 2])
@@ -132,12 +128,17 @@ with tab1:
                             if r['logo']: st.image(r['logo'], width=100)
                             else: st.write("🚫 Sem Logo")
                         with col2:
-                            st.write(f"**Dados:** `{r['usuario']}` / `{r['senha']}`")
-                            st.write(f"**Vencimento:** {r['vencimento']}")
+                            st.write(f"**Usuário:** `{r['usuario']}`")
+                            st.write(f"**Senha:** `{r['senha']}`")
                             st.write(f"**WhatsApp:** {r['whatsapp']}")
+                            st.write(f"**Vencimento:** {r['vencimento']}")
                         with col3:
-                            st.write(f"**Servidor:** {r['servidor']}")
-                            st.write(f"**Obs:** {r['observacao']}")
+                            # EXIBIÇÃO FINANCEIRA INDIVIDUAL SOLICITADA
+                            st.write(f"**💰 Mensalidade:** R$ {r['mensalidade']:.2f}")
+                            st.write(f"**📉 Custo:** R$ {r['custo']:.2f}")
+                            st.write(f"**💵 Lucro:** R$ {(r['mensalidade'] - r['custo']):.2f}")
+                            st.write(f"**📝 Obs:** {r['observacao']}")
+                        
                         st.divider()
                         b1, b2, b3 = st.columns([1,1,2])
                         if b1.button("📝 Editar", key=f"be_{r['id']}"):
@@ -155,22 +156,30 @@ with tab1:
                             ce1, ce2 = st.columns(2); ed_u = ce1.text_input("User", value=r['usuario']); ed_p = ce2.text_input("Senha", value=r['senha'])
                             ce3, ce4 = st.columns(2); ed_s = ce3.radio("Sistema", ["IPTV", "P2P"], index=0 if r['sistema']=="IPTV" else 1, horizontal=True); ed_srv = ce4.selectbox("Servidor", servs_at, index=servs_at.index(r['servidor']) if r['servidor'] in servs_at else 0)
                             ed_v = st.date_input("Vencimento", value=datetime.strptime(str(r['vencimento']), '%Y-%m-%d').date())
+                            # Campos financeiros na edição também
+                            ce5, ce6 = st.columns(2)
+                            ed_custo = ce5.number_input("Custo", value=float(r['custo']))
+                            ed_mensal = ce6.number_input("Mensalidade", value=float(r['mensalidade']))
                             ed_o = st.text_area("Observação", value=r['observacao'])
                             if st.form_submit_button("Salvar"):
                                 l_b = up_l.read() if up_l else r['logo']
-                                c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, sistema=?, servidor=?, vencimento=?, observacao=?, logo=? WHERE id=?", (ed_n, ed_u, ed_p, ed_s, ed_srv, str(ed_v), ed_o, l_b, r['id'])); c.commit(); st.session_state[edit_key] = False; st.rerun()
+                                c = sqlite3.connect('supertv_gestao.db')
+                                c.execute("""UPDATE clientes SET nome=?, usuario=?, senha=?, sistema=?, servidor=?, 
+                                          vencimento=?, custo=?, mensalidade=?, observacao=?, logo=? WHERE id=?""",
+                                         (ed_n, ed_u, ed_p, ed_s, ed_srv, str(ed_v), ed_custo, ed_mensal, ed_o, l_b, r['id']))
+                                c.commit(); st.session_state[edit_key] = False; st.rerun()
 
 with tab2:
     with st.form("novo", clear_on_submit=True):
         st.subheader("➕ Novo Cliente")
         n_c = st.text_input("NOME")
-        w_c = st.text_input("WHATSAPP (Ex: 5511999999999)")
+        w_c = st.text_input("WHATSAPP")
         c1, c2 = st.columns(2); u_c = c1.text_input("USUÁRIO"); s_c = c2.text_input("SENHA")
         c3, c4 = st.columns(2); srv_c = c3.selectbox("SERVIDOR", get_servidores()); sis_c = c4.radio("SISTEMA", ["IPTV", "P2P"], horizontal=True)
         v_c = st.date_input("VENCIMENTO", value=datetime.now() + pd.Timedelta(days=30))
         c5, c6 = st.columns(2); cu_c = c5.number_input("CUSTO (R$)", value=0.0); me_c = c6.number_input("MENSALIDADE (R$)", value=35.0)
         o_c = st.text_area("OBSERVAÇÃO")
-        l_c = st.file_uploader("LOGO DO SERVIDOR (Opcional)", type=['png', 'jpg'])
+        l_c = st.file_uploader("LOGO (Opcional)", type=['png', 'jpg'])
         
         if st.form_submit_button("🚀 CADASTRAR"):
             if n_c and w_c:
@@ -178,11 +187,10 @@ with tab2:
                 c = sqlite3.connect('supertv_gestao.db')
                 c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, observacao, logo) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (n_c, w_c, u_c, s_c, srv_c, sis_c, str(v_c), cu_c, me_c, o_c, lb))
                 c.commit()
-                st.success("Cadastrado com sucesso! Redirecionando...")
-                # Força o recarregamento e volta para a aba de clientes (aba 0)
-                st.rerun()
+                st.success("Cadastrado! Voltando para a lista...")
+                st.rerun() # Volta para a primeira aba
             else:
-                st.error("Preencha Nome e WhatsApp!")
+                st.error("Nome e WhatsApp são obrigatórios!")
 
 with tab3:
     st.subheader("📢 Cobrança")
@@ -195,7 +203,7 @@ with tab3:
                 status, msg, icon, _ = obter_regua(r['vencimento'])
                 col_sel, col_inf = st.columns([0.5, 9.5])
                 with col_sel:
-                    if st.checkbox("", value=sel_todos, key=f"chk_{r['id']}"): selecionados.append(r)
+                    if st.checkbox("", value=sel_todos, key=f"chk_cob_{r['id']}"): selecionados.append(r)
                 with col_inf: st.write(f"{icon} **{r['nome']}** | {status}")
             if selecionados and st.button("🔗 GERAR LINKS"):
                 for s in selecionados:
@@ -213,7 +221,7 @@ with tab4:
             try:
                 with pd.ExcelWriter(buf, engine='openpyxl') as wr: df.to_excel(wr, index=False)
                 st.download_button("📥 Backup Excel", buf.getvalue(), "gestao.xlsx")
-            except: st.warning("Instale 'openpyxl' para backup.")
+            except: st.warning("Erro no backup. Verifique se o openpyxl está instalado.")
     with c_srv:
         st.subheader("📡 Servidores")
         ns = st.text_input("Novo Nome")
@@ -222,3 +230,5 @@ with tab4:
         rs = st.selectbox("Remover", get_servidores())
         if st.button("Remover"):
             c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM lista_servidores WHERE nome=?", (rs,)); c.commit(); st.rerun()
+
+        
