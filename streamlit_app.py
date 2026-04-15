@@ -8,7 +8,7 @@ import io
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO", layout="wide")
 
-# --- ESTILIZAÇÃO CSS (FOCO NOS BOTÕES VERMELHO + PRATA) ---
+# --- ESTILIZAÇÃO CSS COMPLETA (VERMELHO + PRATA METALIZADO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -33,41 +33,53 @@ st.markdown("""
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
     .metric-value { font-size: 22px; font-weight: bold; color: #ff0000; margin-top: 5px; }
     
-    /* ESTILO DOS BOTÕES (VERMELHO COM DEGRADÊ PRATEADO) */
-    /* Alvos: Botões normais, de formulário, de download e links de WhatsApp */
-    .stButton>button, .stDownloadButton>button, [data-testid="stLinkButton"] > a {
-        background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
-        color: #000000 !important; /* Texto preto para contrastar com o prata */
-        font-weight: bold !important;
-        border: 1px solid #ffffff33 !important;
-        border-radius: 8px !important;
-        transition: 0.3s !important;
-        width: 100% !important;
-        height: 45px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-decoration: none !important;
-    }
-
-    /* Efeito ao passar o mouse ou clicar */
-    .stButton>button:hover, .stDownloadButton>button:hover, [data-testid="stLinkButton"] > a:hover {
-        background: linear-gradient(135deg, #d30000 0%, #e0e0e0 100%) !important;
-        transform: scale(1.02);
-        box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.3);
-    }
-
-    /* Cabeçalho do Cliente (Também com degradê para combinar) */
-    .stExpander { border: none !important; margin-bottom: 8px !important; }
+    /* 1. ESTILO DO BOTÃO DO CLIENTE (EXPANDER) */
+    .stExpander { border: none !important; margin-bottom: 10px !important; }
     .stExpander > details > summary {
-        background: linear-gradient(90deg, #21262d 0%, #30363d 100%) !important;
-        padding: 12px !important;
+        background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        padding: 15px !important;
         border-radius: 10px !important;
-        color: #ffffff !important;
-        font-size: 14px !important;
-        border: 1px solid #444 !important;
+        border: 1px solid #ffffff44 !important;
+        list-style: none !important;
     }
-    .client-hl { color: #ff0000; font-weight: bold; }
+    .stExpander > details > summary:hover {
+        background: linear-gradient(135deg, #d30000 0%, #e0e0e0 100%) !important;
+        box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.4);
+    }
+
+    /* 2. ESTILO DE TODOS OS BOTÕES (CADASTRAR, SALVAR, +30 DIAS, EXCLUIR, ETC) */
+    /* Pegando botões normais e botões de formulário */
+    button[kind="primary"], button[kind="secondary"], .stButton>button, .stDownloadButton>button, [data-testid="stFormSubmitButton"] > button {
+        background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        border: 1px solid #ffffff33 !important;
+        height: 45px !important;
+        width: 100% !important;
+        transition: 0.3s !important;
+        text-transform: uppercase !important;
+    }
+
+    button:hover, .stButton>button:hover, [data-testid="stFormSubmitButton"] > button:hover {
+        transform: scale(1.02) !important;
+        background: linear-gradient(135deg, #d30000 0%, #e0e0e0 100%) !important;
+        box-shadow: 0px 4px 15px rgba(255, 0, 0, 0.5) !important;
+    }
+
+    /* Estilo para o link do WhatsApp (botão de cobrança) */
+    [data-testid="stLinkButton"] > a {
+        background: linear-gradient(135deg, #ff0000 0%, #c0c0c0 100%) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        padding: 10px !important;
+        text-align: center !important;
+        text-decoration: none !important;
+        display: block !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -132,7 +144,7 @@ with tab1:
     if not df.empty:
         for _, r in df.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
-                # Cabeçalho Detalhado
+                # O NOME DO CLIENTE AGORA APARECE NO BOTÃO COM DEGRADÊ
                 header_text = f"👤 {r['nome'].upper()} | U: {r['usuario']} | S: {r['senha']} | ({r.get('sistema', 'IPTV')})"
                 with st.expander(header_text):
                     with st.form(key=f"ed_form_{r['id']}"):
