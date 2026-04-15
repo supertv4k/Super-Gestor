@@ -86,7 +86,7 @@ def get_servidores():
 
 # --- INTERFACE ---
 st.image("https://i.imgur.com/CKq9BVx.png", width=400)
-st.title("👥 GESTÃO DE CLIENTES")
+st.title("GESTÃO DE CLIENTES")
 
 conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
@@ -117,7 +117,7 @@ with tab1:
     d3.metric("VENCIDOS", f"{vencidos}")
     d4.metric("VENCE EM 3️⃣ DIAS", f"{vencendo_3_dias}")
 
-    st.markdown("###💵 FINANCEIRO")
+    st.markdown("📈FINANCEIRO")
     f1, f2, f3 = st.columns(3)
     f1.metric("BRUTO", f"R$ {faturamento_bruto:,.2f}")
     f2.metric("LÍQUIDO", f"R$ {faturamento_liquido:,.2f}")
