@@ -62,7 +62,7 @@ def obter_regua(venc_data):
             msg = f"Sua Assinatura Vence Hoje⏰ ! Faça Agora o pagamento pelo PIX e Já Já Estará Renovado mais 30 Dias!\n\nCopia e Cola no seu Banco!\n\n{pix}"
             return "Vence HOJE", msg, "🟥", dias
         elif dias < 0:
-            msg = f"Sua Assinatura Venceu! Não se Preocupe é só Fazer o Pagamento que Renovamos mais 30 Dias pra Você!\n\nCopia e Cola no seu Banco!\n\n{pix}"
+            msg = f"Sua Assinatura Venceu ⚠️! Não se Preocupe é só Fazer o Pagamento que Renovamos mais 30 Dias pra Você!\n\nCopia e Cola no seu Banco!\n\n{pix}"
             return "VENCIDO", msg, "🚨", dias
         return f"{dias} dias restantes", "", "🟩", dias
     except: return "Erro", "", "❌", 0
@@ -99,20 +99,20 @@ with tab1:
                             if r['logo']: st.image(r['logo'], width=100)
                             else: st.write("🚫 Sem Logo")
                         with c2:
-                            st.write(f"**Dados:** `{r['usuario']}` / `{r['senha']}`")
-                            st.write(f"**Vencimento:** {r['vencimento']}")
-                            st.write(f"**WhatsApp:** {r['whatsapp']}")
+                            st.write(f"**USUARIO:** `{r['usuario']}` **SENHA:** `{r['senha']}`")
+                            st.write(f"**VENCIMENTO:** {r['vencimento']}")
+                            st.write(f"**WHATSAAP:** {r['whatsapp']}")
                         with c3:
-                            st.write(f"**Servidor:** {r['servidor']}")
-                            st.write(f"**Obs:** {r['observacao']}")
+                            st.write(f"**SERVIDOR:** {r['servidor']}")
+                            st.write(f"**OBS:** {r['observacao']}")
                         st.divider()
                         b1, b2, b3 = st.columns([1,1,2])
-                        if b1.button("📝 Editar", key=f"be_{r['id']}"):
+                        if b1.button("📝 EDITAR", key=f"be_{r['id']}"):
                             st.session_state[edit_key] = True; st.rerun()
-                        if b2.button("🗑️ Excluir", key=f"bd_{r['id']}"):
+                        if b2.button("🗑️ EXCLUIR", key=f"bd_{r['id']}"):
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM clientes WHERE id=?", (r['id'],)); c.commit(); st.rerun()
                         d_add = b3.number_input("Dias", value=30, step=1, key=f"n{r['id']}")
-                        if b3.button(f"🔄 Renovar +{d_add} dias", key=f"br_{r['id']}"):
+                        if b3.button(f"🔄 RENOVAR+{d_add} dias", key=f"br_{r['id']}"):
                             nova = (datetime.strptime(str(r['vencimento']), '%Y-%m-%d') + pd.Timedelta(days=d_add)).date()
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET vencimento=? WHERE id=?", (str(nova), r['id'])); c.commit(); st.rerun()
                     else:
