@@ -8,7 +8,7 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO) ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN METALIZADO E SOMBRAS) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -56,12 +56,12 @@ st.markdown("""
         padding: 15px !important;
         border-radius: 10px !important;
         border: 1px solid #ffffff44 !important;
-        font-weight: bold !important;
+        font-weight: 800 !important;
         font-size: 18px !important;
-        text-shadow: 1px 1px 2px black !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5) !important;
     }
 
-    /* CARD INTERNO DE DESTAQUE */
+    /* CARD INTERNO DE DESTAQUE - NOME, USER E SENHA COM SOMBRA */
     .client-detail-card {
         background: #1c2128;
         padding: 20px;
@@ -94,7 +94,7 @@ def get_servidores():
 
 init_db()
 
-# --- 4. HEADER ---
+# --- 4. HEADER (LOGOS) ---
 st.markdown('<div class="logo-container">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1, 4, 1])
 with c2:
@@ -124,23 +124,25 @@ st.divider()
 t1, t2, t3, t4 = st.tabs(["👤 GESTÃO", "➕ NOVO", "📢 COBRANÇA", "⚙️ CONFIG"])
 
 with t1:
-    busca = st.text_input("🔍 PESQUISAR NOME OU USER")
+    busca = st.text_input("🔍 PESQUISAR NOME OU USUÁRIO")
     if not df.empty:
         for _, r in df.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
                 
-                # Título limpo para evitar erro de "spam class"
-                titulo_limpo = f"👤 {r['nome'].upper()} | {r['usuario']}"
+                # Título limpo: NOME / USER / SENHA (Sem rótulos)
+                # Exemplo: GILMAR / 12345 / 6789
+                titulo_botoes = f"👤 {r['nome'].upper()} / {r['usuario']} / {r['senha']}"
                 
-                with st.expander(titulo_limpo):
-                    # O DESIGN APARECE AQUI DENTRO (BRANCO, NEGRITO E COM SOMBRA)
+                with st.expander(titulo_botoes):
+                    # Card Interno com letras bem grandes, em negrito e com sombra
                     st.markdown(f"""
                         <div class="client-detail-card">
-                            <div style="font-size: 28px; font-weight: 900; color: white; text-shadow: 2px 2px 4px black;">
-                                {r['nome'].upper()} | {r['usuario']}
+                            <div style="font-size: 28px; font-weight: 900; color: white; text-shadow: 2px 2px 4px black; line-height: 1.2;">
+                                {r['nome'].upper()} <br>
+                                <span style="font-size: 22px; opacity: 0.9;">{r['usuario']} / {r['senha']}</span>
                             </div>
-                            <div style="font-size: 18px; font-weight: 700; color: #e0e0e0; margin-top: 5px; text-shadow: 1px 1px 3px black;">
-                                SENHA: {r['senha']} | SISTEMA: {r.get('sistema', 'IPTV')}
+                            <div style="font-size: 16px; font-weight: 700; color: #ff0000; margin-top: 10px; text-transform: uppercase;">
+                                SISTEMA: {r.get('sistema', 'IPTV')}
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
@@ -173,7 +175,7 @@ with t1:
 
 with t2:
     with st.form("new"):
-        st.subheader("🚀 Cadastro")
+        st.subheader("🚀 Novo Cadastro")
         f1, f2 = st.columns(2); n = f1.text_input("NOME"); w = f2.text_input("WHATSAPP")
         f3, f4 = st.columns(2); u = f3.text_input("USER"); s = f4.text_input("SENHA")
         srv = st.selectbox("SERVIDOR", get_servidores())
@@ -191,7 +193,7 @@ with t3:
             st.link_button(f"📲 AVISAR {cl['nome']}", f"https://wa.me/{cl['whatsapp']}?text=Olá {cl['nome']}, sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}")
 
 with t4:
-    st.subheader("⚙️ Config")
+    st.subheader("⚙️ Configurações")
     ns = st.text_input("Novo Servidor")
     if st.button("➕ ADICIONAR"):
         if ns:
