@@ -106,7 +106,7 @@ conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
 
-# --- 6. PAINEL DE MÉTRICAS COMPLETO (RESTAURADO) ---
+# --- 6. PAINEL DE MÉTRICAS COMPLETO ---
 if not df.empty:
     hoje = datetime.now().date()
     df['venc_dt'] = pd.to_datetime(df['vencimento']).dt.date
@@ -144,9 +144,7 @@ with t1:
     if not df.empty:
         for _, r in df.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
-                # Título: NOME / USER / SENHA (LIMPO)
                 titulo_botoes = f"👤 {r['nome'].upper()} / {r['usuario']} / {r['senha']}"
-                
                 with st.expander(titulo_botoes):
                     st.markdown(f"""
                         <div class="client-detail-card">
@@ -156,7 +154,6 @@ with t1:
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-
                     with st.form(key=f"ed_{r['id']}"):
                         c1, c2 = st.columns(2)
                         en, ew = c1.text_input("Nome", value=r['nome']), c2.text_input("WhatsApp", value=r['whatsapp'])
@@ -168,7 +165,6 @@ with t1:
                         ev = c5.date_input("Vencimento", value=pd.to_datetime(r['vencimento']).date())
                         em = c6.number_input("Valor", value=float(r['mensalidade']))
                         esis = c7.radio("Sistema", ["IPTV", "P2P"], index=0 if r.get('sistema') == "IPTV" else 1, horizontal=True)
-                        
                         st.divider()
                         b1, b2, b3 = st.columns(3)
                         if b1.form_submit_button("💾 SALVAR"):
@@ -192,11 +188,46 @@ with t2:
             c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade, sistema) VALUES (?,?,?,?,?,?,?,?,?)", (n, w, u, s, srv, str(v), cu, me, si)); c.commit(); st.rerun()
 
 with t3:
-    st.subheader("📢 Avisos de Cobrança")
+    st.subheader("📢 Central de Cobrança Inteligente")
     pix = "62.326.879/0001-13"
+    
     if not df.empty:
-        for _, cl in df[df['dias_res'] <= 3].iterrows():
-            st.link_button(f"📲 ENVIAR PARA {cl['nome']}", f"https://wa.me/{cl['whatsapp']}?text=Olá {cl['nome']}, sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}")
+        # Filtra quem vence em até 3 dias ou já venceu
+        df_aviso = df[df['dias_res'] <= 3].copy()
+        
+        if not df_aviso.empty:
+            # Botão Selecionar Todos
+            col_sel, col_limp = st.columns(2)
+            if col_sel.button("✅ SELECIONAR TODOS"):
+                st.session_state.selecionados = df_aviso['id'].tolist()
+            if col_limp.button("❌ LIMPAR SELEÇÃO"):
+                st.session_state.selecionados = []
+
+            if 'selecionados' not in st.session_state:
+                st.session_state.selecionados = []
+
+            st.write(f"Clientes pendentes: {len(df_aviso)}")
+            
+            # Lista de Checkboxes
+            selecionados_atualizados = []
+            for _, cl in df_aviso.iterrows():
+                checked = cl['id'] in st.session_state.selecionados
+                if st.checkbox(f"Pagar: {cl['nome']} (Vence: {cl['vencimento']})", value=checked, key=f"check_{cl['id']}"):
+                    selecionados_atualizados.append(cl['id'])
+            
+            st.session_state.selecionados = selecionados_atualizados
+
+            st.divider()
+            
+            # Gerar botões apenas para os selecionados
+            if st.session_state.selecionados:
+                st.write("### 📲 Enviar Avisos")
+                for sel_id in st.session_state.selecionados:
+                    cliente = df_aviso[df_aviso['id'] == sel_id].iloc[0]
+                    msg = f"Olá {cliente['nome']}! Sua assinatura Supertv4k vence em breve. Renove via PIX: {pix}"
+                    st.link_button(f"ENVIAR PARA {cliente['nome']}", f"https://wa.me/{cliente['whatsapp']}?text={urllib.parse.quote(msg)}")
+        else:
+            st.success("Nenhum cliente vencendo nos próximos 3 dias!")
 
 with t4:
     st.subheader("⚙️ Configurações e Backup")
