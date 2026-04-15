@@ -169,7 +169,7 @@ with tab3:
                 st.link_button(f"ENVIAR PARA {cli['nome']}", f"https://wa.me/{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ ADD SERV E BECKUPS")  st.markdown("### ➕SERVIDORES")
+    st.subheader("⚙️ ADD SERV E BECKUPS")st.markdown("### ➕SERVIDORES")
 ns = st.text_input("NOVO SERVIDOR")
     if st.button("ADICIONAR SERVIDOR"):
         if ns:
