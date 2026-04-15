@@ -12,7 +12,7 @@ st.set_page_config(page_title="CLIENTES", layout="wide")
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 24px; }
+    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 20px; }
     .stButton>button { border-radius: 8px; font-weight: bold; width: 100%; }
     div[data-baseweb="radio"] > div { flex-direction: row !important; gap: 20px; }
     .stCheckbox { margin-bottom: -15px; }
@@ -62,7 +62,7 @@ def obter_regua(venc_data):
             msg = f"Sua Assinatura Vence Hoje⏰ ! Faça Agora o pagamento pelo PIX e Já Já Estará Renovado mais 30 Dias!\n\nCopia e Cola no seu Banco!\n\n{pix}"
             return "Vence HOJE", msg, "🟥", dias
         elif dias < 0:
-            msg = f"Sua Assinatura Venceu ⚠️! Não se Preocupe é só Fazer o Pagamento que Renovamos mais 30 Dias pra Você!\n\nCopia e Cola no seu Banco!\n\n{pix}"
+            msg = f"Sua Assinatura Venceu! Não se Preocupe é só Fazer o Pagamento que Renovamos mais 30 Dias pra Você!\n\nCopia e Cola no seu Banco!\n\n{pix}"
             return "VENCIDO", msg, "🚨", dias
         return f"{dias} dias restantes", "", "🟩", dias
     except: return "Erro", "", "❌", 0
@@ -73,6 +73,10 @@ def get_servidores():
     conn.close()
     return lista
 
+# --- LOGICA DE NAVEGAÇÃO ---
+if "aba_ativa" not in st.session_state:
+    st.session_state.aba_ativa = 0
+
 # --- INTERFACE ---
 st.image("https://i.imgur.com/CKq9BVx.png", width=250)
 st.title("👥 GESTÃO DE CLIENTES")
@@ -81,10 +85,39 @@ conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
 
+# --- CÁLCULOS DO DASHBOARD ---
+if not df.empty:
+    df['status_regua'] = df['vencimento'].apply(lambda x: obter_regua(x))
+    total_clientes = len(df)
+    em_dia = len(df[df['status_regua'].apply(lambda x: x[2] == "🟩")])
+    vencidos = len(df[df['status_regua'].apply(lambda x: x[2] == "🚨")])
+    vencendo_3_dias = len(df[df['status_regua'].apply(lambda x: x[3] >= 0 and x[3] <= 3)])
+    
+    faturamento_bruto = df['mensalidade'].sum()
+    custos_totais = df['custo'].sum()
+    faturamento_liquido = faturamento_bruto - custos_totais
+else:
+    total_clientes = em_dia = vencidos = vencendo_3_dias = faturamento_bruto = custos_totais = faturamento_liquido = 0
+
+# Tabs com controle de estado
 tab1, tab2, tab3, tab4 = st.tabs(["👥 CLIENTES", "➕ ADD CLIENTE", "🚨 AVISO WHATSAPP", "📡 SERVIDORES"])
 
 with tab1:
+    # --- DASHBOARD LINHA ABAIXO DA BUSCA ---
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Clientes", f"{total_clientes}")
+    c2.metric("Em Dia", f"{em_dia}", delta_color="normal")
+    c3.metric("Vencidos", f"{vencidos}", delta="-Vencidos", delta_color="inverse")
+    c4.metric("Vence em 3 dias", f"{vencendo_3_dias}")
+
+    c5, c6, c7 = st.columns(3)
+    c5.metric("Bruto (Mensalidades)", f"R$ {faturamento_bruto:,.2f}")
+    c6.metric("Líquido", f"R$ {faturamento_liquido:,.2f}")
+    c7.metric("Guardar (Custos)", f"R$ {custos_totais:,.2f}", delta="Pagar Servidores", delta_color="inverse")
+    
+    st.divider()
     busca = st.text_input("🔍 Buscar cliente...")
+    
     servs_at = get_servidores()
     if not df.empty:
         for _, r in df.iterrows():
@@ -94,25 +127,25 @@ with tab1:
                 if edit_key not in st.session_state: st.session_state[edit_key] = False
                 with st.expander(f"{icon} {r['nome']} | {r['sistema']} | {status}"):
                     if not st.session_state[edit_key]:
-                        c1, c2, c3 = st.columns([1, 2, 2])
-                        with c1:
+                        col1, col2, col3 = st.columns([1, 2, 2])
+                        with col1:
                             if r['logo']: st.image(r['logo'], width=100)
                             else: st.write("🚫 Sem Logo")
-                        with c2:
-                            st.write(f"**USUARIO:** `{r['usuario']}` **SENHA:** `{r['senha']}`")
-                            st.write(f"**VENCIMENTO:** {r['vencimento']}")
-                            st.write(f"**WHATSAAP:** {r['whatsapp']}")
-                        with c3:
-                            st.write(f"**SERVIDOR:** {r['servidor']}")
-                            st.write(f"**OBS:** {r['observacao']}")
+                        with col2:
+                            st.write(f"**Dados:** `{r['usuario']}` / `{r['senha']}`")
+                            st.write(f"**Vencimento:** {r['vencimento']}")
+                            st.write(f"**WhatsApp:** {r['whatsapp']}")
+                        with col3:
+                            st.write(f"**Servidor:** {r['servidor']}")
+                            st.write(f"**Obs:** {r['observacao']}")
                         st.divider()
                         b1, b2, b3 = st.columns([1,1,2])
-                        if b1.button("📝 EDITAR", key=f"be_{r['id']}"):
+                        if b1.button("📝 Editar", key=f"be_{r['id']}"):
                             st.session_state[edit_key] = True; st.rerun()
-                        if b2.button("🗑️ EXCLUIR", key=f"bd_{r['id']}"):
+                        if b2.button("🗑️ Excluir", key=f"bd_{r['id']}"):
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM clientes WHERE id=?", (r['id'],)); c.commit(); st.rerun()
                         d_add = b3.number_input("Dias", value=30, step=1, key=f"n{r['id']}")
-                        if b3.button(f"🔄 RENOVAR+{d_add} dias", key=f"br_{r['id']}"):
+                        if b3.button(f"🔄 Renovar +{d_add} dias", key=f"br_{r['id']}"):
                             nova = (datetime.strptime(str(r['vencimento']), '%Y-%m-%d') + pd.Timedelta(days=d_add)).date()
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET vencimento=? WHERE id=?", (str(nova), r['id'])); c.commit(); st.rerun()
                     else:
@@ -128,7 +161,7 @@ with tab1:
                                 c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, sistema=?, servidor=?, vencimento=?, observacao=?, logo=? WHERE id=?", (ed_n, ed_u, ed_p, ed_s, ed_srv, str(ed_v), ed_o, l_b, r['id'])); c.commit(); st.session_state[edit_key] = False; st.rerun()
 
 with tab2:
-    with st.form("novo"):
+    with st.form("novo", clear_on_submit=True):
         st.subheader("➕ Novo Cliente")
         n_c = st.text_input("NOME")
         w_c = st.text_input("WHATSAPP (Ex: 5511999999999)")
@@ -138,9 +171,18 @@ with tab2:
         c5, c6 = st.columns(2); cu_c = c5.number_input("CUSTO (R$)", value=0.0); me_c = c6.number_input("MENSALIDADE (R$)", value=35.0)
         o_c = st.text_area("OBSERVAÇÃO")
         l_c = st.file_uploader("LOGO DO SERVIDOR (Opcional)", type=['png', 'jpg'])
+        
         if st.form_submit_button("🚀 CADASTRAR"):
-            lb = l_c.read() if l_c else None
-            c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, observacao, logo) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (n_c, w_c, u_c, s_c, srv_c, sis_c, str(v_c), cu_c, me_c, o_c, lb)); c.commit(); st.success("Cadastrado!"); st.rerun()
+            if n_c and w_c:
+                lb = l_c.read() if l_c else None
+                c = sqlite3.connect('supertv_gestao.db')
+                c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, observacao, logo) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (n_c, w_c, u_c, s_c, srv_c, sis_c, str(v_c), cu_c, me_c, o_c, lb))
+                c.commit()
+                st.success("Cadastrado com sucesso! Redirecionando...")
+                # Força o recarregamento e volta para a aba de clientes (aba 0)
+                st.rerun()
+            else:
+                st.error("Preencha Nome e WhatsApp!")
 
 with tab3:
     st.subheader("📢 Cobrança")
@@ -165,9 +207,8 @@ with tab3:
 with tab4:
     c_fin, c_srv = st.columns(2)
     with c_fin:
-        st.subheader("⚖️ Financeiro")
+        st.subheader("⚖️ Exportação")
         if not df.empty:
-            st.metric("Lucro Estimado", f"R$ {df['mensalidade'].sum() - df['custo'].sum():.2f}")
             buf = io.BytesIO()
             try:
                 with pd.ExcelWriter(buf, engine='openpyxl') as wr: df.to_excel(wr, index=False)
