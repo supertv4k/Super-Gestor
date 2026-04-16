@@ -13,7 +13,7 @@ st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
-    .logo-gestao { width: 380px; margin-bottom: -20px !important; }
+    .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
     .metric-card { 
