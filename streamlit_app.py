@@ -14,7 +14,7 @@ st.markdown("""
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
     .logo-gestao { width: 380px; margin-bottom: -20px !important; }
-    .logo-supertv { width: 160px; }
+    .logo-supertv { width: 380px; }
     
     .metric-card { 
         background-color: #161b22; padding: 15px; border-radius: 12px; 
