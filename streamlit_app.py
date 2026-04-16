@@ -48,9 +48,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES ---
+# --- 3. FUNÇÕES DE APOIO ---
 def limpar_numero(valor):
-    """Garante que o valor seja um número float, evitando erros de conversão"""
     if valor is None or str(valor).strip() == "" or str(valor).lower() == 'nan':
         return 0.0
     try:
@@ -85,7 +84,6 @@ def get_servidores():
     except: 
         lista = []
     conn.close()
-    # Se a lista estiver vazia no banco, retorna os padrões
     return lista if lista else ["UNITV", "UNIPLAY", "P2BRAZ", "MUNDOGF", "PLAY TV"]
 
 def adicionar_servidor(nome):
@@ -95,10 +93,8 @@ def adicionar_servidor(nome):
             conn.execute("INSERT INTO lista_servidores (nome) VALUES (?)", (nome.upper(),))
             conn.commit()
             return True
-        except:
-            return False
-        finally:
-            conn.close()
+        except: return False
+        finally: conn.close()
     return False
 
 def excluir_servidor(nome):
@@ -160,9 +156,8 @@ with tab1:
             
             with st.expander("⚙️ EDITAR CLIENTE"):
                 with st.form(key=f"edit_{r['id']}"):
-                    servidores_atuais = get_servidores()
-                    # Garante que o servidor atual do cliente esteja na lista para não dar erro
-                    if r['servidor'] not in servidores_atuais: servidores_atuais.append(r['servidor'])
+                    servs = get_servidores()
+                    if r['servidor'] not in servs: servs.append(r['servidor'])
                     
                     c1, c2 = st.columns(2)
                     en = c1.text_input("NOME", value=r['nome'])
@@ -174,12 +169,10 @@ with tab1:
                     except: dv = datetime.now().date()
                     
                     ev = c1.date_input("VENCIMENTO", value=dv)
-                    esrv = c2.selectbox("SERVIDOR", servidores_atuais, index=servidores_atuais.index(r['servidor']) if r['servidor'] in servidores_atuais else 0)
+                    esrv = c2.selectbox("SERVIDOR", servs, index=servs.index(r['servidor']))
                     esis = c1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if r['sistema']=="P2P" else 1)
-                    
                     ec = c2.number_input("CUSTO", value=limpar_numero(r['custo']))
                     evlr = c1.number_input("VALOR COBRADO", value=limpar_numero(r['mensalidade']))
-                    
                     elogo = st.file_uploader("TROCAR LOGO", type=['png','jpg','jpeg'], key=f"l_{r['id']}")
                     
                     b1, b2 = st.columns(2)
@@ -218,256 +211,107 @@ with tab2:
             conn_in.commit(); conn_in.close(); st.rerun()
 
 with tab3:
-with tab3:
-    st.subheader("🚀 Gestão de Cobrança Profissional")
-
+    st.subheader("🚨 Gestão de Cobrança Profissional")
     if not df.empty:
-        # --- LÓGICA DE STATUS E CORES ---
         hoje = datetime.now().date()
-        def calcular_status_pro(venc_str):
+        def calc_status(venc_str):
             try:
                 dv = pd.to_datetime(venc_str).date()
                 dias = (dv - hoje).days
                 if dias < 0: return "🔴 VENCIDO", -1, dias, "ficar sem sinal"
                 if dias == 0: return "🟠 VENCE HOJE", 0, dias, "renovar hoje"
-                if dias == 1: return "🟡 1 DIA", 1, dias, "renovar"
-                if dias == 2: return "🟡 2 DIAS", 2, dias, "renovar"
+                if dias == 1: return "🟡 1 DIA (Forte)", 1, dias, "renovar"
+                if dias == 2: return "🟡 2 DIAS (Claro)", 2, dias, "renovar"
                 if dias == 3: return "🟢 3 DIAS", 3, dias, "renovar"
                 if 4 <= dias <= 7: return "🔵 4-7 DIAS", 4, dias, "se organizar"
-                return "🟡 DOURADO", 5, dias, "manter em dia"
+                return "🟡 DOURADO (8-31)", 5, dias, "manter em dia"
             except: return "⚪ ERRO", 6, 999, ""
 
         df_c = df.copy()
-        res = df_c['vencimento'].apply(calcular_status_pro)
-        df_c['SITUAÇÃO'] = res.apply(lambda x: x[0])
-        df_c['ORDEM'] = res.apply(lambda x: x[1])
-        df_c['DIAS'] = res.apply(lambda x: x[2])
-        df_c['MOTIVO'] = res.apply(lambda x: x[3])
-        
+        res = df_c['vencimento'].apply(calc_status)
+        df_c['SITUAÇÃO'] = res.apply(lambda x: x[0]); df_c['ORDEM'] = res.apply(lambda x: x[1])
+        df_c['DIAS'] = res.apply(lambda x: x[2]); df_c['MOTIVO'] = res.apply(lambda x: x[3])
         df_c = df_c.sort_values(by=['ORDEM', 'DIAS'])
 
-        # --- FILTRO RÁPIDO ---
-        filtro_status = st.multiselect("Filtrar por urgência:", 
-                                     options=df_c['SITUAÇÃO'].unique(), 
-                                     default=df_c['SITUAÇÃO'].unique())
-        df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro_status)]
+        filtro = st.multiselect("Filtrar por urgência:", options=df_c['SITUAÇÃO'].unique(), default=df_c['SITUAÇÃO'].unique())
+        df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro)]
 
-        # --- SELEÇÃO EM MASSA ---
         c_b1, c_b2, _ = st.columns([1, 1, 3])
-        if 'sel_pro' not in st.session_state: st.session_state.sel_pro = []
-        
-        if c_b1.button("✅ Selecionar Toda a Lista"):
-            st.session_state.sel_pro = df_filtrado['id'].tolist()
-            st.rerun()
-        if c_b2.button("⬜ Limpar Seleção"):
-            st.session_state.sel_pro = []
-            st.rerun()
+        if 'sel_ids' not in st.session_state: st.session_state.sel_ids = []
+        if c_b1.button("✅ Selecionar Todos"):
+            st.session_state.sel_ids = df_filtrado['id'].tolist(); st.rerun()
+        if c_b2.button("⬜ Limpar"):
+            st.session_state.sel_ids = []; st.rerun()
 
-        # --- TABELA DE SELEÇÃO ---
         df_tab = df_filtrado[['id', 'SITUAÇÃO', 'nome', 'servidor', 'vencimento']].copy()
-        df_tab.insert(0, "SELECIONAR", df_tab['id'].apply(lambda x: x in st.session_state.sel_pro))
+        df_tab.insert(0, "SELECIONAR", df_tab['id'].apply(lambda x: x in st.session_state.sel_ids))
         
-        edit_c = st.data_editor(
-            df_tab.drop(columns=['id']),
-            hide_index=True,
-            column_config={
-                "SELECIONAR": st.column_config.CheckboxColumn("✔"),
-                "SITUAÇÃO": st.column_config.TextColumn("Status", width="small"),
-                "nome": "Cliente",
-                "servidor": "Servidor"
-            },
-            disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"],
-            use_container_width=True,
-            key="editor_pro"
-        )
+        edit_c = st.data_editor(df_tab.drop(columns=['id']), hide_index=True, use_container_width=True,
+                               column_config={"SELECIONAR": st.column_config.CheckboxColumn("✔")},
+                               disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"], key="editor_v3")
 
         ids_finais = df_filtrado.iloc[edit_c[edit_c["SELECIONAR"] == True].index]['id'].tolist()
-
         st.divider()
 
-        # --- AÇÕES PROFISSIONAIS ---
         col_envio, col_gestao = st.columns([2, 1])
-
         with col_envio:
-            st.markdown(f"### 💬 Envio Personalizado ({len(ids_finais)})")
-            # Template de mensagem que aceita variáveis
-            template = st.text_area("Edite o modelo de mensagem:", 
-                                   value="Olá {nome}! 👋\n\nPassando para lembrar que seu acesso no servidor {servidor} está com status: {status}.\n\nVamos {motivo} para garantir o melhor do futebol e filmes sem interrupções? 🚀",
-                                   help="Use {nome}, {servidor}, {status} e {motivo} para preencher automático.")
-
-            if st.button("🔗 GERAR LISTA DE DISPARO"):
+            st.markdown(f"### 💬 Envio ({len(ids_finais)})")
+            template = st.text_area("Mensagem:", value="Olá {nome}! 👋\n\nLembramos que seu acesso no {servidor} está: {status}.\n\nVamos {motivo} para garantir o melhor sinal? 🚀")
+            if st.button("🔗 GERAR LINKS"):
                 if ids_finais:
                     for _, cli in df_c[df_c['id'].isin(ids_finais)].iterrows():
-                        # Personaliza a mensagem para cada cliente
-                        msg_pronta = template.format(
-                            nome=str(cli['nome']).split()[0].capitalize(), 
-                            servidor=cli['servidor'],
-                            status=cli['SITUAÇÃO'],
-                            motivo=cli['MOTIVO']
-                        )
-                        texto_url = urllib.parse.quote(msg_pronta)
-                        link_wa = f"https://wa.me/{cli['whatsapp']}?text={texto_url}"
-                        
-                        # Layout de "Card" para cada envio
-                        st.info(f"**{cli['SITUAÇÃO']}** | {cli['nome']} \n\n [CLIQUE AQUI PARA ENVIAR WHATSAPP]({link_wa})")
-                else:
-                    st.warning("Marque os clientes na tabela acima primeiro.")
+                        msg = template.format(nome=str(cli['nome']).split()[0].capitalize(), servidor=cli['servidor'], status=cli['SITUAÇÃO'], motivo=cli['MOTIVO'])
+                        st.info(f"**{cli['SITUAÇÃO']}** | {cli['nome']} \n\n [ENVIAR WHATSAPP](https://wa.me/{cli['whatsapp']}?text={urllib.parse.quote(msg)})")
+                else: st.warning("Selecione alguém.")
 
         with col_gestao:
-            st.markdown("### 🛠️ Gestão de Dados")
-            st.write("Ações para os itens selecionados:")
-            if st.button("🗑️ EXCLUIR MARCADOS", use_container_width=True):
+            st.markdown("### 🛠️ Ação")
+            if st.button("🗑️ EXCLUIR MARCADOS", type="secondary", use_container_width=True):
                 if ids_finais:
                     c_db = sqlite3.connect('supertv_gestao.db')
-                    p_hold = ','.join(['?'] * len(ids_finais))
-                    c_db.execute(f"DELETE FROM clientes WHERE id IN ({p_hold})", ids_finais)
-                    c_db.commit(); c_db.close()
-                    st.success("Removidos com sucesso!")
-                    t_lib.sleep(1); st.rerun()
-                else:
-                    st.error("Nenhum cliente marcado.")
-
-    else:
-        st.info("Sua base de dados está vazia.")
-
+                    c_db.execute(f"DELETE FROM clientes WHERE id IN ({','.join(['?']*len(ids_finais))})", ids_finais)
+                    c_db.commit(); c_db.close(); st.rerun()
+    else: st.info("Sem dados.")
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
+    st.markdown("### 📶 Servidores")
+    with st.form("f_serv", clear_on_submit=True):
+        col1, col2 = st.columns([3,1])
+        novo = col1.text_input("Nome")
+        if col2.form_submit_button("➕ ADD"):
+            if adicionar_servidor(novo): st.success("OK!"); t_lib.sleep(0.5); st.rerun()
     
-    # --- NOVO CAMPO: GERENCIAR SERVIDORES ---
-    st.markdown("### 📶 Gerenciar Servidores")
-    with st.form("form_servidor", clear_on_submit=True):
-        col_s1, col_s2 = st.columns([3,1])
-        novo_s = col_s1.text_input("Nome do Novo Servidor")
-        if col_s2.form_submit_button("➕ ADICIONAR"):
-            if adicionar_servidor(novo_s):
-                st.success("Servidor adicionado!")
-                t_lib.sleep(1); st.rerun()
-            else:
-                st.error("Servidor já existe ou nome inválido.")
-    
-    lista_atual = get_servidores()
-    if lista_atual:
-        serv_para_excluir = st.selectbox("Selecione para excluir:", ["Selecione..."] + lista_atual)
-        if serv_para_excluir != "Selecione...":
-            if st.button("🗑️ Remover Servidor"):
-                excluir_servidor(serv_para_excluir)
-                st.success("Removido!")
-                t_lib.sleep(1); st.rerun()
+    lista = get_servidores()
+    if lista:
+        excl = st.selectbox("Remover:", ["Selecione..."] + lista)
+        if excl != "Selecione..." and st.button("🗑️ Remover"):
+            excluir_servidor(excl); st.rerun()
 
     st.divider()
-
     if not df.empty:
-        st.markdown("### 📤 Exportar Backup")
-        output = io.BytesIO()
-        df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR EXCEL", data=output.getvalue(), file_name="backup_clientes.xlsx")
+        st.markdown("### 📤 Backup")
+        out = io.BytesIO()
+        df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore').to_excel(out, index=False, engine='xlsxwriter')
+        st.download_button("📥 BAIXAR EXCEL", data=out.getvalue(), file_name="backup.xlsx")
 
     st.divider()
-    st.markdown("### 📥 Importar Planilha")
-    f_up = st.file_uploader("Upload .xlsx", type=["xlsx"])
+    st.markdown("### 📥 Importar")
+    f_up = st.file_uploader("Arquivo .xlsx", type=["xlsx"])
     if f_up and st.button("🚀 PROCESSAR"):
         try:
             df_imp = pd.read_excel(f_up)
             df_imp.columns = [str(c).strip().upper() for c in df_imp.columns]
-            mapeamento = {'nome': 'CLIENTE', 'usuario': 'USUÁRIO', 'senha': 'SENHA', 'servidor': 'SERVIDOR', 'vencimento': 'VENCIMENTO', 'whatsapp': 'WHATSAPP', 'custo': 'CUSTO', 'mensalidade': 'VALOR COBRADO'}
+            map_cols = {'nome': 'CLIENTE', 'usuario': 'USUÁRIO', 'senha': 'SENHA', 'servidor': 'SERVIDOR', 'vencimento': 'VENCIMENTO', 'whatsapp': 'WHATSAPP', 'custo': 'CUSTO', 'mensalidade': 'VALOR COBRADO'}
             df_final = pd.DataFrame()
-            for col_db, col_excel in mapeamento.items():
-                if col_excel in df_imp.columns:
-                    if col_db in ['custo', 'mensalidade']:
-                        df_final[col_db] = df_imp[col_excel].apply(limpar_numero)
-                    else:
-                        df_final[col_db] = df_imp[col_excel]
-                else:
-                    df_final[col_db] = 0.0 if col_db in ['custo', 'mensalidade'] else ""
-            
+            for db, ex in map_cols.items():
+                if ex in df_imp.columns:
+                    df_final[db] = df_imp[ex].apply(limpar_numero) if db in ['custo', 'mensalidade'] else df_imp[ex]
+                else: df_final[db] = 0.0 if db in ['custo', 'mensalidade'] else ""
             df_final['vencimento'] = pd.to_datetime(df_final['vencimento'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
-            conn_imp = sqlite3.connect('supertv_gestao.db')
-            df_final.to_sql('clientes', conn_imp, if_exists='append', index=False)
-            conn_imp.close(); st.success("Importado com sucesso!"); t_lib.sleep(1); st.rerun()
-        except Exception as e: st.error(f"Erro na importação: {e}")
+            conn_i = sqlite3.connect('supertv_gestao.db'); df_final.to_sql('clientes', conn_i, if_exists='append', index=False); conn_i.close()
+            st.success("Sucesso!"); t_lib.sleep(1); st.rerun()
+        except Exception as e: st.error(f"Erro: {e}")
 
-    if st.button("🗑️ LIMPAR TODOS OS DADOS"):
-        conn_c = sqlite3.connect('supertv_gestao.db')
-        conn_c.execute("DELETE FROM clientes")
-        conn_c.commit(); conn_c.close(); st.rerun()
-
-with tab3:
-    st.subheader("🚨 Disparo de Cobrança em Massa")
-
-    if not df.empty:
-        # 1. Preparar os dados para a seleção
-        df_cobranca = df.copy()
-        
-        # Criar uma coluna de seleção (Checkbox) - inicia como False
-        if 'selecionado' not in st.session_state:
-            st.session_state.selecionado = [False] * len(df_cobranca)
-
-        # Botões de Seleção Rápida
-        col_btn1, col_btn2, _ = st.columns([1, 1, 4])
-        if col_btn1.button("✅ Selecionar Todos"):
-            st.session_state.selecionado = [True] * len(df_cobranca)
-            st.rerun()
-        
-        if col_btn2.button("⬜ Limpar Seleção"):
-            st.session_state.selecionado = [False] * len(df_cobranca)
-            st.rerun()
-
-        # 2. Exibir a tabela interativa
-        # Filtramos apenas as colunas necessárias para não poluir a tela
-        df_exibir = df_cobranca[['nome', 'whatsapp', 'usuario', 'vencimento', 'servidor']].copy()
-        df_exibir.insert(0, "SELECIONAR", st.session_state.selecionado)
-
-        # O data_editor permite que o usuário marque os checkboxes
-        editado = st.data_editor(
-            df_exibir,
-            hide_index=True,
-            column_config={
-                "SELECIONAR": st.column_config.CheckboxColumn("Selecionar", default=False),
-                "vencimento": st.column_config.TextColumn("Vencimento"),
-            },
-            disabled=["nome", "whatsapp", "usuario", "vencimento", "servidor"], # Bloqueia edição nas outras colunas
-            use_container_width=True
-        )
-
-        # 3. Ações para os selecionados
-        clientes_selecionados = editado[editado["SELECIONAR"] == True]
-        
-        st.divider()
-        col_acao1, col_acao2 = st.columns(2)
-
-        with col_acao1:
-            st.markdown(f"**Selecionados:** {len(clientes_selecionados)} clientes")
-            msg_padrao = st.text_area("Mensagem de Cobrança", 
-                                     value="Olá! Seu acesso SuperTV4K está vencendo. Vamos renovar?")
-            
-            if st.button("📢 GERAR LINKS DE WHATSAPP"):
-                if not clientes_selecionados.empty:
-                    for _, sel in clientes_selecionados.iterrows():
-                        texto_codificado = urllib.parse.quote(msg_padrao)
-                        link = f"https://wa.me/{sel['whatsapp']}?text={texto_codificado}"
-                        st.markdown(f"👉 [Enviar para {sel['nome']}]({link})")
-                else:
-                    st.warning("Selecione ao menos um cliente.")
-
-        with col_acao2:
-            st.markdown("**Ação Crítica**")
-            if st.button("🗑️ EXCLUIR SELECIONADOS", type="secondary"):
-                if not clientes_selecionados.empty:
-                    ids_para_excluir = df_cobranca.iloc[clientes_selecionados.index]['id'].tolist()
-                    conn_bulk = sqlite3.connect('supertv_gestao.db')
-                    query = f"DELETE FROM clientes WHERE id IN ({','.join(map(str, ids_para_excluir))})"
-                    conn_bulk.execute(query)
-                    conn_bulk.commit()
-                    conn_bulk.close()
-                    st.success(f"{len(ids_para_excluir)} clientes excluídos!")
-                    t_lib.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Nenhum cliente selecionado para excluir.")
-    else:
-        st.info("Nenhum cliente cadastrado para cobrança.")
-
-
+    if st.button("🗑️ RESETAR BANCO"):
+        c_db = sqlite3.connect('supertv_gestao.db'); c_db.execute("DELETE FROM clientes"); c_db.commit(); c_db.close(); st.rerun()
