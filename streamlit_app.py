@@ -219,9 +219,7 @@ with tab3:
         for _, c in df_cob.iterrows():
             t_v = "venceu" if c['dias_res'] < 0 else "vence"
             msg = f"Olá {c['nome']}, sua assinatura {t_v} em {pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')}. Pix: {pix}"
-            st.link_button(f"📲 COBRAR {c['nome']} ({'VENCIDO' if c['dias_res'] < 0 else f'{c['dias_res']} d'})", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
-
-with tab4:
+            st.link_button(f"📲 COBRAR {c['nome']} ({'VENCIDO' if c['dias_res'] < 0 else f'{c['dias_res']} d'})", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(with tab4:
     st.subheader("⚙️ AJUSTES")
     st.markdown("### 🖥️ Gerenciar Servidores")
     ns = st.text_input("NOME DO NOVO SERVIDOR")
@@ -230,13 +228,39 @@ with tab4:
             c_s = sqlite3.connect('supertv_gestao.db')
             c_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
             c_s.commit(); st.rerun()
+    
     st.divider()
-    st.markdown("### 📥 Importar Dados")
-    f_up = st.file_uploader("Arquivo Excel", type=["xlsx"])
-    if f_up and st.button("PROCESSAR"):
-        pd.read_excel(f_up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
-        st.success("Importado!"); st.rerun()
+    
+    st.markdown("### 📥 Importar Dados (Excel)")
+    st.info("O Excel deve conter as colunas: nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade")
+    f_up = st.file_uploader("Selecione o arquivo .xlsx", type=["xlsx"])
+    
+    if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
+        try:
+            # 1. Lê o Excel
+            df_imp = pd.read_excel(f_up)
+            
+            # 2. Lista de colunas que o banco de dados real possui
+            colunas_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade', 'logo_blob']
+            
+            # 3. Adiciona colunas que faltarem no Excel com valor vazio
+            for col in colunas_banco:
+                if col not in df_imp.columns:
+                    df_imp[col] = None
+            
+            # 4. Mantém apenas as colunas que existem no banco (descarta lixo do Excel)
+            df_imp = df_imp[colunas_banco]
+            
+            # 5. Salva no Banco
+            conn_imp = sqlite3.connect('supertv_gestao.db')
+            df_imp.to_sql('clientes', conn_imp, if_exists='append', index=False)
+            conn_imp.close()
+            
+            st.success(f"✅ Sucesso! {len(df_imp)} clientes importados.")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Erro na importação: Verifique se os nomes das colunas no Excel estão corretos. Detalhe: {e}")
+
     st.divider()
-    if not df.empty:
-        buf = io.BytesIO(); df.to_excel(buf, index=False)
-        st.download_button("📥 BACKUP EXCEL", data=buf.getvalue(), file_name="backup.xlsx")
+    # ... resto do código de backup ...
