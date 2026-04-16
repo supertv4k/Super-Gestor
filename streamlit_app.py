@@ -184,17 +184,23 @@ with tab2:
                 conn_add.commit(); st.success("Cliente Cadastrado!"); st.rerun()
 
 with tab3:
-    st.subheader("🚨 COBRANÇA")
+    st.subheader("🚨 CENTRAL DE COBRANÇA")
+    pix = "62.326.879/0001-13"
     if not df.empty:
+        # Pega clientes que vencem em 3 dias ou que já estão vencidos
         df_cob = df[df['dias_res'] <= 3].copy()
         for _, c in df_cob.iterrows():
-            msg = f"Olá {c['nome']}, sua assinatura vence em {pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')}. Chave Pix: 62.326.879/0001-13"
-            st.link_button(f"📲 COBRAR {c['nome']}", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+            # CORREÇÃO DA MENSAGEM:
+            texto_vencimento = "venceu" if c['dias_res'] < 0 else "vence"
+            data_formatada = pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')
+            
+            msg = f"Olá {c['nome']}, sua assinatura {texto_vencimento} em {data_formatada}. Chave Pix: {pix}"
+            
+            st.link_button(f"📲 COBRAR {c['nome']} ({'VENCIDO' if c['dias_res'] < 0 else f'Faltam {c['dias_res']} dias'})", 
+                           f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    
-    # 1. Adicionar Servidor
     st.markdown("### 🖥️ Gerenciar Servidores")
     new_s = st.text_input("NOME DO NOVO SERVIDOR")
     if st.button("SALVAR SERVIDOR"):
@@ -202,10 +208,7 @@ with tab4:
             conn_s = sqlite3.connect('supertv_gestao.db')
             conn_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (new_s.upper(),))
             conn_s.commit(); st.rerun()
-    
     st.divider()
-
-    # 2. Importar Lista (Botão Restaurado)
     st.markdown("### 📥 Importar Dados")
     f_up = st.file_uploader("Selecione um arquivo Excel para importar clientes", type=["xlsx"])
     if f_up:
@@ -218,10 +221,7 @@ with tab4:
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao importar: {e}")
-
     st.divider()
-    
-    # 3. Exportar/Backup
     st.markdown("### 📤 Backup")
     if not df.empty:
         buf = io.BytesIO()
