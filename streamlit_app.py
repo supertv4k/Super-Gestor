@@ -228,7 +228,6 @@ with tab3:
             else: st.warning("Marque os clientes na tabela acima.")
 
 with tab4:
-    with tab4:
     st.subheader("⚙️ AJUSTES")
     st.markdown("### 🖥️ Gerenciar Servidores")
     ns = st.text_input("NOME DO NOVO SERVIDOR")
@@ -248,21 +247,24 @@ with tab4:
         f_up = st.file_uploader("Arquivo Excel (.xlsx)", type=["xlsx"])
         if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
             try:
-                # O motor openpyxl é necessário aqui para leitura
-                pd.read_excel(f_up, engine='openpyxl').to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
-                st.success("Importado com sucesso!")
+                # Tenta ler usando o openpyxl (padrão para leitura)
+                df_import = pd.read_excel(f_up, engine='openpyxl')
+                df_import.to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
+                st.success("✅ Importado com sucesso!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Erro: {e}. Verifique se o arquivo 'requirements.txt' no seu GitHub contém 'openpyxl'.")
+                st.error(f"Erro na importação: {e}")
 
     with col_back2:
         st.write("**📤 Backup de Segurança**")
         if not df.empty:
             try:
-                # Criando o Excel em memória usando xlsxwriter (muito estável para backups)
+                # Criando o Excel em memória usando xlsxwriter (mais estável para exportar)
                 output = io.BytesIO()
+                # Removemos colunas temporárias para o backup ficar limpo
+                df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
+                
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
                     df_export.to_excel(writer, index=False, sheet_name='Clientes')
                 
                 st.download_button(
@@ -273,9 +275,8 @@ with tab4:
                     use_container_width=True
                 )
             except Exception as e:
-                st.warning(f"Erro ao gerar Excel: {e}. Tente adicionar 'xlsxwriter' ao seu requirements.txt")
-                
-                # Alternativa segura em CSV caso o Excel falhe
+                st.warning(f"Erro ao gerar Excel: {e}")
+                # Backup de emergência em CSV (sempre funciona)
                 csv = df.drop(columns=['logo_blob'], errors='ignore').to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 BAIXAR BACKUP (CSV)", data=csv, file_name="backup_emergencia.csv", use_container_width=True)
 
