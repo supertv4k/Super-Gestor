@@ -225,66 +225,35 @@ with tab3:
                     msg = f"Olá {c['nome'].split()[0].capitalize()}! 👋\n\nLembramos que sua assinatura {c['servidor']} {t_v}. \n\nPara renovar e não ficar sem sinal:\nValor: R$ {c['mensalidade']:.2f}\nChave Pix: {pix}"
                     st.info(f"**{c['nome']}**")
                     st.link_button(f"📲 ENVIAR WHATSAPP", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
-            else: st.warning("Marque os clientes na tabela acima.")
-
-with tab4:
-    st.subheader("⚙️ AJUSTES")
-    st.markdown("### 🖥️ Gerenciar Servidores")
-    ns = st.text_input("NOME DO NOVO SERVIDOR")
-    if st.button("SALVAR SERVIDOR"):
-        if ns:
-            c_s = sqlite3.connect('supertv_gestao.db')
-            c_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
-            c_s.commit(); st.rerun()
-    
-    st.divider()
-    
-    st.markdown("### 📊 Gestão de Dados")
-    col_back1, col_back2 = st.columns(2)
-    
-    with col_back1:
+            else: st.warning("Marque os clientes na tabela     with col_back1:
         st.write("**📥 Importar Dados**")
         f_up = st.file_uploader("Arquivo Excel (.xlsx)", type=["xlsx"])
         if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
             try:
-                # Tenta ler usando o openpyxl (padrão para leitura)
+                # Carrega o Excel
                 df_import = pd.read_excel(f_up, engine='openpyxl')
-                df_import.to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
+                
+                # Lista de colunas oficiais do seu banco de dados
+                colunas_db = [
+                    'nome', 'whatsapp', 'usuario', 'senha', 'servidor', 
+                    'sistema', 'vencimento', 'custo', 'mensalidade', 
+                    'inicio', 'observacao', 'logo_blob'
+                ]
+                
+                # Garante que o DF importado tenha APENAS as colunas que o DB aceita
+                # Se faltar alguma no excel, ele cria vazia. Se sobrar, ele descarta.
+                for col in colunas_db:
+                    if col not in df_import.columns:
+                        df_import[col] = None
+                
+                df_final = df_import[colunas_db]
+                
+                # Salva no banco de dados
+                conn_imp = sqlite3.connect('supertv_gestao.db')
+                df_final.to_sql('clientes', conn_imp, if_exists='append', index=False)
+                conn_imp.close()
+                
                 st.success("✅ Importado com sucesso!")
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro na importação: {e}")
-
-    with col_back2:
-        st.write("**📤 Backup de Segurança**")
-        if not df.empty:
-            try:
-                # Criando o Excel em memória usando xlsxwriter (mais estável para exportar)
-                output = io.BytesIO()
-                # Removemos colunas temporárias para o backup ficar limpo
-                df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
-                
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_export.to_excel(writer, index=False, sheet_name='Clientes')
-                
-                st.download_button(
-                    label="📥 BAIXAR BACKUP EXCEL",
-                    data=output.getvalue(),
-                    file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.warning(f"Erro ao gerar Excel: {e}")
-                # Backup de emergência em CSV (sempre funciona)
-                csv = df.drop(columns=['logo_blob'], errors='ignore').to_csv(index=False).encode('utf-8-sig')
-                st.download_button("📥 BAIXAR BACKUP (CSV)", data=csv, file_name="backup_emergencia.csv", use_container_width=True)
-
-    st.divider()
-    st.markdown("### 🚨 Zona de Perigo")
-    if st.checkbox("Habilitar botão de limpeza total"):
-        if st.button("🗑️ APAGAR TODOS OS CLIENTES", type="primary"):
-            conn_reset = sqlite3.connect('supertv_gestao.db')
-            conn_reset.execute("DELETE FROM clientes")
-            conn_reset.commit()
-            st.rerun()
