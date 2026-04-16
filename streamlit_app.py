@@ -284,3 +284,81 @@ with tab4:
         conn_c = sqlite3.connect('supertv_gestao.db')
         conn_c.execute("DELETE FROM clientes")
         conn_c.commit(); conn_c.close(); st.rerun()
+
+with tab3:
+    st.subheader("🚨 Disparo de Cobrança em Massa")
+
+    if not df.empty:
+        # 1. Preparar os dados para a seleção
+        df_cobranca = df.copy()
+        
+        # Criar uma coluna de seleção (Checkbox) - inicia como False
+        if 'selecionado' not in st.session_state:
+            st.session_state.selecionado = [False] * len(df_cobranca)
+
+        # Botões de Seleção Rápida
+        col_btn1, col_btn2, _ = st.columns([1, 1, 4])
+        if col_btn1.button("✅ Selecionar Todos"):
+            st.session_state.selecionado = [True] * len(df_cobranca)
+            st.rerun()
+        
+        if col_btn2.button("⬜ Limpar Seleção"):
+            st.session_state.selecionado = [False] * len(df_cobranca)
+            st.rerun()
+
+        # 2. Exibir a tabela interativa
+        # Filtramos apenas as colunas necessárias para não poluir a tela
+        df_exibir = df_cobranca[['nome', 'whatsapp', 'usuario', 'vencimento', 'servidor']].copy()
+        df_exibir.insert(0, "SELECIONAR", st.session_state.selecionado)
+
+        # O data_editor permite que o usuário marque os checkboxes
+        editado = st.data_editor(
+            df_exibir,
+            hide_index=True,
+            column_config={
+                "SELECIONAR": st.column_config.CheckboxColumn("Selecionar", default=False),
+                "vencimento": st.column_config.TextColumn("Vencimento"),
+            },
+            disabled=["nome", "whatsapp", "usuario", "vencimento", "servidor"], # Bloqueia edição nas outras colunas
+            use_container_width=True
+        )
+
+        # 3. Ações para os selecionados
+        clientes_selecionados = editado[editado["SELECIONAR"] == True]
+        
+        st.divider()
+        col_acao1, col_acao2 = st.columns(2)
+
+        with col_acao1:
+            st.markdown(f"**Selecionados:** {len(clientes_selecionados)} clientes")
+            msg_padrao = st.text_area("Mensagem de Cobrança", 
+                                     value="Olá! Seu acesso SuperTV4K está vencendo. Vamos renovar?")
+            
+            if st.button("📢 GERAR LINKS DE WHATSAPP"):
+                if not clientes_selecionados.empty:
+                    for _, sel in clientes_selecionados.iterrows():
+                        texto_codificado = urllib.parse.quote(msg_padrao)
+                        link = f"https://wa.me/{sel['whatsapp']}?text={texto_codificado}"
+                        st.markdown(f"👉 [Enviar para {sel['nome']}]({link})")
+                else:
+                    st.warning("Selecione ao menos um cliente.")
+
+        with col_acao2:
+            st.markdown("**Ação Crítica**")
+            if st.button("🗑️ EXCLUIR SELECIONADOS", type="secondary"):
+                if not clientes_selecionados.empty:
+                    ids_para_excluir = df_cobranca.iloc[clientes_selecionados.index]['id'].tolist()
+                    conn_bulk = sqlite3.connect('supertv_gestao.db')
+                    query = f"DELETE FROM clientes WHERE id IN ({','.join(map(str, ids_para_excluir))})"
+                    conn_bulk.execute(query)
+                    conn_bulk.commit()
+                    conn_bulk.close()
+                    st.success(f"{len(ids_para_excluir)} clientes excluídos!")
+                    t_lib.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Nenhum cliente selecionado para excluir.")
+    else:
+        st.info("Nenhum cliente cadastrado para cobrança.")
+
+
