@@ -8,7 +8,7 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (EXATAMENTE COMO O SEU) ---
+# --- 2. ESTILIZAÇÃO CSS (PADRÃO ORIGINAL) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -48,7 +48,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. BANCO DE DADOS E CARGA INICIAL ---
+# --- 3. BANCO DE DADOS E CARGA DA LISTA FORNECIDA ---
 def init_db():
     conn = sqlite3.connect('supertv_gestao.db')
     c = conn.cursor()
@@ -59,27 +59,65 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
     
-    # Verifica se a tabela está vazia para inserir sua lista
-    c.execute("SELECT COUNT(*) FROM clientes")
-    if c.fetchone()[0] == 0:
-        # LISTA DE CLIENTES FORNECIDA
-        clientes_iniciais = [
-            ('FATIMA8626', '', 'FATIMA8626', 'USUARIO udpdru SENHA fatct2', 'UNITV', 'P2P', '2026-04-18', 10.0, 35.0),
-            ('Renatop3975', '', 'Renatop3975', 'SENHA 356743dgty', '', 'IPTV', '2026-06-26', 10.0, 35.0),
-            ('Taiane1152', '', 'Taiane1152', 'SENHA 3585ukpo1', '', 'P2P', '2026-04-17', 10.0, 35.0),
-            ('Carlos6065', '', 'Carlos6065', 'SENHA Adg5680', 'P2BRAZ', 'IPTV', '2026-04-21', 10.0, 35.0),
-            ('Anarib7119', '', 'Anarib7119', 'SENHA 4938369', '', 'P2P', '2026-04-30', 10.0, 35.0),
-            ('Zantonio1132 C1', '', 'Zantonio1132 C1', 'SENHA x5894148', '', 'IPTV', '2026-04-21', 10.0, 30.0),
-            ('Thiago6555', '', 'Thiago6555', 'SENHA 658627390', '', 'P2P', '2026-04-25', 10.0, 30.0),
-            ('Adriana3700', '', 'Adriana3700', 'USUARIO n5drrq SENHA dri700', 'UNITV', 'P2P', '2026-03-25', 10.0, 35.0),
-            ('Vitor9935', '', 'Vitor9935', 'SENHA 76045952', '', 'P2P', '2026-02-16', 10.0, 35.0),
-            ('Edinho7131 C2', '', 'Edinho7131 C2', '2Edinho7131. SENHA 1462452', 'UNIPLAY', 'P2P', '2026-05-10', 10.0, 30.0),
-            ('Vitor1267579', '', 'Vitor1267579', 'SENHA 1267579', '', 'IPTV', '2026-04-16', 10.0, 35.0),
-            ('Jeferson6137', '', 'Jeferson6137', '1616137 SENHA y334u5705T', '', 'IPTV', '2026-04-16', 10.0, 35.0),
-            ('Andreh7760 C1', '', 'Andreh7760 C1', 'SENHA 3352aerw', '', 'IPTV', '2026-05-02', 5.0, 10.0)
-            # ... (Demais clientes podem ser importados via Excel ou adicionados aqui)
-        ]
-        c.executemany("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade) VALUES (?,?,?,?,?,?,?,?,?)", clientes_iniciais)
+    # LISTA COMPLETA DOS CLIENTES ENVIADOS
+    clientes_para_inserir = [
+        ('FATIMA8626', '', 'FATIMA8626', 'USUARIO udpdru SENHA fatct2', 'UNITV', 'P2P', '2026-04-18', 10.0, 35.0),
+        ('Renatop3975', '', 'Renatop3975', 'SENHA 356743dgty', '', 'IPTV', '2026-06-26', 10.0, 35.0),
+        ('Taiane1152', '', 'Taiane1152', 'SENHA 3585ukpo1', '', 'P2P', '2026-04-17', 10.0, 35.0),
+        ('Carlos6065', '', 'Carlos6065', 'SENHA Adg5680', 'P2BRAZ', 'IPTV', '2026-04-21', 10.0, 35.0),
+        ('Anarib7119', '', 'Anarib7119', 'SENHA 4938369', '', 'P2P', '2026-04-30', 10.0, 35.0),
+        ('Zantonio1132 C1', '', 'Zantonio1132 C1', 'SENHA x5894148', '', 'IPTV', '2026-04-21', 10.0, 30.0),
+        ('Thiago6555', '', 'Thiago6555', 'SENHA 658627390', '', 'P2P', '2026-04-25', 10.0, 30.0),
+        ('Adriana3700', '', 'Adriana3700', 'USUARIO n5drrq SENHA dri700', 'UNITV', 'P2P', '2026-03-25', 10.0, 35.0),
+        ('Ualas8896', '', 'Ualas8896', 'SENHA tszm1awg', '', 'P2P', '2026-04-25', 10.0, 35.0),
+        ('Fernando Vt225', '', 'Fernando Vt225', 'SENHA 342543Azd', '', 'P2P', '2026-04-27', 10.0, 35.0),
+        ('Edinho7131 C2', '', 'Edinho7131 C2', '2Edinho7131. SENHA 1462452', 'UNIPLAY', 'P2P', '2026-05-10', 10.0, 30.0),
+        ('Vitor1267579', '', 'Vitor1267579', 'SENHA 1267579', '', 'IPTV', '2026-04-16', 10.0, 35.0),
+        ('Fatima5071', '', 'Fatima5071', 'SENHA 450428628', 'PLAY TV', 'IPTV', '2026-04-22', 10.0, 35.0),
+        ('Vitor9935', '', 'Vitor9935', 'SENHA 76045952', '', 'P2P', '2026-02-16', 10.0, 35.0),
+        ('Lucas6839', '', 'Lucas6839', 'SENHA yvbnxhw1', '', 'P2P', '2026-04-07', 10.0, 35.0),
+        ('Kelly8158', '', 'Kelly8158', 'SENHA 68346955', 'MUNDO GF', 'P2P', '2026-04-20', 10.0, 35.0),
+        ('Maykon6920', '', 'Maykon6920', 'SENHA 86867041', '', 'IPTV', '2026-04-23', 10.0, 35.0),
+        ('Irineu7533', '', 'Irineu7533', 'SENHA 26874569', '', 'IPTV', '2026-05-06', 10.0, 35.0),
+        ('Bianca 3051', '', 'Bianca 3051', 'SENHA 81990017', '', 'IPTV', '2026-05-01', 10.0, 35.0),
+        ('Louise3414', '', 'Louise3414', 'SENHA 70968211', '', 'P2P', '2026-04-12', 10.0, 35.0),
+        ('Tabatha0694', '', 'Tabatha0694', 'SENHA 85344375', '', 'P2P', '2026-04-20', 10.0, 35.0),
+        ('Tatiane2302', '', 'Tatiane2302', 'SENHA 67045390', '', 'P2P', '2026-04-27', 10.0, 35.0),
+        ('Erivelton6236', '', 'Erivelton6236', 'SENHA 98808928', '', 'IPTV', '2026-05-01', 10.0, 35.0),
+        ('Sandro5162', '', 'Sandro5162', 'SENHA 8602895', '', 'P2P', '2026-05-05', 10.0, 35.0),
+        ('Andreh7760 C1', '', 'Andreh7760 C1', 'SENHA 3352aerw', '', 'IPTV', '2026-05-02', 10.0, 10.0),
+        ('Tati7269 C Sandra5430', '', 'Tati7269 C Sandra5430', 'Sandra 5430 SENHA 50087556', '', 'P2P', '2026-04-06', 10.0, 30.0),
+        ('Jvitor9873', '', 'Jvitor9873', 'SENHA 62690933', '', 'IPTV', '2026-05-06', 10.0, 35.0),
+        ('Angela1214', '', 'Angela1214', 'SENHA 3193260', '', 'P2P', '2026-05-04', 10.0, 35.0),
+        ('Tati7269 C1', '', 'Tati7269 C1', 'SENHA 374895unp', '', 'P2P', '2026-04-06', 10.0, 30.0),
+        ('Fabiana8459', '', 'Fabiana8459', '640473818 SENHA 992192288', '', 'IPTV', '2026-05-08', 10.0, 35.0),
+        ('Alberto4357', '', 'Alberto4357', 'SENHA 31565267', '', 'P2P', '2026-05-08', 10.0, 35.0),
+        ('Karinam9461', '', 'Karinam9461', '2Karinam9461 SENHA 3975989', '', 'P2P', '2026-05-04', 10.0, 35.0),
+        ('Ricardo4002', '', 'Ricardo4002', 'SENHA Conta2ricardo', '', 'P2P', '2026-04-21', 10.0, 35.0),
+        ('Gabriel3195', '', 'Gabriel3195', 'SENHA 64501260', '', 'IPTV', '2026-03-10', 10.0, 35.0),
+        ('Eliana4270', '', 'Eliana4270', 'SENHA Dsa3467', '', 'P2P', '2026-05-10', 10.0, 35.0),
+        ('Jeferson6137', '', 'Jeferson6137', '1616137 SENHA y334u5705T', '', 'IPTV', '2026-04-16', 10.0, 35.0),
+        ('Antonio7651', '', 'Antonio7651', 'SENHA 945422919', '', 'IPTV', '2026-04-09', 10.0, 35.0),
+        ('Valdinei9917 Bar', '', 'Valdinei9917 Bar', 'SENHA 951940211', '', 'IPTV', '2026-03-03', 10.0, 35.0),
+        ('Zeroberto9835', '', 'Zeroberto9835', 'ynkqy6 SENHA zr9835', '', 'P2P', '2026-05-07', 10.0, 35.0),
+        ('Ederp4178 2 Telas', '', 'Ederp4178 2 Telas', '534018373. SENHA 329194184', '', 'IPTV', '2026-05-05', 10.0, 20.0),
+        ('Robson326209', '', 'Robson326209', 'SENHA 326209', '', 'IPTV', '2026-04-16', 10.0, 30.0),
+        ('Alexandre3922', '', 'Alexandre3922', 'SENHA Xdr3575', '', 'P2P', '2026-02-12', 10.0, 35.0),
+        ('Ronaldo3117', '', 'Ronaldo3117', 'SENHA 435472754', '', 'IPTV', '2026-03-10', 10.0, 35.0),
+        ('Dr Marco Marina', '', 'Dr Marco Marina', 'Marina500102 SENHA 21792778', '', 'IPTV', '2026-04-12', 10.0, 30.0),
+        ('Samuel5968', '', 'Samuel5968', 'SENHA anap1929', '', 'P2P', '2026-04-02', 10.0, 35.0),
+        ('Dr Marco. Marquinho', '', 'Dr Marco. Marquinho', 'Marquinho9488 SENHA 32739008', '', 'IPTV', '2026-04-16', 10.0, 30.0),
+        ('JoseD641115', '', 'JoseD641115', 'SENHA 804378944', '', 'IPTV', '2026-04-16', 10.0, 35.0),
+        ('JoseC847776', '', 'JoseC847776', 'SENHA 7464577sup', '', 'IPTV', '2026-04-16', 10.0, 35.0),
+        ('Giane6673', '', 'Giane6673', 'SENHA 26331390', '', 'P2P', '2026-04-12', 10.0, 30.0),
+        ('Talison709508', '', 'Talison709508', 'SENHA 897091373', '', 'IPTV', '2026-03-06', 10.0, 35.0)
+    ]
+    
+    # Inserção inteligente: Apenas insere se o usuário ainda não existir no banco
+    for cli in clientes_para_inserir:
+        c.execute("SELECT 1 FROM clientes WHERE usuario = ?", (cli[2],))
+        if not c.fetchone():
+            c.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade) VALUES (?,?,?,?,?,?,?,?,?)", cli)
         
     conn.commit()
     conn.close()
@@ -93,6 +131,7 @@ def get_servidores():
     conn.close()
     return lista if lista else ["UNITV", "UNIPLAY", "P2BRAZ", "MUNDOGF", "PLAY TV"]
 
+# Inicializar banco e carregar dados
 init_db()
 
 # --- 4. CARREGAR DADOS ---
@@ -128,9 +167,13 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 with tab1:
     busca = st.text_input("🔍 PESQUISAR")
     if not df.empty:
-        for _, r in df.iterrows():
+        # Ordenar por nome para facilitar
+        df_sorted = df.sort_values(by='nome')
+        for _, r in df_sorted.iterrows():
             if busca.lower() in r['nome'].lower() or busca.lower() in str(r['usuario']).lower():
-                with st.expander(f"👤 {r['nome'].upper()} / {r['usuario']}"):
+                # Cor do status no expander
+                status_color = "🔴" if r['dias_res'] < 0 else "🟢"
+                with st.expander(f"{status_color} {r['nome'].upper()} / {r['usuario']}"):
                     with st.form(key=f"ed_{r['id']}"):
                         col1, col2 = st.columns(2)
                         en, ew = col1.text_input("NOME", value=r['nome']), col2.text_input("WHATSAPP", value=r['whatsapp'])
@@ -141,7 +184,7 @@ with tab1:
                         ev, em = col3.date_input("VENCIMENTO", value=pd.to_datetime(r['vencimento']).date()), col4.number_input("Valor", value=float(r['mensalidade']))
                         st.write("---")
                         b_col1, b_col2 = st.columns(2)
-                        if b_col1.form_submit_button("💾 SALVAR", type="primary"):
+                        if b_col1.form_submit_button("💾 SALVAR"):
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("UPDATE clientes SET nome=?, whatsapp=?, usuario=?, senha=?, servidor=?, vencimento=?, mensalidade=? WHERE id=?", (en, ew, eu, es, esrv, str(ev), em, r['id'])); c.commit(); st.rerun()
                         if b_col2.form_submit_button("🗑️ EXCLUIR"):
                             c = sqlite3.connect('supertv_gestao.db'); c.execute("DELETE FROM clientes WHERE id=?", (r['id'],)); c.commit(); st.rerun()
@@ -155,8 +198,8 @@ with tab2:
         srv_n = st.selectbox("SERVIDOR", get_servidores())
         v_n = st.date_input("VENCIMENTO", value=datetime.now() + timedelta(days=30))
         f3, f4 = st.columns(2)
-        c_n, m_n = f3.number_input("CUSTO", 0.0), f4.number_input("VALOR", 35.0)
-        if st.form_submit_button("🚀 CADASTRAR", type="primary"):
+        c_n, m_n = f3.number_input("CUSTO", 10.0), f4.number_input("VALOR", 35.0)
+        if st.form_submit_button("🚀 CADASTRAR"):
             if n_n and u_n:
                 conn = sqlite3.connect('supertv_gestao.db'); conn.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade) VALUES (?,?,?,?,?,?,?,?)", (n_n, w_n, u_n, s_n, srv_n, str(v_n), c_n, m_n)); conn.commit(); conn.close(); st.rerun()
 
