@@ -41,7 +41,10 @@ st.markdown("""
 # --- 3. FUNÇÕES AUXILIARES ---
 def image_to_base64(image_file):
     if image_file is not None:
-        return base64.b64encode(image_file.read()).decode()
+        try:
+            return base64.b64encode(image_file.read()).decode()
+        except:
+            return None
     return None
 
 def init_db():
@@ -88,7 +91,8 @@ if not df.empty:
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce')
     df['dias_res'] = (df['dt_venc_calc'].dt.date - hoje.date()).apply(lambda x: x.days if pd.notnull(x) else 0)
     
-    bruto, custos = df['mensalidade'].sum(), df['custo'].sum()
+    bruto = df['mensalidade'].sum()
+    custos = df['custo'].sum()
     liquido = bruto - custos
     
     c1, c2, c3 = st.columns(3); c4, c5, c6 = st.columns(3)
@@ -117,41 +121,31 @@ with tab1:
                     d_txt = "DATA INVÁLIDA"
                 
                 status_ico = "🟢" if r['dias_res'] >= 0 else "🔴"
-                
-                # TITULO PARA O EXPANDER
                 titulo = f"{status_ico} {r['servidor']} | {r['nome'].upper()} | {d_txt}"
 
                 with st.expander(titulo):
-                    # PARTE DA LOGO E INFO (O QUE VOCE PEDIU)
                     c_logo, c_info = st.columns([1, 3])
                     with c_logo:
                         img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                         st.image(img_data, width=100)
-                    
                     with c_info:
                         st.markdown(f"""
                         **CLIENTE:** {r['nome'].upper()} | **VENCE EM:** {d_txt}  
                         **USUÁRIO:** `{r['usuario']}` | **SENHA:** `{r['senha']}`  
                         **SERVIDOR:** {r['servidor']} | **SISTEMA:** {r['sistema']}
                         """)
-
                     st.divider()
-                    
-                    # FORMULARIO DE EDIÇÃO
                     with st.form(key=f"ed_{r['id']}"):
                         en = st.text_input("NOME", value=r['nome'])
                         eu = st.text_input("USUÁRIO", value=r['usuario'])
                         es = st.text_input("SENHA", value=r['senha'])
                         esrv = st.selectbox("SERVIDOR", get_servidores(), key=f"srv_{r['id']}")
                         esis = st.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if r['sistema']=="P2P" else 1)
-                        
                         cv1, cv2 = st.columns(2)
                         evd = cv1.date_input("DATA VENC.", value=dt_v.date(), format="DD/MM/YYYY", key=f"dv_{r['id']}")
                         evh = cv2.time_input("HORA VENC.", value=dt_v.time(), key=f"hv_{r['id']}")
-                        
                         ew = st.text_input("WHATSAPP", value=r['whatsapp'])
                         e_img = st.file_uploader("TROCAR LOGO", type=['png','jpg','jpeg'], key=f"img_ed_{r['id']}")
-                        
                         cb1, cb2 = st.columns(2)
                         if cb1.form_submit_button("💾 SALVAR"):
                             vf = datetime.combine(evd, evh).strftime('%Y-%m-%d %H:%M:%S')
@@ -173,17 +167,13 @@ with tab2:
         n_pass = st.text_input("SENHA")
         n_serv = st.selectbox("SERVIDOR", get_servidores())
         n_sist = st.selectbox("SISTEMA", ["P2P", "IPTV"])
-        
         c1, c2 = st.columns(2)
         n_dv = c1.date_input("DIA VENCIMENTO", value=datetime.now()+timedelta(days=30), format="DD/MM/YYYY")
         n_hv = c2.time_input("HORA VENCIMENTO", value=time(12,0))
-        
         n_custo = st.number_input("CUSTO", value=10.0)
         n_mensal = st.number_input("VALOR COBRADO", value=35.0)
-        
-        n_whats = st.text_input("WHATSAPP (Ex: 62988887777)")
+        n_whats = st.text_input("WHATSAPP")
         n_logo = st.file_uploader("LOGOMARCA DO SERVIDOR", type=['png','jpg','jpeg'])
-        
         if st.form_submit_button("🚀 CADASTRAR AGORA"):
             if n_nome and n_user:
                 venc_f = datetime.combine(n_dv, n_hv).strftime('%Y-%m-%d %H:%M:%S')
@@ -203,17 +193,37 @@ with tab3:
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    # Adicionar Servidor
-    new_s = st.text_input("ADICIONAR NOME DO SERVIDOR")
-    if st.button("SALVAR NOVO SERVIDOR"):
+    
+    # 1. Adicionar Servidor
+    st.markdown("### 🖥️ Gerenciar Servidores")
+    new_s = st.text_input("NOME DO NOVO SERVIDOR")
+    if st.button("SALVAR SERVIDOR"):
         if new_s:
             conn_s = sqlite3.connect('supertv_gestao.db')
             conn_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (new_s.upper(),))
             conn_s.commit(); st.rerun()
     
     st.divider()
-    # Backup
+
+    # 2. Importar Lista (Botão Restaurado)
+    st.markdown("### 📥 Importar Dados")
+    f_up = st.file_uploader("Selecione um arquivo Excel para importar clientes", type=["xlsx"])
+    if f_up:
+        if st.button("🚀 PROCESSAR IMPORTAÇÃO"):
+            try:
+                df_imp = pd.read_excel(f_up)
+                conn_imp = sqlite3.connect('supertv_gestao.db')
+                df_imp.to_sql('clientes', conn_imp, if_exists='append', index=False)
+                st.success("Dados importados com sucesso!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao importar: {e}")
+
+    st.divider()
+    
+    # 3. Exportar/Backup
+    st.markdown("### 📤 Backup")
     if not df.empty:
         buf = io.BytesIO()
         df.to_excel(buf, index=False)
-        st.download_button("📥 EXPORTAR EXCEL (BACKUP)", data=buf.getvalue(), file_name="clientes_supertv.xlsx")
+        st.download_button("📥 EXPORTAR EXCEL (BACKUP)", data=buf.getvalue(), file_name="clientes_supertv.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
