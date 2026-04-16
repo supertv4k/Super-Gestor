@@ -17,7 +17,6 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* Card do Cliente na Lista */
     .cliente-row {
         background-color: #161b22;
         border: 1px solid #30363d;
@@ -29,24 +28,16 @@ st.markdown("""
         gap: 20px;
     }
     .logo-externa {
-        width: 85px;
-        height: 85px;
-        border-radius: 10px;
-        object-fit: contain;
-        background: #21262d;
-        border: 1px solid #444;
+        width: 85px; height: 85px; border-radius: 10px;
+        object-fit: contain; background: #21262d; border: 1px solid #444;
     }
     .info-container {
-        flex-grow: 1;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        flex-grow: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
     }
     .info-txt { font-size: 14px; color: #c9d1d9; }
     .destaque-vermelho { color: #ff4b4b; font-weight: bold; }
     .destaque-verde { color: #00ff00; font-weight: bold; }
     
-    /* Métricas */
     .metric-card { 
         background-color: #161b22; padding: 15px; border-radius: 12px; 
         text-align: center; border: 1px solid #30363d; margin-bottom: 10px; 
@@ -99,7 +90,7 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD COMPLETO ---
+# --- 6. DASHBOARD ---
 if not df.empty:
     hoje = datetime.now()
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce')
@@ -125,25 +116,19 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 
 with tab1:
     st.subheader("🔍 Filtros Rápidos")
-    
-    # Botões de Filtro
     c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
     if 'filtro_atual' not in st.session_state: st.session_state.filtro_atual = "Todos"
-
     if c_btn1.button("👥 Todos", use_container_width=True): st.session_state.filtro_atual = "Todos"
     if c_btn2.button("🔴 Vencidos", use_container_width=True): st.session_state.filtro_atual = "Vencidos"
     if c_btn3.button("🟡 A Vencer (3d)", use_container_width=True): st.session_state.filtro_atual = "A Vencer"
     if c_btn4.button("🟢 Ativos", use_container_width=True): st.session_state.filtro_atual = "Ativos"
 
-    st.markdown(f"**Filtro Ativo:** `{st.session_state.filtro_atual}`")
     busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
-
     if not df.empty:
         df_f = df.copy()
         if st.session_state.filtro_atual == "Vencidos": df_f = df_f[df_f['dias_res'] < 0]
         elif st.session_state.filtro_atual == "A Vencer": df_f = df_f[(df_f['dias_res'] >= 0) & (df_f['dias_res'] <= 3)]
         elif st.session_state.filtro_atual == "Ativos": df_f = df_f[df_f['dias_res'] >= 0]
-        
         if busca:
             df_f = df_f[df_f['nome'].str.contains(busca, case=False, na=False) | df_f['usuario'].str.contains(busca, case=False, na=False)]
 
@@ -153,17 +138,12 @@ with tab1:
             dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
 
-            st.markdown(f"""
-            <div class="cliente-row">
-                <img src="{img_data}" class="logo-externa">
-                <div class="info-container">
+            st.markdown(f"""<div class="cliente-row"><img src="{img_data}" class="logo-externa"><div class="info-container">
                     <div class="info-txt">👤 <b>CLIENTE:</b> {r['nome'].upper()}</div>
                     <div class="info-txt">📅 <b>STATUS:</b> <span class="{status_cor}">{dias_txt}</span></div>
                     <div class="info-txt">🔑 <b>USER:</b> {r['usuario']}</div>
                     <div class="info-txt">📶 <b>SISTEMA:</b> {r['servidor']} ({r['sistema']})</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                </div></div>""", unsafe_allow_html=True)
 
             with st.expander("⚙️ CLIQUE PARA EDITAR"):
                 with st.form(key=f"ed_{r['id']}"):
@@ -173,94 +153,75 @@ with tab1:
                     es = c_ed1.text_input("SENHA", value=r['senha'])
                     esrv = c_ed2.selectbox("SERVIDOR", get_servidores(), key=f"srv_{r['id']}")
                     esis = c_ed1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if r['sistema']=="P2P" else 1)
-                    evd = c_ed2.date_input("VENCIMENTO", value=dt_v.date(), format="DD/MM/YYYY", key=f"d_{r['id']}")
+                    evd = c_ed2.date_input("VENCIMENTO", value=dt_v.date(), key=f"d_{r['id']}")
                     ew = c_ed1.text_input("WHATSAPP", value=r['whatsapp'])
                     e_img = c_ed2.file_uploader("TROCAR LOGO", type=['png','jpg','jpeg'], key=f"i_{r['id']}")
-                    
-                    b1, b2 = st.columns(2)
-                    if b1.form_submit_button("💾 SALVAR"):
+                    if st.form_submit_button("💾 SALVAR"):
                         vf = datetime.combine(evd, dt_v.time()).strftime('%Y-%m-%d %H:%M:%S')
                         l_f = image_to_base64(e_img) if e_img else r['logo_blob']
-                        c_up = sqlite3.connect('supertv_gestao.db')
-                        c_up.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, whatsapp=?, logo_blob=? WHERE id=?", 
+                        conn_up = sqlite3.connect('supertv_gestao.db')
+                        conn_up.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, whatsapp=?, logo_blob=? WHERE id=?", 
                                      (en, eu, es, esrv, esis, vf, ew, l_f, r['id']))
-                        c_up.commit(); st.rerun()
-                    if b2.form_submit_button("🗑️ EXCLUIR"):
-                        c_del = sqlite3.connect('supertv_gestao.db')
-                        c_del.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
-                        c_del.commit(); st.rerun()
+                        conn_up.commit(); st.rerun()
 
 with tab2:
     st.subheader("🚀 Novo Cliente")
     with st.form("add"):
-        n_n = st.text_input("NOME DO CLIENTE")
+        n_n = st.text_input("NOME")
         n_u = st.text_input("USUÁRIO")
         n_s = st.text_input("SENHA")
         n_srv = st.selectbox("SERVIDOR", get_servidores())
         n_sis = st.selectbox("SISTEMA", ["P2P", "IPTV"])
-        n_v = st.date_input("VENCIMENTO", value=datetime.now()+timedelta(days=30), format="DD/MM/YYYY")
-        n_c = st.number_input("CUSTO", value=10.0)
-        n_m = st.number_input("VALOR COBRADO", value=35.0)
-        n_w = st.text_input("WHATSAPP")
-        n_l = st.file_uploader("LOGOMARCA", type=['png','jpg','jpeg'])
+        n_v = st.date_input("VENCIMENTO", value=datetime.now()+timedelta(days=30))
+        n_c = st.number_input("CUSTO", value=10.0); n_m = st.number_input("VALOR", value=35.0)
+        n_w = st.text_input("WHATSAPP"); n_l = st.file_uploader("LOGOMARCA", type=['png','jpg','jpeg'])
         if st.form_submit_button("🚀 CADASTRAR"):
             v_f = datetime.combine(n_v, time(12,0)).strftime('%Y-%m-%d %H:%M:%S')
             l_b = image_to_base64(n_l)
-            c_in = sqlite3.connect('supertv_gestao.db')
-            c_in.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            conn_in = sqlite3.connect('supertv_gestao.db')
+            conn_in.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (n_n, n_u, n_s, n_srv, n_sis, v_f, n_c, n_m, n_w, l_b))
-            c_in.commit(); st.success("Cadastrado!"); st.rerun()
+            conn_in.commit(); st.success("Cadastrado!"); st.rerun()
 
 with tab3:
     st.subheader("🚨 COBRANÇA")
     pix = "62.326.879/0001-13"
     if not df.empty:
-        df_cob = df[df['dias_res'] <= 3].copy()
-        for _, c in df_cob.iterrows():
+        for _, c in df[df['dias_res'] <= 3].iterrows():
             t_v = "venceu" if c['dias_res'] < 0 else "vence"
             msg = f"Olá {c['nome']}, sua assinatura {t_v} em {pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')}. Pix: {pix}"
-            st.link_button(f"📲 COBRAR {c['nome']} ({'VENCIDO' if c['dias_res'] < 0 else f'{c['dias_res']} d'})", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(with tab4:
+            st.link_button(f"📲 COBRAR {c['nome']}", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+
+with tab4:
     st.subheader("⚙️ AJUSTES")
     st.markdown("### 🖥️ Gerenciar Servidores")
     ns = st.text_input("NOME DO NOVO SERVIDOR")
     if st.button("SALVAR SERVIDOR"):
         if ns:
-            c_s = sqlite3.connect('supertv_gestao.db')
-            c_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
-            c_s.commit(); st.rerun()
+            conn_s = sqlite3.connect('supertv_gestao.db')
+            conn_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
+            conn_s.commit(); st.rerun()
     
     st.divider()
-    
-    st.markdown("### 📥 Importar Dados (Excel)")
-    st.info("O Excel deve conter as colunas: nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade")
-    f_up = st.file_uploader("Selecione o arquivo .xlsx", type=["xlsx"])
-    
+    st.markdown("### 📥 Importar Lista (Excel)")
+    f_up = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
     if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
         try:
-            # 1. Lê o Excel
             df_imp = pd.read_excel(f_up)
-            
-            # 2. Lista de colunas que o banco de dados real possui
-            colunas_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade', 'logo_blob']
-            
-            # 3. Adiciona colunas que faltarem no Excel com valor vazio
-            for col in colunas_banco:
-                if col not in df_imp.columns:
-                    df_imp[col] = None
-            
-            # 4. Mantém apenas as colunas que existem no banco (descarta lixo do Excel)
-            df_imp = df_imp[colunas_banco]
-            
-            # 5. Salva no Banco
+            col_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade']
+            for c in col_banco:
+                if c not in df_imp.columns: df_imp[c] = None
+            df_imp = df_imp[col_banco]
             conn_imp = sqlite3.connect('supertv_gestao.db')
             df_imp.to_sql('clientes', conn_imp, if_exists='append', index=False)
-            conn_imp.close()
-            
-            st.success(f"✅ Sucesso! {len(df_imp)} clientes importados.")
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"❌ Erro na importação: Verifique se os nomes das colunas no Excel estão corretos. Detalhe: {e}")
+            st.success("Importação concluída!"); st.rerun()
+        except Exception as e: st.error(f"Erro: {e}")
 
     st.divider()
-    # ... resto do código de backup ...
+    if not df.empty:
+        st.markdown("### 📤 Exportar Backup")
+        # Remove a coluna de imagem para o backup não ficar pesado
+        df_export = df.drop(columns=['logo_blob'], errors='ignore')
+        buf = io.BytesIO()
+        df_export.to_excel(buf, index=False)
+        st.download_button("📥 BAIXAR LISTA (EXCEL)", data=buf.getvalue(), file_name="backup_clientes.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
