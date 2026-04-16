@@ -130,16 +130,19 @@ with tab1:
         elif st.session_state.filtro_atual == "A Vencer": df_f = df_f[(df_f['dias_res'] >= 0) & (df_f['dias_res'] <= 3)]
         elif st.session_state.filtro_atual == "Ativos": df_f = df_f[df_f['dias_res'] >= 0]
         if busca:
-            df_f = df_f[df_f['nome'].str.contains(busca, case=False, na=False) | df_f['usuario'].str.contains(busca, case=False, na=False)]
+            df_f = df_f[df_f['nome'].astype(str).str.contains(busca, case=False, na=False) | df_f['usuario'].astype(str).str.contains(busca, case=False, na=False)]
 
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             dt_v = pd.to_datetime(r['vencimento'])
             status_cor = "destaque-verde" if r['dias_res'] >= 0 else "destaque-vermelho"
             dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
+            
+            # CORREÇÃO DO ERRO: Garantindo que o nome seja tratado como string
+            nome_display = str(r['nome']).upper() if r['nome'] else "SEM NOME"
 
             st.markdown(f"""<div class="cliente-row"><img src="{img_data}" class="logo-externa"><div class="info-container">
-                    <div class="info-txt">👤 <b>CLIENTE:</b> {r['nome'].upper()}</div>
+                    <div class="info-txt">👤 <b>CLIENTE:</b> {nome_display}</div>
                     <div class="info-txt">📅 <b>STATUS:</b> <span class="{status_cor}">{dias_txt}</span></div>
                     <div class="info-txt">🔑 <b>USER:</b> {r['usuario']}</div>
                     <div class="info-txt">📶 <b>SISTEMA:</b> {r['servidor']} ({r['sistema']})</div>
@@ -204,23 +207,30 @@ with tab4:
     
     st.divider()
     st.markdown("### 📥 Importar Lista (Excel)")
+    st.info("Colunas esperadas: nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade")
     f_up = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
     if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
         try:
             df_imp = pd.read_excel(f_up)
+            # Normaliza os nomes das colunas para evitar erro de maiúscula/minúscula
+            df_imp.columns = [c.lower().strip() for c in df_imp.columns]
+            
             col_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade']
             for c in col_banco:
                 if c not in df_imp.columns: df_imp[c] = None
+            
             df_imp = df_imp[col_banco]
+            # Limpeza rápida: remove linhas onde o nome e usuário estão vazios
+            df_imp = df_imp.dropna(subset=['nome', 'usuario'], how='all')
+            
             conn_imp = sqlite3.connect('supertv_gestao.db')
             df_imp.to_sql('clientes', conn_imp, if_exists='append', index=False)
             st.success("Importação concluída!"); st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
+        except Exception as e: st.error(f"Erro na importação: {e}")
 
     st.divider()
     if not df.empty:
         st.markdown("### 📤 Exportar Backup")
-        # Remove a coluna de imagem para o backup não ficar pesado
         df_export = df.drop(columns=['logo_blob'], errors='ignore')
         buf = io.BytesIO()
         df_export.to_excel(buf, index=False)
