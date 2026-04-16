@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -18,22 +19,14 @@ st.markdown("""
     .logo-supertv { width: 380px; }
     
     .cliente-row {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 20px;
+        background-color: #161b22; border: 1px solid #30363d; border-radius: 12px;
+        padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 20px;
     }
     .logo-externa {
         width: 85px; height: 85px; border-radius: 10px;
         object-fit: contain; background: #21262d; border: 1px solid #444;
     }
-    .info-container {
-        flex-grow: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-    }
+    .info-container { flex-grow: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .info-txt { font-size: 14px; color: #c9d1d9; }
     .destaque-vermelho { color: #ff4b4b; font-weight: bold; }
     .destaque-verde { color: #00ff00; font-weight: bold; }
@@ -92,9 +85,11 @@ st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9B
 
 # --- 6. DASHBOARD ---
 if not df.empty:
-    hoje = datetime.now()
+    hoje_dt = datetime.now()
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce')
-    df['dias_res'] = (df['dt_venc_calc'].dt.date - hoje.date()).apply(lambda x: x.days if pd.notnull(x) else 0)
+    # Proteção: Se a data for nula após conversão, coloca hoje para não quebrar o cálculo de dias
+    df['dt_venc_calc'] = df['dt_venc_calc'].fillna(hoje_dt)
+    df['dias_res'] = (df['dt_venc_calc'].dt.date - hoje_dt.date()).apply(lambda x: x.days)
     
     bruto, custos = df['mensalidade'].sum(), df['custo'].sum()
     liquido = bruto - custos
@@ -123,7 +118,7 @@ with tab1:
     if c_btn3.button("🟡 A Vencer (3d)", use_container_width=True): st.session_state.filtro_atual = "A Vencer"
     if c_btn4.button("🟢 Ativos", use_container_width=True): st.session_state.filtro_atual = "Ativos"
 
-    busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
+    busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário...")
     if not df.empty:
         df_f = df.copy()
         if st.session_state.filtro_atual == "Vencidos": df_f = df_f[df_f['dias_res'] < 0]
@@ -133,12 +128,13 @@ with tab1:
             df_f = df_f[df_f['nome'].astype(str).str.contains(busca, case=False, na=False) | df_f['usuario'].astype(str).str.contains(busca, case=False, na=False)]
 
         for _, r in df_f.sort_values(by='dias_res').iterrows():
-            dt_v = pd.to_datetime(r['vencimento'])
+            # Proteção de data para exibição e widgets
+            data_venc = pd.to_datetime(r['vencimento'], errors='coerce')
+            if pd.isnull(data_venc): data_venc = datetime.now()
+            
             status_cor = "destaque-verde" if r['dias_res'] >= 0 else "destaque-vermelho"
             dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
-            
-            # CORREÇÃO DO ERRO: Garantindo que o nome seja tratado como string
             nome_display = str(r['nome']).upper() if r['nome'] else "SEM NOME"
 
             st.markdown(f"""<div class="cliente-row"><img src="{img_data}" class="logo-externa"><div class="info-container">
@@ -156,16 +152,25 @@ with tab1:
                     es = c_ed1.text_input("SENHA", value=r['senha'])
                     esrv = c_ed2.selectbox("SERVIDOR", get_servidores(), key=f"srv_{r['id']}")
                     esis = c_ed1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if r['sistema']=="P2P" else 1)
-                    evd = c_ed2.date_input("VENCIMENTO", value=dt_v.date(), key=f"d_{r['id']}")
+                    
+                    # Widget de data com proteção para NaT
+                    evd = c_ed2.date_input("VENCIMENTO", value=data_venc.date(), key=f"d_{r['id']}")
+                    
                     ew = c_ed1.text_input("WHATSAPP", value=r['whatsapp'])
                     e_img = c_ed2.file_uploader("TROCAR LOGO", type=['png','jpg','jpeg'], key=f"i_{r['id']}")
-                    if st.form_submit_button("💾 SALVAR"):
-                        vf = datetime.combine(evd, dt_v.time()).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    b1, b2 = st.columns(2)
+                    if b1.form_submit_button("💾 SALVAR"):
+                        vf = datetime.combine(evd, time(12,0)).strftime('%Y-%m-%d %H:%M:%S')
                         l_f = image_to_base64(e_img) if e_img else r['logo_blob']
                         conn_up = sqlite3.connect('supertv_gestao.db')
                         conn_up.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, whatsapp=?, logo_blob=? WHERE id=?", 
                                      (en, eu, es, esrv, esis, vf, ew, l_f, r['id']))
                         conn_up.commit(); st.rerun()
+                    if b2.form_submit_button("🗑️ EXCLUIR"):
+                        conn_del = sqlite3.connect('supertv_gestao.db')
+                        conn_del.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
+                        conn_del.commit(); st.rerun()
 
 with tab2:
     st.subheader("🚀 Novo Cliente")
@@ -197,7 +202,6 @@ with tab3:
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    st.markdown("### 🖥️ Gerenciar Servidores")
     ns = st.text_input("NOME DO NOVO SERVIDOR")
     if st.button("SALVAR SERVIDOR"):
         if ns:
@@ -207,22 +211,19 @@ with tab4:
     
     st.divider()
     st.markdown("### 📥 Importar Lista (Excel)")
-    st.info("Colunas esperadas: nome, whatsapp, usuario, senha, servidor, sistema, vencimento, custo, mensalidade")
     f_up = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
     if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
         try:
             df_imp = pd.read_excel(f_up)
-            # Normaliza os nomes das colunas para evitar erro de maiúscula/minúscula
             df_imp.columns = [c.lower().strip() for c in df_imp.columns]
-            
             col_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade']
             for c in col_banco:
                 if c not in df_imp.columns: df_imp[c] = None
             
-            df_imp = df_imp[col_banco]
-            # Limpeza rápida: remove linhas onde o nome e usuário estão vazios
-            df_imp = df_imp.dropna(subset=['nome', 'usuario'], how='all')
+            # Formata a data de vencimento na importação para evitar erros futuros
+            df_imp['vencimento'] = pd.to_datetime(df_imp['vencimento'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
             
+            df_imp = df_imp[col_banco].dropna(subset=['nome', 'usuario'], how='all')
             conn_imp = sqlite3.connect('supertv_gestao.db')
             df_imp.to_sql('clientes', conn_imp, if_exists='append', index=False)
             st.success("Importação concluída!"); st.rerun()
@@ -231,7 +232,7 @@ with tab4:
     st.divider()
     if not df.empty:
         st.markdown("### 📤 Exportar Backup")
-        df_export = df.drop(columns=['logo_blob'], errors='ignore')
+        df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
         buf = io.BytesIO()
         df_export.to_excel(buf, index=False)
-        st.download_button("📥 BAIXAR LISTA (EXCEL)", data=buf.getvalue(), file_name="backup_clientes.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("📥 BAIXAR LISTA (EXCEL)", data=buf.getvalue(), file_name="backup_clientes.xlsx")
