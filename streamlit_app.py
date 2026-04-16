@@ -233,24 +233,33 @@ with tab3:
         df_c['DIAS'] = res.apply(lambda x: x[2]); df_c['MOTIVO'] = res.apply(lambda x: x[3])
         df_c = df_c.sort_values(by=['ORDEM', 'DIAS'])
 
-        filtro = st.multiselect("Filtrar por urgência:", options=df_c['SITUAÇÃO'].unique(), default=df_c['SITUAÇÃO'].unique())
-        df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro)]
+        opcoes_status = df_c['SITUAÇÃO'].unique()
+        filtro = st.multiselect("Filtrar por urgência:", options=opcoes_status, default=opcoes_status)
+        df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro)].copy()
 
         c_b1, c_b2, _ = st.columns([1, 1, 3])
         if 'sel_ids' not in st.session_state: st.session_state.sel_ids = []
+        
         if c_b1.button("✅ Selecionar Todos"):
             st.session_state.sel_ids = df_filtrado['id'].tolist(); st.rerun()
         if c_b2.button("⬜ Limpar"):
             st.session_state.sel_ids = []; st.rerun()
 
-        df_tab = df_filtrado[['id', 'SITUAÇÃO', 'nome', 'servidor', 'vencimento']].copy()
+        df_tab = df_filtrado.copy()
         df_tab.insert(0, "SELECIONAR", df_tab['id'].apply(lambda x: x in st.session_state.sel_ids))
         
-        edit_c = st.data_editor(df_tab.drop(columns=['id']), hide_index=True, use_container_width=True,
-                               column_config={"SELECIONAR": st.column_config.CheckboxColumn("✔")},
-                               disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"], key="editor_v3")
+        edit_c = st.data_editor(
+            df_tab[['SELECIONAR', 'id', 'SITUAÇÃO', 'nome', 'servidor', 'vencimento']], 
+            hide_index=True, use_container_width=True,
+            column_config={
+                "SELECIONAR": st.column_config.CheckboxColumn("✔"),
+                "id": None, 
+                "SITUAÇÃO": st.column_config.TextColumn("Status", width="small"),
+            },
+            disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"], key="editor_v4"
+        )
 
-        ids_finais = df_filtrado.iloc[edit_c[edit_c["SELECIONAR"] == True].index]['id'].tolist()
+        ids_finais = edit_c[edit_c["SELECIONAR"] == True]["id"].tolist()
         st.divider()
 
         col_envio, col_gestao = st.columns([2, 1])
@@ -262,7 +271,7 @@ with tab3:
                     for _, cli in df_c[df_c['id'].isin(ids_finais)].iterrows():
                         msg = template.format(nome=str(cli['nome']).split()[0].capitalize(), servidor=cli['servidor'], status=cli['SITUAÇÃO'], motivo=cli['MOTIVO'])
                         st.info(f"**{cli['SITUAÇÃO']}** | {cli['nome']} \n\n [ENVIAR WHATSAPP](https://wa.me/{cli['whatsapp']}?text={urllib.parse.quote(msg)})")
-                else: st.warning("Selecione alguém.")
+                else: st.warning("Selecione alguém na tabela.")
 
         with col_gestao:
             st.markdown("### 🛠️ Ação")
@@ -270,7 +279,8 @@ with tab3:
                 if ids_finais:
                     c_db = sqlite3.connect('supertv_gestao.db')
                     c_db.execute(f"DELETE FROM clientes WHERE id IN ({','.join(['?']*len(ids_finais))})", ids_finais)
-                    c_db.commit(); c_db.close(); st.rerun()
+                    c_db.commit(); c_db.close(); st.session_state.sel_ids = []; st.rerun()
+                else: st.error("Nenhum cliente marcado.")
     else: st.info("Sem dados.")
 
 with tab4:
