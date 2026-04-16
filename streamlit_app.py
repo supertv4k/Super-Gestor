@@ -218,9 +218,118 @@ with tab2:
             conn_in.commit(); conn_in.close(); st.rerun()
 
 with tab3:
-    st.subheader("🚨 Cobranças Pendentes")
-    # Espaço reservado para a lógica de cobrança futura
-    st.info("Aqui aparecerão as notificações de cobrança automáticas.")
+with tab3:
+    st.subheader("🚀 Gestão de Cobrança Profissional")
+
+    if not df.empty:
+        # --- LÓGICA DE STATUS E CORES ---
+        hoje = datetime.now().date()
+        def calcular_status_pro(venc_str):
+            try:
+                dv = pd.to_datetime(venc_str).date()
+                dias = (dv - hoje).days
+                if dias < 0: return "🔴 VENCIDO", -1, dias, "ficar sem sinal"
+                if dias == 0: return "🟠 VENCE HOJE", 0, dias, "renovar hoje"
+                if dias == 1: return "🟡 1 DIA", 1, dias, "renovar"
+                if dias == 2: return "🟡 2 DIAS", 2, dias, "renovar"
+                if dias == 3: return "🟢 3 DIAS", 3, dias, "renovar"
+                if 4 <= dias <= 7: return "🔵 4-7 DIAS", 4, dias, "se organizar"
+                return "🟡 DOURADO", 5, dias, "manter em dia"
+            except: return "⚪ ERRO", 6, 999, ""
+
+        df_c = df.copy()
+        res = df_c['vencimento'].apply(calcular_status_pro)
+        df_c['SITUAÇÃO'] = res.apply(lambda x: x[0])
+        df_c['ORDEM'] = res.apply(lambda x: x[1])
+        df_c['DIAS'] = res.apply(lambda x: x[2])
+        df_c['MOTIVO'] = res.apply(lambda x: x[3])
+        
+        df_c = df_c.sort_values(by=['ORDEM', 'DIAS'])
+
+        # --- FILTRO RÁPIDO ---
+        filtro_status = st.multiselect("Filtrar por urgência:", 
+                                     options=df_c['SITUAÇÃO'].unique(), 
+                                     default=df_c['SITUAÇÃO'].unique())
+        df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro_status)]
+
+        # --- SELEÇÃO EM MASSA ---
+        c_b1, c_b2, _ = st.columns([1, 1, 3])
+        if 'sel_pro' not in st.session_state: st.session_state.sel_pro = []
+        
+        if c_b1.button("✅ Selecionar Toda a Lista"):
+            st.session_state.sel_pro = df_filtrado['id'].tolist()
+            st.rerun()
+        if c_b2.button("⬜ Limpar Seleção"):
+            st.session_state.sel_pro = []
+            st.rerun()
+
+        # --- TABELA DE SELEÇÃO ---
+        df_tab = df_filtrado[['id', 'SITUAÇÃO', 'nome', 'servidor', 'vencimento']].copy()
+        df_tab.insert(0, "SELECIONAR", df_tab['id'].apply(lambda x: x in st.session_state.sel_pro))
+        
+        edit_c = st.data_editor(
+            df_tab.drop(columns=['id']),
+            hide_index=True,
+            column_config={
+                "SELECIONAR": st.column_config.CheckboxColumn("✔"),
+                "SITUAÇÃO": st.column_config.TextColumn("Status", width="small"),
+                "nome": "Cliente",
+                "servidor": "Servidor"
+            },
+            disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"],
+            use_container_width=True,
+            key="editor_pro"
+        )
+
+        ids_finais = df_filtrado.iloc[edit_c[edit_c["SELECIONAR"] == True].index]['id'].tolist()
+
+        st.divider()
+
+        # --- AÇÕES PROFISSIONAIS ---
+        col_envio, col_gestao = st.columns([2, 1])
+
+        with col_envio:
+            st.markdown(f"### 💬 Envio Personalizado ({len(ids_finais)})")
+            # Template de mensagem que aceita variáveis
+            template = st.text_area("Edite o modelo de mensagem:", 
+                                   value="Olá {nome}! 👋\n\nPassando para lembrar que seu acesso no servidor {servidor} está com status: {status}.\n\nVamos {motivo} para garantir o melhor do futebol e filmes sem interrupções? 🚀",
+                                   help="Use {nome}, {servidor}, {status} e {motivo} para preencher automático.")
+
+            if st.button("🔗 GERAR LISTA DE DISPARO"):
+                if ids_finais:
+                    for _, cli in df_c[df_c['id'].isin(ids_finais)].iterrows():
+                        # Personaliza a mensagem para cada cliente
+                        msg_pronta = template.format(
+                            nome=str(cli['nome']).split()[0].capitalize(), 
+                            servidor=cli['servidor'],
+                            status=cli['SITUAÇÃO'],
+                            motivo=cli['MOTIVO']
+                        )
+                        texto_url = urllib.parse.quote(msg_pronta)
+                        link_wa = f"https://wa.me/{cli['whatsapp']}?text={texto_url}"
+                        
+                        # Layout de "Card" para cada envio
+                        st.info(f"**{cli['SITUAÇÃO']}** | {cli['nome']} \n\n [CLIQUE AQUI PARA ENVIAR WHATSAPP]({link_wa})")
+                else:
+                    st.warning("Marque os clientes na tabela acima primeiro.")
+
+        with col_gestao:
+            st.markdown("### 🛠️ Gestão de Dados")
+            st.write("Ações para os itens selecionados:")
+            if st.button("🗑️ EXCLUIR MARCADOS", use_container_width=True):
+                if ids_finais:
+                    c_db = sqlite3.connect('supertv_gestao.db')
+                    p_hold = ','.join(['?'] * len(ids_finais))
+                    c_db.execute(f"DELETE FROM clientes WHERE id IN ({p_hold})", ids_finais)
+                    c_db.commit(); c_db.close()
+                    st.success("Removidos com sucesso!")
+                    t_lib.sleep(1); st.rerun()
+                else:
+                    st.error("Nenhum cliente marcado.")
+
+    else:
+        st.info("Sua base de dados está vazia.")
+
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
