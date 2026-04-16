@@ -75,7 +75,8 @@ def init_db():
                   inicio TEXT, observacao TEXT, logo_blob TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
 
 def get_servidores():
     conn = sqlite3.connect('supertv_gestao.db')
@@ -102,6 +103,7 @@ def excluir_servidor(nome):
     conn.execute("DELETE FROM lista_servidores WHERE nome = ?", (nome,))
     conn.commit(); conn.close()
 
+# Inicializa o banco de dados
 init_db()
 
 # --- 4. CARREGAR DADOS ---
@@ -115,6 +117,7 @@ st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9B
 # --- 6. DASHBOARD ---
 if not df.empty:
     hoje_dt = datetime.now()
+    # Converte vencimento com segurança
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').fillna(hoje_dt)
     df['dias_res'] = (df['dt_venc_calc'].dt.date - hoje_dt.date()).apply(lambda x: x.days)
     
@@ -237,9 +240,9 @@ with tab3:
         filtro = st.multiselect("Filtrar por urgência:", options=opcoes_status, default=opcoes_status)
         df_filtrado = df_c[df_c['SITUAÇÃO'].isin(filtro)].copy()
 
-        c_b1, c_b2, _ = st.columns([1, 1, 3])
         if 'sel_ids' not in st.session_state: st.session_state.sel_ids = []
         
+        c_b1, c_b2, _ = st.columns([1, 1, 3])
         if c_b1.button("✅ Selecionar Todos"):
             st.session_state.sel_ids = df_filtrado['id'].tolist(); st.rerun()
         if c_b2.button("⬜ Limpar"):
@@ -256,7 +259,7 @@ with tab3:
                 "id": None, 
                 "SITUAÇÃO": st.column_config.TextColumn("Status", width="small"),
             },
-            disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"], key="editor_v4"
+            disabled=["SITUAÇÃO", "nome", "servidor", "vencimento"], key="editor_v5"
         )
 
         ids_finais = edit_c[edit_c["SELECIONAR"] == True]["id"].tolist()
@@ -303,12 +306,12 @@ with tab4:
         st.markdown("### 📤 Backup")
         out = io.BytesIO()
         df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore').to_excel(out, index=False, engine='xlsxwriter')
-        st.download_button("📥 BAIXAR EXCEL", data=out.getvalue(), file_name="backup.xlsx")
+        st.download_button("📥 BAIXAR EXCEL (RECOMENDADO)", data=out.getvalue(), file_name="backup_supertv.xlsx")
 
     st.divider()
-    st.markdown("### 📥 Importar")
+    st.markdown("### 📥 Importar Planilha")
     f_up = st.file_uploader("Arquivo .xlsx", type=["xlsx"])
-    if f_up and st.button("🚀 PROCESSAR"):
+    if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
         try:
             df_imp = pd.read_excel(f_up)
             df_imp.columns = [str(c).strip().upper() for c in df_imp.columns]
@@ -320,8 +323,16 @@ with tab4:
                 else: df_final[db] = 0.0 if db in ['custo', 'mensalidade'] else ""
             df_final['vencimento'] = pd.to_datetime(df_final['vencimento'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
             conn_i = sqlite3.connect('supertv_gestao.db'); df_final.to_sql('clientes', conn_i, if_exists='append', index=False); conn_i.close()
-            st.success("Sucesso!"); t_lib.sleep(1); st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
+            st.success("Importado com sucesso!"); t_lib.sleep(1); st.rerun()
+        except Exception as e: st.error(f"Erro na importação: {e}")
 
-    if st.button("🗑️ RESETAR BANCO"):
-        c_db = sqlite3.connect('supertv_gestao.db'); c_db.execute("DELETE FROM clientes"); c_db.commit(); c_db.close(); st.rerun()
+    st.divider()
+    st.markdown("### 🚨 ZONA DE PERIGO")
+    confirmar = st.checkbox("Eu desejo apagar TODOS os dados permanentemente.")
+    if confirmar:
+        if st.button("🗑️ RESETAR BANCO DE DADOS", type="primary"):
+            c_db = sqlite3.connect('supertv_gestao.db')
+            c_db.execute("DELETE FROM clientes")
+            c_db.commit()
+            c_db.close()
+            st.rerun()
