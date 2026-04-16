@@ -102,7 +102,7 @@ if not df.empty:
 st.divider()
 
 # --- 7. ABAS ---
-tab1, tab2, tab3, tab4 = st.tabs(["👤 GESTÃO", "➕ NOVO", "📢 COBRANÇA", "⚙️ AJUSTES"])
+tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
     busca = st.text_input("🔍 PESQUISAR")
@@ -112,12 +112,12 @@ with tab1:
                 with st.expander(f"👤 {r['nome'].upper()} / {r['usuario']}"):
                     with st.form(key=f"ed_{r['id']}"):
                         col1, col2 = st.columns(2)
-                        en, ew = col1.text_input("Nome", value=r['nome']), col2.text_input("WhatsApp", value=r['whatsapp'])
-                        eu, es = col1.text_input("Usuário", value=r['usuario']), col2.text_input("Senha", value=r['senha'])
+                        en, ew = col1.text_input("NOME", value=r['nome']), col2.text_input("WHATSAPP", value=r['whatsapp'])
+                        eu, es = col1.text_input("USUÁRIO", value=r['usuario']), col2.text_input("SENHA", value=r['senha'])
                         srvs = get_servidores()
-                        esrv = st.selectbox("Servidor", srvs, index=srvs.index(r['servidor']) if r['servidor'] in srvs else 0)
+                        esrv = st.selectbox("SERVIDOR", srvs, index=srvs.index(r['servidor']) if r['servidor'] in srvs else 0)
                         col3, col4 = st.columns(2)
-                        ev, em = col3.date_input("Vencimento", value=pd.to_datetime(r['vencimento']).date()), col4.number_input("Valor", value=float(r['mensalidade']))
+                        ev, em = col3.date_input("VENCIMENTO", value=pd.to_datetime(r['vencimento']).date()), col4.number_input("Valor", value=float(r['mensalidade']))
                         st.write("---")
                         b_col1, b_col2 = st.columns(2)
                         if b_col1.form_submit_button("💾 SALVAR"):
@@ -140,7 +140,7 @@ with tab2:
                 conn = sqlite3.connect('supertv_gestao.db'); conn.execute("INSERT INTO clientes (nome, whatsapp, usuario, senha, servidor, vencimento, custo, mensalidade) VALUES (?,?,?,?,?,?,?,?)", (n_n, w_n, u_n, s_n, srv_n, str(v_n), c_n, m_n)); conn.commit(); conn.close(); st.rerun()
 
 with tab3:
-    st.subheader("📢 Cobrança")
+    st.subheader("🚨 COBRANÇA")
     pix_chave = "62.326.879/0001-13"
     if not df.empty:
         df_aviso = df[df['dias_res'] <= 3].copy()
@@ -161,20 +161,20 @@ with tab3:
                 st.link_button(f"ENVIAR PARA {cli['nome']}", f"https://wa.me/{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ Ajustes")
-    ns = st.text_input("Novo Servidor")
+    st.subheader("⚙️ AJUSTES")
+    ns = st.text_input("NOVO SERVIDOR")
     if st.button("ADICIONAR SERVIDOR"):
         if ns:
             c = sqlite3.connect('supertv_gestao.db'); c.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns,)); c.commit(); st.rerun()
     st.divider()
     col_up, col_down = st.columns(2)
     with col_up:
-        st.write("📥 **Importar**")
+        st.write("📥 **IMPORTAR**")
         f_up = st.file_uploader("Arquivo .xlsx", type=["xlsx"])
         if f_up and st.button("PROCESSAR"):
             pd.read_excel(f_up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False); st.rerun()
     with col_down:
-        st.write("📤 **Backup**")
+        st.write("📤 **BACKUP**")
         if not df.empty:
             tow = io.BytesIO(); df.to_excel(tow, index=False)
             st.download_button(label="📥 DOWNLOAD EXCEL", data=tow.getvalue(), file_name="backup_supertv4k.xlsx")
