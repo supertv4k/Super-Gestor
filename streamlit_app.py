@@ -30,7 +30,6 @@ st.markdown("""
         width: 100%; height: 50px;
     }
     
-    /* Layout do Botão com Logo e Info */
     .btn-container { display: flex; align-items: center; gap: 20px; width: 100%; }
     .srv-logo { width: 70px; height: 70px; border-radius: 12px; object-fit: contain; background: #21262d; border: 1px solid #444; }
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 30px; flex-grow: 1; }
@@ -64,9 +63,9 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
     
-    # Garantir que a coluna da logo existe
     cursor = c.execute('PRAGMA table_info(clientes)')
-    if 'logo_blob' not in [col[1] for col in cursor.fetchall()]:
+    cols = [col[1] for col in cursor.fetchall()]
+    if 'logo_blob' not in cols:
         c.execute('ALTER TABLE clientes ADD COLUMN logo_blob TEXT')
     conn.commit()
     conn.close()
@@ -119,7 +118,9 @@ with tab1:
                 try:
                     dt_v = datetime.strptime(r['vencimento'], '%Y-%m-%d %H:%M:%S')
                     d_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
-                except: d_txt = "Erro Data"
+                except: 
+                    dt_v = datetime.now()
+                    d_txt = "Erro Data"
                 
                 img_src = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 status_ico = "🟢" if r['dias_res'] >= 0 else "🔴"
@@ -160,11 +161,11 @@ with tab1:
                         col_b1, col_b2 = st.columns(2)
                         if col_b1.form_submit_button("💾 SALVAR"):
                             vf = datetime.combine(ev_d, ev_h).strftime('%Y-%m-%d %H:%M:%S')
-                            if = datetime.combine(ei_d, ei_h).strftime('%Y-%m-%d %H:%M:%S')
+                            ini_f = datetime.combine(ei_d, ei_h).strftime('%Y-%m-%d %H:%M:%S')
                             l_f = image_to_base64(e_img) if e_img else r['logo_blob']
                             c = sqlite3.connect('supertv_gestao.db')
                             c.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=?, logo_blob=? WHERE id=?", 
-                                     (en, eu, es, esrv, esis, vf, ec, em, if, ew, eobs, l_f, r['id']))
+                                     (en, eu, es, esrv, esis, vf, ec, em, ini_f, ew, eobs, l_f, r['id']))
                             c.commit(); st.rerun()
                         if col_b2.form_submit_button("🗑️ EXCLUIR"):
                             c = sqlite3.connect('supertv_gestao.db')
