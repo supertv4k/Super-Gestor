@@ -81,7 +81,7 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD (MÉTRICAS) ---
+# --- 6. DASHBOARD ---
 if not df.empty:
     hoje_dt = datetime.now()
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').fillna(hoje_dt)
@@ -128,21 +128,21 @@ with tab1:
             dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://cdn-icons-png.flaticon.com/512/149/149071.png"
             
-            nome_val = str(r['nome']) if pd.notnull(r['nome']) and str(r['nome']).lower() != 'nan' else "-"
-            user_val = str(r['usuario']) if pd.notnull(r['usuario']) and str(r['usuario']).lower() != 'nan' else "-"
+            n_disp = str(r['nome']).upper() if pd.notnull(r['nome']) and str(r['nome']).lower() != 'nan' else "-"
+            u_disp = str(r['usuario']) if pd.notnull(r['usuario']) and str(r['usuario']).lower() != 'nan' else "-"
 
             st.markdown(f"""<div class="cliente-row"><img src="{img_data}" class="logo-externa"><div class="info-container">
-                    <div class="info-txt">👤 <b>CLIENTE:</b> {nome_val.upper()}</div>
+                    <div class="info-txt">👤 <b>CLIENTE:</b> {n_disp}</div>
                     <div class="info-txt">📅 <b>STATUS:</b> <span class="{status_cor}">{dias_txt}</span></div>
-                    <div class="info-txt">🔑 <b>USER:</b> {user_val}</div>
+                    <div class="info-txt">🔑 <b>USER:</b> {u_disp}</div>
                     <div class="info-txt">📶 <b>SISTEMA:</b> {r['servidor']} ({r['sistema']})</div>
                 </div></div>""", unsafe_allow_html=True)
 
             with st.expander("⚙️ CLIQUE PARA EDITAR"):
                 with st.form(key=f"ed_{r['id']}"):
                     c_ed1, c_ed2 = st.columns(2)
-                    en = c_ed1.text_input("NOME", value=nome_val)
-                    eu = c_ed2.text_input("USUÁRIO", value=user_val)
+                    en = c_ed1.text_input("NOME", value=n_disp)
+                    eu = c_ed2.text_input("USUÁRIO", value=u_disp)
                     es = c_ed1.text_input("SENHA", value=r['senha'])
                     esrv = c_ed2.selectbox("SERVIDOR", get_servidores())
                     esis = c_ed1.selectbox("SISTEMA", ["P2P", "IPTV"])
@@ -155,11 +155,11 @@ with tab1:
                         conn_up = sqlite3.connect('supertv_gestao.db')
                         conn_up.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, whatsapp=?, logo_blob=? WHERE id=?", 
                                      (en, eu, es, esrv, esis, vf, ew, l_f, r['id']))
-                        conn_up.commit(); st.rerun()
+                        conn_up.commit(); conn_up.close(); st.rerun()
                     if st.form_submit_button("🗑️ EXCLUIR"):
                         conn_del = sqlite3.connect('supertv_gestao.db')
                         conn_del.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
-                        conn_del.commit(); st.rerun()
+                        conn_del.commit(); conn_del.close(); st.rerun()
 
 with tab2:
     st.subheader("🚀 Novo Cliente")
@@ -178,11 +178,11 @@ with tab2:
             conn_in = sqlite3.connect('supertv_gestao.db')
             conn_in.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (n_n, n_u, n_s, n_srv, n_sis, v_f, n_c, n_m, n_w, l_b))
-            conn_in.commit(); st.success("Cadastrado!"); st.rerun()
+            conn_in.commit(); conn_in.close(); st.success("Cadastrado!"); st.rerun()
 
 with tab3:
     st.subheader("🚨 COBRANÇA")
-    pix = "Chave Pix Aqui"
+    pix = "Sua Chave Pix"
     if not df.empty:
         for _, c in df[df['dias_res'] <= 3].iterrows():
             msg = f"Olá {c['nome']}, sua assinatura vence em {pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')}. Pix: {pix}"
@@ -190,14 +190,13 @@ with tab3:
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    
     st.markdown("### 🖥️ Gerenciar Servidores")
     ns = st.text_input("NOME DO NOVO SERVIDOR")
     if st.button("💾 SALVAR NOVO SERVIDOR"):
         if ns:
             conn_s = sqlite3.connect('supertv_gestao.db')
             conn_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
-            conn_s.commit(); st.success(f"Servidor {ns} adicionado!"); st.rerun()
+            conn_s.commit(); conn_s.close(); st.success("Servidor Adicionado!"); st.rerun()
 
     st.divider()
     
@@ -208,38 +207,37 @@ with tab4:
             df_imp = pd.read_excel(f_up)
             df_imp.columns = [str(c).lower().strip() for c in df_imp.columns]
             
-            # Limpeza: Mantém apenas linhas que tenham algum conteúdo real
-            df_imp = df_imp.dropna(how='all')
+            # Limpeza: Remove linhas onde as colunas NOME ou USUARIO são NAN
+            df_imp = df_imp.dropna(subset=[col for col in df_imp.columns if col in ['nome', 'usuario']], how='all')
             
             col_banco = ['nome', 'whatsapp', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade']
-            for c in col_banco:
-                if c not in df_imp.columns: df_imp[c] = ""
+            for col in col_banco:
+                if col not in df_imp.columns: df_imp[col] = ""
             
             df_imp['vencimento'] = pd.to_datetime(df_imp['vencimento'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Remove o que for explicitamente "nan" do texto
-            df_imp = df_imp.replace('nan', "").replace('NaN', "").fillna("")
-            
-            # Filtro de segurança: Remove linhas onde as colunas principais estão vazias
-            if 'nome' in df_imp.columns:
-                df_imp = df_imp[df_imp['nome'].astype(str).str.len() > 1]
+            df_imp = df_imp.replace('nan', "").fillna("")
 
             conn_imp = sqlite3.connect('supertv_gestao.db')
             df_imp[col_banco].to_sql('clientes', conn_imp, if_exists='append', index=False)
-            st.success("Importação concluída!"); st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
+            conn_imp.close()
+            
+            st.toast(f"✅ Sucesso! {len(df_imp)} clientes importados.", icon='🚀')
+            st.success(f"Foram adicionados {len(df_imp)} clientes. Aguarde o sistema atualizar...")
+            # Pequeno delay para você ver a mensagem antes de dar rerun
+            import time as t
+            t.sleep(2)
+            st.rerun()
+        except Exception as e: st.error(f"Erro na importação: {e}")
 
     st.divider()
-    
     if not df.empty:
         st.markdown("### 📤 Backup")
         df_export = df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore')
         buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR BACKUP EXCEL", data=buf.getvalue(), file_name=f"backup_{datetime.now().strftime('%d_%m')}.xlsx")
+        df_export.to_excel(buf, index=False)
+        st.download_button("📥 BAIXAR BACKUP EXCEL", data=buf.getvalue(), file_name="backup_clientes.xlsx")
 
-    if st.button("⚠️ LIMPAR TUDO (CUIDADO)"):
+    if st.button("⚠️ LIMPAR TUDO"):
         conn_c = sqlite3.connect('supertv_gestao.db')
         conn_c.execute("DELETE FROM clientes")
-        conn_c.commit(); st.rerun()
+        conn_c.commit(); conn_c.close(); st.rerun()
