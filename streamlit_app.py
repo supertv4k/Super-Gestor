@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -18,42 +17,25 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* Card do Cliente na Lista */
     .cliente-row {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 20px;
+        background-color: #161b22; border: 1px solid #30363d; border-radius: 12px;
+        padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 20px;
     }
     .logo-externa {
-        width: 85px;
-        height: 85px;
-        border-radius: 10px;
-        object-fit: contain;
-        background: #21262d;
-        border: 1px solid #444;
+        width: 85px; height: 85px; border-radius: 10px;
+        object-fit: contain; background: #21262d; border: 1px solid #444;
     }
-    .info-container {
-        flex-grow: 1;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-    }
+    .info-container { flex-grow: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .info-txt { font-size: 14px; color: #c9d1d9; }
     .destaque-vermelho { color: #ff4b4b; font-weight: bold; }
     .destaque-verde { color: #00ff00; font-weight: bold; }
     
-    /* Métricas */
     .metric-card { 
         background-color: #161b22; padding: 15px; border-radius: 12px; 
         text-align: center; border: 1px solid #30363d; margin-bottom: 10px; 
     }
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
-    .metric-value { font-size: 20px; font-weight: bold; color: #ff0000; margin-top: 5px; }
+    .metric-value { font-size: 20px; font-weight: bold; margin-top: 5px; }
 
     div.stFormSubmitButton > button {
         background: linear-gradient(135deg, #0052D4 0%, #929ED1 50%, #E0EAFC 100%) !important;
@@ -100,7 +82,7 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD COMPLETO ---
+# --- 6. DASHBOARD DE MÉTRICAS ---
 if not df.empty:
     hoje = datetime.now()
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce')
@@ -112,12 +94,12 @@ if not df.empty:
     vencendo_3 = len(df[(df["dias_res"] >= 0) & (df["dias_res"] <= 3)])
 
     c1, c2, c3 = st.columns(3); c4, c5, c6 = st.columns(3)
-    c1.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value">{vencidos}</div></div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="metric-card"><div class="metric-label">VENCEM EM 3 DIAS</div><div class="metric-value">{vencendo_3}</div></div>', unsafe_allow_html=True)
-    c4.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
-    c5.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value">R$ {liquido:,.2f}</div></div>', unsafe_allow_html=True)
-    c6.markdown(f'<div class="metric-card"><div class="metric-label">CUSTO CRÉDITOS</div><div class="metric-value">R$ {custos:,.2f}</div></div>', unsafe_allow_html=True)
+    c1.markdown(f'<div class="metric-card"><div class="metric-label">TOTAL CLIENTES</div><div class="metric-value" style="color: #ffffff;">{len(df)}</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="metric-card"><div class="metric-label">VENCIDOS</div><div class="metric-value" style="color: #ff4b4b;">{vencidos}</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="metric-card"><div class="metric-label">VENCEM EM 3 DIAS</div><div class="metric-value" style="color: #ffff00;">{vencendo_3}</div></div>', unsafe_allow_html=True)
+    c4.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO BRUTO</div><div class="metric-value" style="color: #00ff00;">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
+    c5.markdown(f'<div class="metric-card"><div class="metric-label">LUCRO LÍQUIDO</div><div class="metric-value" style="color: #00d4ff;">R$ {liquido:,.2f}</div></div>', unsafe_allow_html=True)
+    c6.markdown(f'<div class="metric-card"><div class="metric-label">CUSTO CRÉDITOS</div><div class="metric-value" style="color: #8b949e;">R$ {custos:,.2f}</div></div>', unsafe_allow_html=True)
 
 st.divider()
 
@@ -126,17 +108,13 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 
 with tab1:
     st.subheader("🔍 Filtros Rápidos")
-    
-    # Botões de Filtro
     c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
     if 'filtro_atual' not in st.session_state: st.session_state.filtro_atual = "Todos"
-
     if c_btn1.button("👥 Todos", use_container_width=True): st.session_state.filtro_atual = "Todos"
     if c_btn2.button("🔴 Vencidos", use_container_width=True): st.session_state.filtro_atual = "Vencidos"
     if c_btn3.button("🟡 A Vencer (3d)", use_container_width=True): st.session_state.filtro_atual = "A Vencer"
     if c_btn4.button("🟢 Ativos", use_container_width=True): st.session_state.filtro_atual = "Ativos"
 
-    st.markdown(f"**Filtro Ativo:** `{st.session_state.filtro_atual}`")
     busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
 
     if not df.empty:
@@ -213,14 +191,41 @@ with tab2:
             c_in.commit(); st.success("Cadastrado!"); st.rerun()
 
 with tab3:
-    st.subheader("🚨 COBRANÇA")
+    st.subheader("🚨 COBRANÇA PROFISSIONAL")
     pix = "62.326.879/0001-13"
     if not df.empty:
-        df_cob = df[df['dias_res'] <= 3].copy()
-        for _, c in df_cob.iterrows():
-            t_v = "venceu" if c['dias_res'] < 0 else "vence"
-            msg = f"Olá {c['nome']}, sua assinatura {t_v} em {pd.to_datetime(c['vencimento']).strftime('%d/%m/%Y')}. Pix: {pix}"
-            st.link_button(f"📲 COBRAR {c['nome']} ({'VENCIDO' if c['dias_res'] < 0 else f'{c['dias_res']} d'})", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+        hoje_cob = datetime.now().date()
+        df_cob = df.copy()
+        df_cob['dt_v'] = pd.to_datetime(df_cob['vencimento']).dt.date
+        df_cob['dias'] = (df_cob['dt_v'] - hoje_cob).apply(lambda x: x.days)
+        df_cob['STATUS'] = df_cob['dias'].apply(lambda d: "🔴 VENCIDO" if d < 0 else ("🟠 HOJE" if d == 0 else f"🟢 {d} DIAS"))
+        
+        filtro_cob = st.multiselect("Filtrar por Status:", ["🔴 VENCIDO", "🟠 HOJE", "🟢 1 DIAS", "🟢 2 DIAS", "🟢 3 DIAS"], default=["🔴 VENCIDO", "🟠 HOJE"])
+        df_f_cob = df_cob[df_cob['STATUS'].str.contains('|'.join(filtro_cob)) if filtro_cob else True].copy()
+
+        if 'sel_ids' not in st.session_state: st.session_state.sel_ids = []
+        df_f_cob.insert(0, "SELECIONAR", df_f_cob['id'].apply(lambda x: x in st.session_state.sel_ids))
+        
+        edit_cob = st.data_editor(
+            df_f_cob[['SELECIONAR', 'id', 'STATUS', 'nome', 'servidor', 'vencimento']],
+            hide_index=True, use_container_width=True,
+            column_config={
+                "SELECIONAR": st.column_config.CheckboxColumn("✔"),
+                "id": None, "STATUS": st.column_config.TextColumn("Urgência", width="small")
+            },
+            disabled=['STATUS', 'nome', 'servidor', 'vencimento'], key="editor_cob_vfinal"
+        )
+
+        ids_selecionados = edit_cob[edit_cob["SELECIONAR"] == True]["id"].tolist()
+        
+        if st.button("🔗 GERAR LINKS DE COBRANÇA"):
+            if ids_selecionados:
+                for _, c in df_cob[df_cob['id'].isin(ids_selecionados)].iterrows():
+                    t_v = "venceu" if c['dias'] < 0 else ("vence hoje" if c['dias'] == 0 else f"vence em {c['dias']} dias")
+                    msg = f"Olá {c['nome'].split()[0].capitalize()}! 👋\n\nLembramos que sua assinatura {c['servidor']} {t_v}. \n\nPara renovar e não ficar sem sinal:\nValor: R$ {c['mensalidade']:.2f}\nChave Pix: {pix}"
+                    st.info(f"**{c['nome']}**")
+                    st.link_button(f"📲 ENVIAR WHATSAPP", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+            else: st.warning("Marque os clientes na tabela acima.")
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
@@ -231,13 +236,48 @@ with tab4:
             c_s = sqlite3.connect('supertv_gestao.db')
             c_s.execute("INSERT OR IGNORE INTO lista_servidores (nome) VALUES (?)", (ns.upper(),))
             c_s.commit(); st.rerun()
+    
     st.divider()
-    st.markdown("### 📥 Importar Dados")
-    f_up = st.file_uploader("Arquivo Excel", type=["xlsx"])
-    if f_up and st.button("PROCESSAR"):
-        pd.read_excel(f_up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
-        st.success("Importado!"); st.rerun()
+    
+    st.markdown("### 📊 Gestão de Dados")
+    col_back1, col_back2 = st.columns(2)
+    
+    with col_back1:
+        st.write("**📥 Importar Dados**")
+        f_up = st.file_uploader("Arquivo Excel (.xlsx)", type=["xlsx"])
+        if f_up and st.button("🚀 PROCESSAR IMPORTAÇÃO"):
+            try:
+                pd.read_excel(f_up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
+                st.success("Importado com sucesso!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao importar: {e}")
+
+    with col_back2:
+        st.write("**📤 Backup de Segurança**")
+        if not df.empty:
+            # Prepara o arquivo Excel em memória
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # Removemos a coluna da logo_blob para o backup ficar leve e funcional
+                df_export = df.drop(columns=['logo_blob'], errors='ignore')
+                df_export.to_excel(writer, index=False, sheet_name='Clientes')
+            
+            st.download_button(
+                label="📥 BAIXAR BACKUP EXCEL",
+                data=output.getvalue(),
+                file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        else:
+            st.info("Adicione clientes para habilitar o backup.")
+
     st.divider()
-    if not df.empty:
-        buf = io.BytesIO(); df.to_excel(buf, index=False)
-        st.download_button("📥 BACKUP EXCEL", data=buf.getvalue(), file_name="backup.xlsx")
+    st.markdown("### 🚨 Zona de Perigo")
+    if st.checkbox("Habilitar botão de limpeza total"):
+        if st.button("🗑️ APAGAR TODOS OS CLIENTES", type="primary"):
+            conn_reset = sqlite3.connect('supertv_gestao.db')
+            conn_reset.execute("DELETE FROM clientes")
+            conn_reset.commit()
+            st.rerun()
