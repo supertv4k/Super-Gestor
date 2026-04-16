@@ -54,7 +54,6 @@ def limpar_numero(valor):
     if valor is None or str(valor).strip() == "" or str(valor).lower() == 'nan':
         return 0.0
     try:
-        # Remove R$, espaços e troca vírgula por ponto
         v = str(valor).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
         return float(v)
     except:
@@ -81,10 +80,31 @@ def init_db():
 
 def get_servidores():
     conn = sqlite3.connect('supertv_gestao.db')
-    try: lista = pd.read_sql_query("SELECT nome FROM lista_servidores ORDER BY nome", conn)['nome'].tolist()
-    except: lista = []
+    try: 
+        lista = pd.read_sql_query("SELECT nome FROM lista_servidores ORDER BY nome", conn)['nome'].tolist()
+    except: 
+        lista = []
     conn.close()
+    # Se a lista estiver vazia no banco, retorna os padrões
     return lista if lista else ["UNITV", "UNIPLAY", "P2BRAZ", "MUNDOGF", "PLAY TV"]
+
+def adicionar_servidor(nome):
+    if nome:
+        conn = sqlite3.connect('supertv_gestao.db')
+        try:
+            conn.execute("INSERT INTO lista_servidores (nome) VALUES (?)", (nome.upper(),))
+            conn.commit()
+            return True
+        except:
+            return False
+        finally:
+            conn.close()
+    return False
+
+def excluir_servidor(nome):
+    conn = sqlite3.connect('supertv_gestao.db')
+    conn.execute("DELETE FROM lista_servidores WHERE nome = ?", (nome,))
+    conn.commit(); conn.close()
 
 init_db()
 
@@ -140,6 +160,10 @@ with tab1:
             
             with st.expander("⚙️ EDITAR CLIENTE"):
                 with st.form(key=f"edit_{r['id']}"):
+                    servidores_atuais = get_servidores()
+                    # Garante que o servidor atual do cliente esteja na lista para não dar erro
+                    if r['servidor'] not in servidores_atuais: servidores_atuais.append(r['servidor'])
+                    
                     c1, c2 = st.columns(2)
                     en = c1.text_input("NOME", value=r['nome'])
                     ew = c2.text_input("WHATSAPP", value=r['whatsapp'])
@@ -150,10 +174,9 @@ with tab1:
                     except: dv = datetime.now().date()
                     
                     ev = c1.date_input("VENCIMENTO", value=dv)
-                    esrv = c2.selectbox("SERVIDOR", get_servidores())
+                    esrv = c2.selectbox("SERVIDOR", servidores_atuais, index=servidores_atuais.index(r['servidor']) if r['servidor'] in servidores_atuais else 0)
                     esis = c1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if r['sistema']=="P2P" else 1)
                     
-                    # AQUI USAMOS A FUNÇÃO DE LIMPEZA PARA EVITAR O ERRO
                     ec = c2.number_input("CUSTO", value=limpar_numero(r['custo']))
                     evlr = c1.number_input("VALOR COBRADO", value=limpar_numero(r['mensalidade']))
                     
@@ -175,12 +198,13 @@ with tab1:
 with tab2:
     st.subheader("🚀 Novo Cadastro")
     with st.form("add"):
+        servidores_lista = get_servidores()
         c1, c2 = st.columns(2)
         n_nome = c1.text_input("CLIENTE")
         n_zap = c2.text_input("WHATSAPP")
         n_user = c1.text_input("USUÁRIO")
         n_senha = c2.text_input("SENHA")
-        n_serv = c1.selectbox("SERVIDOR", get_servidores())
+        n_serv = c1.selectbox("SERVIDOR", servidores_lista)
         n_venc = c2.date_input("VENCIMENTO", value=datetime.now()+timedelta(days=30))
         n_custo = c1.number_input("CUSTO", value=10.0)
         n_valor = c2.number_input("VALOR COBRADO", value=35.0)
@@ -193,8 +217,37 @@ with tab2:
                          (n_nome, n_zap, n_user, n_senha, n_serv, vf, n_custo, n_valor, l_b))
             conn_in.commit(); conn_in.close(); st.rerun()
 
+with tab3:
+    st.subheader("🚨 Cobranças Pendentes")
+    # Espaço reservado para a lógica de cobrança futura
+    st.info("Aqui aparecerão as notificações de cobrança automáticas.")
+
 with tab4:
     st.subheader("⚙️ AJUSTES")
+    
+    # --- NOVO CAMPO: GERENCIAR SERVIDORES ---
+    st.markdown("### 📶 Gerenciar Servidores")
+    with st.form("form_servidor", clear_on_submit=True):
+        col_s1, col_s2 = st.columns([3,1])
+        novo_s = col_s1.text_input("Nome do Novo Servidor")
+        if col_s2.form_submit_button("➕ ADICIONAR"):
+            if adicionar_servidor(novo_s):
+                st.success("Servidor adicionado!")
+                t_lib.sleep(1); st.rerun()
+            else:
+                st.error("Servidor já existe ou nome inválido.")
+    
+    lista_atual = get_servidores()
+    if lista_atual:
+        serv_para_excluir = st.selectbox("Selecione para excluir:", ["Selecione..."] + lista_atual)
+        if serv_para_excluir != "Selecione...":
+            if st.button("🗑️ Remover Servidor"):
+                excluir_servidor(serv_para_excluir)
+                st.success("Removido!")
+                t_lib.sleep(1); st.rerun()
+
+    st.divider()
+
     if not df.empty:
         st.markdown("### 📤 Exportar Backup")
         output = io.BytesIO()
@@ -214,7 +267,6 @@ with tab4:
             df_final = pd.DataFrame()
             for col_db, col_excel in mapeamento.items():
                 if col_excel in df_imp.columns:
-                    # Se for coluna de dinheiro, já limpa na importação
                     if col_db in ['custo', 'mensalidade']:
                         df_final[col_db] = df_imp[col_excel].apply(limpar_numero)
                     else:
