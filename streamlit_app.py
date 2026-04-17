@@ -65,14 +65,21 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD ---
+# --- 6. DASHBOARD (CÁLCULO PROTEGIDO) ---
 if not df.empty:
     hoje = datetime.now().date()
+    
+    # PROTEÇÃO: Garante que valores financeiros sejam números para evitar erro de cálculo
+    df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
+    df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
+    
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 0)
     
-    bruto, custos = df['mensalidade'].sum(), df['custo'].sum()
+    bruto = df['mensalidade'].sum()
+    custos = df['custo'].sum()
     liquido = bruto - custos
+    
     vencidos = len(df[df["dias_res"] < 0])
     vencendo_3 = len(df[(df["dias_res"] >= 0) & (df["dias_res"] <= 3)])
 
@@ -92,7 +99,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 with tab1:
     busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
     if not df.empty:
-        # Filtro de exibição: ignora quem não tem nome
+        # Filtra para não mostrar clientes bugados (sem nome)
         df_f = df[df['nome'].notnull() & (df['nome'].astype(str).str.lower() != 'none') & (df['nome'].astype(str).str.strip() != '')].copy()
         
         if busca:
@@ -129,7 +136,7 @@ with tab2:
         n_l = st.file_uploader("LOGOMARCA", type=['png','jpg'])
         if st.form_submit_button("🚀 CADASTRAR"):
             if n_n.strip() == "":
-                st.error("Erro: O nome do cliente não pode estar vazio.")
+                st.error("O nome do cliente é obrigatório!")
             else:
                 l_b = image_to_base64(n_l)
                 c_in = sqlite3.connect('supertv_gestao.db')
@@ -156,16 +163,16 @@ with tab4:
         if st.button("🗑️ REMOVER REGISTROS INVÁLIDOS", use_container_width=True):
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("DELETE FROM clientes WHERE nome IS NULL OR nome = '' OR nome = 'None' OR nome = 'nan'")
-            conn.commit(); conn.close(); st.success("Registros fantasmas removidos!"); st.rerun()
+            conn.commit(); conn.close(); st.success("Banco limpo!"); st.rerun()
 
-        if st.button("🚨 RESET TOTAL DO BANCO", type="primary", use_container_width=True):
+        if st.button("🚨 RESET TOTAL", type="primary", use_container_width=True):
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("DELETE FROM clientes")
-            conn.commit(); conn.close(); st.success("Tudo apagado com sucesso!"); st.rerun()
+            conn.commit(); conn.close(); st.success("Tudo apagado!"); st.rerun()
 
     with c_limp2:
         st.markdown("### 📥 Importação Blindada")
-        f_up = st.file_uploader("Subir Excel corrigido", type=["xlsx"])
+        f_up = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"])
         if f_up and st.button("🚀 IMPORTAR AGORA"):
             try:
                 imp = pd.read_excel(f_up, engine='openpyxl')
@@ -179,15 +186,10 @@ with tab4:
                 }
                 imp = imp.rename(columns=mapeamento)
                 
-                # Tratamento correto da coluna 'nome' (USO DO .STR)
+                # Tratamento da coluna Nome
                 if 'nome' in imp.columns:
                     imp['nome'] = imp['nome'].astype(str).str.strip()
-                    imp = imp[
-                        (imp['nome'].notnull()) & 
-                        (imp['nome'].str.lower() != 'none') & 
-                        (imp['nome'].str.lower() != 'nan') & 
-                        (imp['nome'] != '')
-                    ]
+                    imp = imp[(imp['nome'].notnull()) & (imp['nome'].str.lower() != 'none') & (imp['nome'] != '')]
                 
                 cols_banco = ['nome', 'usuario', 'senha', 'servidor', 'vencimento', 'custo', 'mensalidade', 'whatsapp']
                 for c in cols_banco:
@@ -197,7 +199,5 @@ with tab4:
                 if not df_final.empty:
                     conn = sqlite3.connect('supertv_gestao.db')
                     df_final.to_sql('clientes', conn, if_exists='append', index=False)
-                    conn.close(); st.success(f"✅ {len(df_final)} Clientes importados!"); st.rerun()
-                else:
-                    st.warning("Nenhum dado válido com nome encontrado no Excel.")
-            except Exception as e: st.error(f"Erro na Importação: {e}")
+                    conn.close(); st.success("Importação concluída!"); st.rerun()
+            except Exception as e: st.error(f"Erro: {e}")
