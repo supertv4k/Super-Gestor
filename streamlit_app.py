@@ -23,10 +23,19 @@ st.markdown("""
     .row-amanha { background-color: #333311; border-left: 8px solid #ffff00; }
     .row-em-dia { background-color: #112233; border-left: 8px solid #00d4ff; }
     
-    .img-servidor { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
-    div[data-testid="column"] button { text-align: left !important; background-color: #161b22 !important; border: 1px solid #30363d !important; color: white !important; border-radius: 12px !important; padding: 12px !important; min-height: 70px; }
+    .img-servidor { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
     
-    /* Botões de ação dentro do expander */
+    /* Ajuste dos botões de clientes para alinhar com a logo esquerda */
+    div[data-testid="stHorizontalBlock"] button { 
+        text-align: left !important; 
+        background-color: #161b22 !important; 
+        border: 1px solid #30363d !important; 
+        color: white !important; 
+        border-radius: 12px !important; 
+        padding: 12px !important; 
+        min-height: 70px;
+    }
+    
     .stButton > button[kind="primary"] { background-color: #ff4b4b !important; color: white !important; text-align: center !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -56,8 +65,7 @@ def format_data_br(data_str):
 
 init_db()
 
-# Inicialização de estados para controle de navegação e edição
-if 'aba_atual' not in st.session_state: st.session_state.aba_atual = 0
+# Inicialização de estados
 if 'cliente_editando' not in st.session_state: st.session_state.cliente_editando = None
 
 conn = sqlite3.connect('supertv_gestao.db')
@@ -72,9 +80,8 @@ if not df.empty:
 # --- 4. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# Tabs controladas pelo session_state
-tabs = ["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"]
-escolha_tab = st.tabs(tabs)
+tabs_titles = ["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"]
+escolha_tab = st.tabs(tabs_titles)
 
 with escolha_tab[0]:
     busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário")
@@ -82,69 +89,69 @@ with escolha_tab[0]:
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
         for _, r in df_f.sort_values(by='nome').iterrows():
             img_tag = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
-            col_img, col_btn = st.columns([1, 9])
-            with col_img: st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-            with col_btn:
-                label = f"👤 {str(r['nome']).upper()} | 🔑 {r['usuario']} | 📶 {r['servidor']} | 📅 {format_data_br(r['vencimento'])}"
-                # Ao clicar no botão do cliente, salva o ID no session_state
-                if st.button(label, key=f"clie_{r['id']}"):
-                    st.session_state.cliente_editando = r['id']
-                
-                # Só mostra o editor se o ID deste cliente estiver no estado de edição
-                if st.session_state.cliente_editando == r['id']:
-                    with st.expander(f"📝 EDITAR: {str(r['nome']).upper()}", expanded=True):
-                        with st.form(key=f"edit_form_{r['id']}"):
-                            ce1, ce2, ce3 = st.columns(3)
-                            ed_nome = ce1.text_input("CLIENTE", value=r['nome'])
-                            ed_user = ce2.text_input("USUÁRIO", value=r['usuario'])
-                            ed_senha = ce3.text_input("SENHA", value=r['senha'])
-                            
-                            servidores = get_servidores()
-                            ed_serv = ce1.selectbox("SERVIDOR", servidores, index=servidores.index(r['servidor']) if r['servidor'] in servidores else 0)
-                            ed_sist = ce2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0 if r['sistema'] == "IPTV" else 1)
-                            ed_venc = ce3.date_input("VENCIMENTO", value=datetime.strptime(r['vencimento'], '%Y-%m-%d'))
-                            
-                            ed_custo = ce1.number_input("CUSTO", value=float(r['custo']))
-                            ed_valor = ce2.number_input("VALOR COBRADO", value=float(r['mensalidade']))
-                            ed_ini = ce3.date_input("INÍCIOU DIA", value=datetime.strptime(r['inicio'], '%Y-%m-%d'))
-                            
-                            ed_whats = ce1.text_input("WHATSAPP", value=r['whatsapp'])
-                            ed_obs = st.text_area("OBSERVAÇÃO", value=r['observacao'])
-                            
-                            btn_save = st.form_submit_button("💾 SALVAR ALTERAÇÕES", use_container_width=True)
-                            
-                            if btn_save:
-                                conn = sqlite3.connect('supertv_gestao.db')
-                                conn.execute("""UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
-                                             vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=? WHERE id=?""",
-                                             (ed_nome, ed_user, ed_senha, ed_serv, ed_sist, ed_venc.strftime('%Y-%m-%d'), 
-                                              ed_custo, ed_valor, ed_ini.strftime('%Y-%m-%d'), ed_whats, ed_obs, r['id']))
-                                conn.commit(); conn.close()
-                                st.session_state.cliente_editando = None
-                                st.success("Atualizado!")
-                                st.rerun()
-
-                        # Botão Excluir e Renovar fora do Form para funcionar corretamente
-                        st.divider()
-                        col_ren, col_del, col_close = st.columns([2, 1, 1])
+            
+            # --- LAYOUT COM LOGO À ESQUERDA (ESTILO FOTO) ---
+            with st.container():
+                col_img, col_btn = st.columns([1, 8])
+                with col_img:
+                    st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
+                with col_btn:
+                    label = f"👤 {str(r['nome']).upper()} | 🔑 {r['usuario']} | 📶 {r['servidor']} | 📅 {format_data_br(r['vencimento'])}"
+                    if st.button(label, key=f"clie_{r['id']}", use_container_width=True):
+                        st.session_state.cliente_editando = r['id']
+            
+            # --- ÁREA DE EDIÇÃO ---
+            if st.session_state.cliente_editando == r['id']:
+                with st.expander(f"📝 EDITAR: {str(r['nome']).upper()}", expanded=True):
+                    with st.form(key=f"edit_form_{r['id']}"):
+                        ce1, ce2, ce3 = st.columns(3)
+                        ed_nome = ce1.text_input("CLIENTE", value=r['nome'])
+                        ed_user = ce2.text_input("USUÁRIO", value=r['usuario'])
+                        ed_senha = ce3.text_input("SENHA", value=r['senha'])
                         
-                        dias_add = col_ren.number_input("Dias", value=30, key=f"days_{r['id']}")
-                        if col_ren.button(f"➕ RENOVAR", key=f"renov_{r['id']}"):
-                            nova_data = (datetime.strptime(r['vencimento'], '%Y-%m-%d') + timedelta(days=dias_add)).strftime('%Y-%m-%d')
+                        servidores = get_servidores()
+                        ed_serv = ce1.selectbox("SERVIDOR", servidores, index=servidores.index(r['servidor']) if r['servidor'] in servidores else 0)
+                        ed_sist = ce2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0 if r['sistema'] == "IPTV" else 1)
+                        ed_venc = ce3.date_input("VENCIMENTO", value=datetime.strptime(r['vencimento'], '%Y-%m-%d'))
+                        
+                        ed_custo = ce1.number_input("CUSTO", value=float(r['custo']))
+                        ed_valor = ce2.number_input("VALOR COBRADO", value=float(r['mensalidade']))
+                        ed_ini = ce3.date_input("INÍCIOU DIA", value=datetime.strptime(r['inicio'], '%Y-%m-%d'))
+                        
+                        ed_whats = ce1.text_input("WHATSAPP", value=r['whatsapp'])
+                        ed_obs = st.text_area("OBSERVAÇÃO", value=r['observacao'])
+                        
+                        if st.form_submit_button("💾 SALVAR ALTERAÇÕES", use_container_width=True):
                             conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("UPDATE clientes SET vencimento = ? WHERE id = ?", (nova_data, r['id']))
-                            conn.commit(); conn.close(); st.rerun()
-
-                        if col_del.button("🗑️ EXCLUIR", key=f"del_{r['id']}", type="primary"):
-                            conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("DELETE FROM clientes WHERE id = ?", (r['id'],))
+                            conn.execute("""UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
+                                         vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=? WHERE id=?""",
+                                         (ed_nome, ed_user, ed_senha, ed_serv, ed_sist, ed_venc.strftime('%Y-%m-%d'), 
+                                          ed_custo, ed_valor, ed_ini.strftime('%Y-%m-%d'), ed_whats, ed_obs, r['id']))
                             conn.commit(); conn.close()
                             st.session_state.cliente_editando = None
+                            st.success("Atualizado!")
                             st.rerun()
-                        
-                        if col_close.button("✖️ FECHAR", key=f"close_{r['id']}"):
-                            st.session_state.cliente_editando = None
-                            st.rerun()
+
+                    st.divider()
+                    col_ren, col_del, col_close = st.columns([2, 1, 1])
+                    dias_add = col_ren.number_input("Dias", value=30, key=f"days_{r['id']}")
+                    if col_ren.button(f"➕ RENOVAR", key=f"renov_{r['id']}"):
+                        nova_data = (datetime.strptime(r['vencimento'], '%Y-%m-%d') + timedelta(days=dias_add)).strftime('%Y-%m-%d')
+                        conn = sqlite3.connect('supertv_gestao.db')
+                        conn.execute("UPDATE clientes SET vencimento = ? WHERE id = ?", (nova_data, r['id']))
+                        conn.commit(); conn.close(); st.rerun()
+
+                    if col_del.button("🗑️ EXCLUIR", key=f"del_{r['id']}", type="primary"):
+                        conn = sqlite3.connect('supertv_gestao.db')
+                        conn.execute("DELETE FROM clientes WHERE id = ?", (r['id'],))
+                        conn.commit(); conn.close()
+                        st.session_state.cliente_editando = None
+                        st.rerun()
+                    
+                    if col_close.button("✖️ FECHAR", key=f"close_{r['id']}"):
+                        st.session_state.cliente_editando = None
+                        st.rerun()
+            st.markdown('<div style="margin-bottom: 15px;"></div>', unsafe_allow_html=True)
 
 with escolha_tab[1]:
     st.subheader("🚀 Novo Cadastro")
@@ -169,9 +176,8 @@ with escolha_tab[1]:
             conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, inicio, whatsapp, observacao, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (nome, user, senha, serv, sist, venc.strftime('%Y-%m-%d'), custo, valor, ini.strftime('%Y-%m-%d'), whats, obs, l_b))
             conn.commit(); conn.close()
-            # Limpa estados e redireciona forçando o rerun
             st.success("Salvo com sucesso!")
-            st.rerun()
+            st.rerun() # Volta para a lista inicial (Tab 1)
 
 with escolha_tab[2]:
     st.subheader("🚨 Central de Cobrança")
