@@ -68,7 +68,6 @@ st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9B
 # --- 6. DASHBOARD (CÁLCULO SEGURO) ---
 if not df.empty:
     hoje = datetime.now().date()
-    # Converte datas ignorando erros para não travar o app
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 0)
     
@@ -111,9 +110,7 @@ with tab1:
             df_f = df_f[df_f['nome'].str.contains(busca, case=False, na=False) | df_f['usuario'].str.contains(busca, case=False, na=False)]
 
         for _, r in df_f.sort_values(by='dias_res').iterrows():
-            # Proteção contra nomes vazios (AttributeError)
             nome_display = str(r['nome']).upper() if pd.notnull(r['nome']) else "CLIENTE SEM NOME"
-            
             status_cor = "destaque-verde" if r['dias_res'] >= 0 else "destaque-vermelho"
             dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
@@ -146,7 +143,6 @@ with tab1:
                                      (en, eu, esrv, evd.strftime('%Y-%m-%d %H:%M:%S'), ew, r['id']))
                         c_up.commit(); st.rerun()
                     
-                    # Checkbox de segurança para exclusão
                     confirmar = st.checkbox("Confirmar exclusão?", key=f"check_{r['id']}")
                     if b_excluir.form_submit_button("🗑️ EXCLUIR CLIENTE", type="primary"):
                         if confirmar:
@@ -190,21 +186,47 @@ with tab4:
     with col_aj1:
         st.markdown("### 🖥️ Servidores")
         ns = st.text_input("NOVO SERVIDOR")
-        if st.button("SALVAR"):
+        if st.button("SALVAR SERVIDOR"):
             sqlite3.connect('supertv_gestao.db').execute("INSERT INTO lista_servidores (nome) VALUES (?)", (ns.upper(),)).connection.commit(); st.rerun()
+        
+        st.divider()
+        st.markdown("### 🧹 Limpeza")
+        if st.button("🗑️ REMOVER DUPLICADOS (NOME/USER)", use_container_width=True):
+            conn_limpa = sqlite3.connect('supertv_gestao.db')
+            conn_limpa.execute("DELETE FROM clientes WHERE id NOT IN (SELECT MAX(id) FROM clientes GROUP BY nome, usuario)")
+            conn_limpa.commit(); conn_limpa.close(); st.success("Limpo!"); st.rerun()
     
     with col_aj2:
-        st.markdown("### 📥 Importação")
+        st.markdown("### 📥 Importação sob Medida")
         f_up = st.file_uploader("Excel .xlsx", type=["xlsx"])
-        if f_up and st.button("IMPORTAR AGORA"):
+        if f_up and st.button("🚀 IMPORTAR E FILTRAR NOVO"):
             try:
-                imp = pd.read_excel(f_up, engine='openpyxl')
-                imp.to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
-                st.success("Importado!"); st.rerun()
+                imp = pd.read_excel(f_up, engine='openpyxl').dropna(how='all')
+                mapeamento = {
+                    'CLIENTE': 'nome', 'USUÁRIO': 'usuario', 'SENHA': 'senha',
+                    'SERVIDOR': 'servidor', 'SISTEMA': 'sistema', 'VENCIMENTO': 'vencimento',
+                    'CUSTO': 'custo', 'VALOR COBRADO': 'mensalidade', 'INÍCIOU DIA': 'inicio',
+                    'WHATSAPP': 'whatsapp', 'OBSERVAÇÃO': 'observacao'
+                }
+                imp = imp.rename(columns=mapeamento)
+                cols_banco = ['nome', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade', 'inicio', 'whatsapp', 'observacao']
+                for c in cols_banco:
+                    if c not in imp.columns: imp[c] = None
+                df_final = imp[cols_banco]
+                
+                conn = sqlite3.connect('supertv_gestao.db')
+                atual = pd.read_sql_query("SELECT usuario FROM clientes", conn)
+                df_filtrado = df_final[~df_final['usuario'].astype(str).isin(atual['usuario'].tolist())]
+                
+                if not df_filtrado.empty:
+                    df_filtrado.to_sql('clientes', conn, if_exists='append', index=False)
+                    st.success(f"✅ {len(df_filtrado)} Novos Adicionados!")
+                else: st.warning("Nenhum dado novo encontrado.")
+                conn.close(); st.rerun()
             except Exception as e: st.error(f"Erro: {e}")
     
     st.divider()
     if not df.empty:
         out = io.BytesIO()
         df.drop(columns=['logo_blob', 'dt_venc_calc', 'dias_res'], errors='ignore').to_excel(out, index=False, engine='xlsxwriter')
-        st.download_button("📥 BAIXAR BACKUP EXCEL", out.getvalue(), "backup_clientes.xlsx", use_container_width=True)
+        st.download_button("📥 BAIXAR BACKUP EXCEL", out.getvalue(), "backup.xlsx", use_container_width=True)
