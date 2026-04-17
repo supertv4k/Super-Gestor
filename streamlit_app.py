@@ -16,12 +16,17 @@ st.markdown("""
     .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
-    .cliente-row { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 20px; }
+    
+    /* Cores das linhas de cliente na cobrança */
+    .cliente-row { border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 20px; border: 1px solid #30363d; }
+    .row-vencido { background-color: #331111; border-left: 8px solid #ff4b4b; }
+    .row-hoje { background-color: #3d2b11; border-left: 8px solid #ffa500; }
+    .row-breve { background-color: #333311; border-left: 8px solid #ffff00; }
+    .row-em-dia { background-color: #112233; border-left: 8px solid #00d4ff; }
+    
     .logo-externa { width: 85px; height: 85px; border-radius: 10px; object-fit: contain; background: #21262d; border: 1px solid #444; }
     .info-container { flex-grow: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .info-txt { font-size: 14px; color: #c9d1d9; }
-    .destaque-vermelho { color: #ff4b4b; font-weight: bold; }
-    .destaque-verde { color: #00ff00; font-weight: bold; }
+    .info-txt { font-size: 14px; color: #ffffff; }
     .metric-card { background-color: #161b22; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #30363d; margin-bottom: 10px; }
     .metric-label { font-size: 11px; font-weight: bold; color: #8b949e; text-transform: uppercase; }
     .metric-value { font-size: 20px; font-weight: bold; color: #ffffff; margin-top: 5px; }
@@ -44,16 +49,10 @@ def init_db():
                   usuario TEXT, senha TEXT, servidor TEXT, sistema TEXT, 
                   vencimento TEXT, custo REAL, mensalidade REAL, 
                   inicio TEXT, observacao TEXT, logo_blob TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
     conn.commit(); conn.close()
 
 def get_servidores():
-    conn = sqlite3.connect('supertv_gestao.db')
-    try: lista = pd.read_sql_query("SELECT nome FROM lista_servidores ORDER BY nome", conn)['nome'].tolist()
-    except: lista = []
-    conn.close()
-    return lista if lista else ["UNITV", "UNIPLAY", "P2BRAZ", "MUNDOGF", "PLAY TV"]
+    return ["UNITV", "UNIPLAY", "P2BRAZ", "MUNDOGF", "PLAY TV", "TV EXPRESS", "REDPLAY"]
 
 init_db()
 
@@ -65,14 +64,11 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD (CORREÇÃO DO ERRO DE CÁLCULO) ---
+# --- 6. DASHBOARD ---
 if not df.empty:
     hoje = datetime.now().date()
-    
-    # Tratamento para evitar o erro TypeError: transforma nulo em 0
     df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
     df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
-    
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 0)
     
@@ -97,46 +93,40 @@ st.divider()
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
-    busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
+    busca = st.text_input("🔎 Pesquisar cliente...", placeholder="Digite nome ou usuário...")
     if not df.empty:
-        # Filtro para não exibir linhas sem nome
-        df_f = df[df['nome'].notnull() & (df['nome'].astype(str).str.lower() != 'none') & (df['nome'].astype(str).str.strip() != '')].copy()
-        
+        df_f = df[df['nome'].notnull() & (df['nome'].astype(str).str.strip() != '')].copy()
         if busca:
             df_f = df_f[df_f['nome'].str.contains(busca, case=False, na=False) | df_f['usuario'].str.contains(busca, case=False, na=False)]
 
-        for _, r in df_f.sort_values(by='dias_res').iterrows():
-            nome_display = str(r['nome']).upper()
-            status_cor = "destaque-verde" if r['dias_res'] >= 0 else "destaque-vermelho"
-            dias_txt = f"{r['dias_res']} DIAS" if r['dias_res'] >= 0 else "VENCIDO"
+        for _, r in df_f.sort_values(by='nome').iterrows():
             img_data = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
-
             st.markdown(f"""
-            <div class="cliente-row">
+            <div class="cliente-row" style="background-color: #161b22;">
                 <img src="{img_data}" class="logo-externa">
                 <div class="info-container">
-                    <div class="info-txt">👤 <b>CLIENTE:</b> {nome_display}</div>
-                    <div class="info-txt">📅 <b>STATUS:</b> <span class="{status_cor}">{dias_txt}</span></div>
-                    <div class="info-txt">🔑 <b>USER:</b> {r['usuario']}</div>
+                    <div class="info-txt">👤 <b>NOME:</b> {str(r['nome']).upper()}</div>
+                    <div class="info-txt">🔑 <b>USUÁRIO:</b> {r['usuario']}</div>
                     <div class="info-txt">📶 <b>SISTEMA:</b> {r['servidor']}</div>
+                    <div class="info-txt">📅 <b>VENCIMENTO:</b> {r['vencimento']}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
 with tab2:
-    st.subheader("🚀 Novo Cliente")
+    st.subheader("🚀 Cadastro Manual")
     with st.form("add"):
-        n_n = st.text_input("NOME DO CLIENTE")
-        n_u = st.text_input("USUÁRIO")
-        n_srv = st.selectbox("SERVIDOR", get_servidores())
-        n_v = st.date_input("VENCIMENTO", value=datetime.now().date()+timedelta(days=30))
-        n_c = st.number_input("CUSTO", value=10.0)
-        n_m = st.number_input("VALOR COBRADO", value=35.0)
+        c1, c2 = st.columns(2)
+        n_n = c1.text_input("NOME DO CLIENTE")
+        n_u = c2.text_input("USUÁRIO")
+        n_srv = c1.selectbox("SERVIDOR", get_servidores())
+        n_v = c2.date_input("VENCIMENTO", value=datetime.now().date()+timedelta(days=30))
+        n_c = c1.number_input("CUSTO (R$)", value=10.0)
+        n_m = c2.number_input("MENSALIDADE (R$)", value=35.0)
         n_w = st.text_input("WHATSAPP (Ex: 62999999999)")
         n_l = st.file_uploader("LOGOMARCA", type=['png','jpg'])
-        if st.form_submit_button("🚀 CADASTRAR"):
-            if n_n.strip() == "":
-                st.error("O nome do cliente é obrigatório!")
+        if st.form_submit_button("🚀 SALVAR CLIENTE"):
+            if n_n.strip() == "": st.error("O nome é obrigatório!")
             else:
                 l_b = image_to_base64(n_l)
                 c_in = sqlite3.connect('supertv_gestao.db')
@@ -145,58 +135,74 @@ with tab2:
                 c_in.commit(); st.rerun()
 
 with tab3:
-    st.subheader("🚨 COBRANÇA")
+    st.subheader("🚨 Lista de Cobrança Colorida")
     pix = "62.326.879/0001-13"
     if not df.empty:
-        df_cob = df[df['dias_res'] <= 3].copy()
-        for _, c in df_cob.iterrows():
-            t_v = "venceu" if c['dias_res'] < 0 else "vence hoje" if c['dias_res'] == 0 else f"vence em {c['dias_res']} dias"
-            msg = f"Olá {str(c['nome']).split()[0]}! 👋 Sua assinatura {c['servidor']} {t_v}. Pix: {pix}"
-            st.link_button(f"📲 COBRAR {c['nome']}", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+        df_cob = df[df['nome'].notnull() & (df['nome'].astype(str).str.strip() != '')].copy()
+        
+        sel_todos = st.toggle("✅ Selecionar Todos os Clientes")
+        clientes_selecionados = []
+        
+        for idx, c in df_cob.sort_values(by='dias_res').iterrows():
+            # Define a classe de cor
+            if c['dias_res'] < 0:
+                cls, status = "row-vencido", "🔴 VENCIDO"
+            elif c['dias_res'] == 0:
+                cls, status = "row-hoje", "🟠 VENCE HOJE"
+            elif 1 <= c['dias_res'] <= 3:
+                cls, status = "row-breve", "🟡 VENCE EM 1-3 DIAS"
+            else:
+                cls, status = "row-em-dia", "🔵 EM DIA"
+            
+            col_check, col_card = st.columns([0.1, 0.9])
+            with col_check:
+                if st.checkbox("", value=sel_todos, key=f"cb_{idx}"):
+                    clientes_selecionados.append(c)
+            
+            with col_card:
+                img_data = f"data:image/png;base64,{c['logo_blob']}" if c['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
+                st.markdown(f"""
+                <div class="cliente-row {cls}">
+                    <img src="{img_data}" class="logo-externa">
+                    <div class="info-container">
+                        <div class="info-txt">👤 <b>{str(c['nome']).upper()}</b></div>
+                        <div class="info-txt"><b>STATUS:</b> {status}</div>
+                        <div class="info-txt">📶 {c['servidor']} | 🔑 {c['usuario']}</div>
+                        <div class="info-txt">📅 Vence em: {c['vencimento']} ({c['dias_res']} dias)</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.divider()
+        if st.button(f"📲 GERAR LINKS PARA {len(clientes_selecionados)} SELECIONADOS", use_container_width=True):
+            if not clientes_selecionados:
+                st.warning("Selecione alguém na lista acima!")
+            else:
+                for item in clientes_selecionados:
+                    txt_v = "venceu" if item['dias_res'] < 0 else "vence hoje" if item['dias_res'] == 0 else f"vence em {item['dias_res']} dias"
+                    msg = f"Olá {str(item['nome']).split()[0]}! 👋 Sua assinatura {item['servidor']} {txt_v}. Valor: R$ {item['mensalidade']:.2f}. Pix: {pix}"
+                    st.link_button(f"Enviar para {item['nome']}", f"https://wa.me/55{item['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ AJUSTES E MANUTENÇÃO")
-    c_limp1, c_limp2 = st.columns(2)
-    
-    with c_limp1:
-        st.markdown("### 🧹 Limpeza Profunda")
-        if st.button("🗑️ REMOVER REGISTROS INVÁLIDOS", use_container_width=True):
+    st.subheader("⚙️ Manutenção")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🗑️ LIMPAR CLIENTES INVÁLIDOS"):
             conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("DELETE FROM clientes WHERE nome IS NULL OR nome = '' OR nome = 'None' OR nome = 'nan'")
-            conn.commit(); conn.close(); st.success("Banco limpo!"); st.rerun()
-
-        if st.button("🚨 RESET TOTAL DO BANCO", type="primary", use_container_width=True):
-            conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("DELETE FROM clientes")
-            conn.commit(); conn.close(); st.success("Banco de dados resetado!"); st.rerun()
-
-    with c_limp2:
-        st.markdown("### 📥 Importação Blindada")
-        f_up = st.file_uploader("Subir Excel corrigido", type=["xlsx"])
-        if f_up and st.button("🚀 IMPORTAR AGORA"):
+            conn.execute("DELETE FROM clientes WHERE nome IS NULL OR nome = '' OR nome = 'None'")
+            conn.commit(); conn.close(); st.success("Limpeza feita!"); st.rerun()
+    with c2:
+        f_up = st.file_uploader("Importar Excel", type=["xlsx"])
+        if f_up and st.button("🚀 IMPORTAR"):
             try:
                 imp = pd.read_excel(f_up, engine='openpyxl')
                 imp.columns = [str(c).strip().upper() for c in imp.columns]
-                imp = imp.dropna(how='all')
-
-                mapeamento = {
-                    'CLIENTE': 'nome', 'USUÁRIO': 'usuario', 'SENHA': 'senha',
-                    'SERVIDOR': 'servidor', 'VENCIMENTO': 'vencimento',
-                    'CUSTO': 'custo', 'VALOR COBRADO': 'mensalidade', 'WHATSAPP': 'whatsapp'
-                }
-                imp = imp.rename(columns=mapeamento)
-                
+                mapa = {'CLIENTE': 'nome', 'USUÁRIO': 'usuario', 'SERVIDOR': 'servidor', 'VENCIMENTO': 'vencimento', 'CUSTO': 'custo', 'VALOR COBRADO': 'mensalidade', 'WHATSAPP': 'whatsapp'}
+                imp = imp.rename(columns=mapa)
                 if 'nome' in imp.columns:
                     imp['nome'] = imp['nome'].astype(str).str.strip()
                     imp = imp[(imp['nome'].notnull()) & (imp['nome'].str.lower() != 'none') & (imp['nome'] != '')]
-                
-                cols_banco = ['nome', 'usuario', 'senha', 'servidor', 'vencimento', 'custo', 'mensalidade', 'whatsapp']
-                for c in cols_banco:
-                    if c not in imp.columns: imp[c] = None
-                
-                df_final = imp[cols_banco]
-                if not df_final.empty:
-                    conn = sqlite3.connect('supertv_gestao.db')
-                    df_final.to_sql('clientes', conn, if_exists='append', index=False)
-                    conn.close(); st.success("Importação concluída!"); st.rerun()
-            except Exception as e: st.error(f"Erro na Importação: {e}")
+                conn = sqlite3.connect('supertv_gestao.db')
+                imp.to_sql('clientes', conn, if_exists='append', index=False)
+                conn.close(); st.success("Lista importada!"); st.rerun()
+            except Exception as e: st.error(f"Erro: {e}")
