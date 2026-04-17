@@ -17,6 +17,20 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
+    /* Estilo para as métricas personalizadas */
+    .metric-container {
+        background-color: #161b22;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+        text-align: center;
+    }
+    .metric-label { color: white; font-size: 14px; font-weight: bold; margin-bottom: 5px; }
+    .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
+    .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
+    .val-laranja { color: #ffa500; font-size: 24px; font-weight: bold; }
+    .val-vermelho { color: #ff4b4b; font-size: 24px; font-weight: bold; }
+
     .cliente-row { border-radius: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #30363d; display: flex; align-items: center; gap: 15px; }
     .row-vencido { background-color: #331111; border-left: 8px solid #ff4b4b; }
     .row-hoje { background-color: #3d2b11; border-left: 8px solid #ffa500; }
@@ -66,18 +80,27 @@ if not df.empty:
 # --- 4. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 5. MÉTRICAS ---
+# --- 5. MÉTRICAS COLORIDAS ---
 if not df.empty:
-    m1, m2, m3, m4 = st.columns(4)
     total_clie = len(df)
     vencidos = len(df[df['dias_res'] < 0])
-    hoje_venc = len(df[df['dias_res'] == 0])
-    lucro = df['mensalidade'].sum() - df['custo'].sum()
-    
-    m1.metric("TOTAL CLIENTES", total_clie)
-    m2.metric("VENCIDOS", vencidos, delta_color="inverse")
-    m3.metric("VENCEM HOJE", hoje_venc)
-    m4.metric("LUCRO ESTIMADO", f"R$ {lucro:,.2f}")
+    vencem_hoje = len(df[df['dias_res'] == 0])
+    ativos = total_clie - vencidos
+    custo_total = df['custo'].sum()
+    bruto = df['mensalidade'].sum()
+    liquido = bruto - custo_total
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.markdown(f'<div class="metric-container"><div class="metric-label">CLIENTES TOTAIS</div><div class="val-azul">{total_clie}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-container"><div class="metric-label">CLIENTES ATIVOS</div><div class="val-verde">{ativos}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-container"><div class="metric-label">VENCE HOJE</div><div class="val-laranja">{vencem_hoje}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-container"><div class="metric-label">CLIENTES VENCIDOS</div><div class="val-vermelho">{vencidos}</div></div>', unsafe_allow_html=True)
+
+    st.write("") # Espaçamento
+    m5, m6, m7 = st.columns(3)
+    m5.markdown(f'<div class="metric-container"><div class="metric-label">CUSTO DE CRÉDITOS</div><div class="val-vermelho">R$ {custo_total:,.2f}</div></div>', unsafe_allow_html=True)
+    m6.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO BRUTO</div><div class="val-azul">R$ {bruto:,.2f}</div></div>', unsafe_allow_html=True)
+    m7.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO LÍQUIDO</div><div class="val-verde">R$ {liquido:,.2f}</div></div>', unsafe_allow_html=True)
 
 # --- 6. ABAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"])
@@ -94,49 +117,39 @@ with tab1:
                 label = f"👤 {str(r['nome']).upper()} | 🔑 {r['usuario']} | 📶 {r['servidor']} | 📅 {format_data_br(r['vencimento'])}"
                 if st.button(label, key=f"clie_{r['id']}"):
                     with st.expander(f"📝 EDITAR: {str(r['nome']).upper()}", expanded=True):
-                        with st.form(key=f"edit_form_{r['id']}"):
+                        with st.form(key=f"f_edit_{r['id']}"):
                             ce1, ce2, ce3 = st.columns(3)
                             ed_nome = ce1.text_input("CLIENTE", value=r['nome'])
                             ed_user = ce2.text_input("USUÁRIO", value=r['usuario'])
                             ed_senha = ce3.text_input("SENHA", value=r['senha'])
-                            
                             ed_serv = ce1.selectbox("SERVIDOR", get_servidores(), index=get_servidores().index(r['servidor']) if r['servidor'] in get_servidores() else 0)
                             ed_sist = ce2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0 if r['sistema'] == "IPTV" else 1)
-                            ed_venc = ce3.date_input("VENCIMENTO", value=datetime.strptime(r['vencimento'], '%Y-%m-%d'), format="DD/MM/YYYY")
-                            
+                            ed_venc = ce3.date_input("VENCIMENTO", value=datetime.strptime(r['vencimento'], '%Y-%m-%d'))
                             ed_custo = ce1.number_input("CUSTO", value=float(r['custo']))
                             ed_valor = ce2.number_input("VALOR COBRADO", value=float(r['mensalidade']))
-                            ed_ini = ce3.date_input("INÍCIOU DIA", value=datetime.strptime(r['inicio'], '%Y-%m-%d'), format="DD/MM/YYYY")
-                            
+                            ed_ini = ce3.date_input("INÍCIOU DIA", value=datetime.strptime(r['inicio'], '%Y-%m-%d'))
                             ed_whats = ce1.text_input("WHATSAPP", value=r['whatsapp'])
                             ed_obs = st.text_area("OBSERVAÇÃO", value=r['observacao'])
                             
-                            # Botão de salvar dentro do form
                             if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                                 conn = sqlite3.connect('supertv_gestao.db')
-                                conn.execute("""UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
-                                             vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=? WHERE id=?""",
-                                             (ed_nome, ed_user, ed_senha, ed_serv, ed_sist, ed_venc.strftime('%Y-%m-%d'), 
-                                              ed_custo, ed_valor, ed_ini.strftime('%Y-%m-%d'), ed_whats, ed_obs, r['id']))
-                                conn.commit(); conn.close()
-                                st.success("Atualizado com sucesso!")
-                                st.rerun()
+                                conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=? WHERE id=?",
+                                             (ed_nome, ed_user, ed_senha, ed_serv, ed_sist, ed_venc.strftime('%Y-%m-%d'), ed_custo, ed_valor, ed_ini.strftime('%Y-%m-%d'), ed_whats, ed_obs, r['id']))
+                                conn.commit(); conn.close(); st.rerun()
 
-                        # Botões de Renovação e Exclusão fora do Form de edição
                         st.divider()
                         br1, br2 = st.columns([2, 1])
-                        dias_add = br1.number_input("Adicionar dias na renovação", value=30, key=f"days_{r['id']}")
-                        if br1.button(f"➕ RENOVAR +{dias_add} DIAS", key=f"renov_{r['id']}"):
-                            nova_data = (datetime.strptime(r['vencimento'], '%Y-%m-%d') + timedelta(days=dias_add)).strftime('%Y-%m-%d')
+                        dias_add = br1.number_input("Adicionar dias", value=30, key=f"d_{r['id']}")
+                        if br1.button(f"➕ RENOVAR", key=f"r_{r['id']}"):
+                            nova = (datetime.strptime(r['vencimento'], '%Y-%m-%d') + timedelta(days=dias_add)).strftime('%Y-%m-%d')
                             conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("UPDATE clientes SET vencimento = ? WHERE id = ?", (nova_data, r['id']))
+                            conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (nova, r['id']))
                             conn.commit(); conn.close(); st.rerun()
                         
-                        if br2.button("🗑️ EXCLUIR CLIENTE", key=f"del_{r['id']}", type="primary", use_container_width=True):
+                        if br2.button("🗑️ EXCLUIR", key=f"del_{r['id']}", type="primary", use_container_width=True):
                             conn = sqlite3.connect('supertv_gestao.db')
-                            conn.execute("DELETE FROM clientes WHERE id = ?", (r['id'],))
-                            conn.commit(); conn.close()
-                            st.rerun()
+                            conn.execute("DELETE FROM clientes WHERE id=?", (r['id'],))
+                            conn.commit(); conn.close(); st.rerun()
 
 with tab2:
     st.subheader("🚀 Novo Cadastro")
@@ -147,25 +160,19 @@ with tab2:
         senha = c3.text_input("SENHA")
         serv = c1.selectbox("SERVIDOR", get_servidores())
         sist = c2.selectbox("SISTEMA", ["IPTV", "P2P"])
-        venc = c3.date_input("VENCIMENTO", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
+        venc = c3.date_input("VENCIMENTO", value=datetime.now() + timedelta(days=30))
         custo = c1.number_input("CUSTO", value=10.0)
         valor = c2.number_input("VALOR COBRADO", value=35.0)
-        ini = c3.date_input("INÍCIOU DIA", value=datetime.now(), format="DD/MM/YYYY")
+        ini = c3.date_input("INÍCIOU DIA", value=datetime.now())
         whats = c1.text_input("WHATSAPP (DDD+NÚMERO)")
-        img_serv = st.file_uploader("UPLOAD DA IMAGEM DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
+        img_serv = st.file_uploader("IMAGEM", type=['png', 'jpg', 'jpeg'])
         obs = st.text_area("OBSERVAÇÃO")
-        
         if st.form_submit_button("🚀 SALVAR CADASTRO"):
-            if not nome or not user or not whats:
-                st.error("⚠️ Preencha Nome, Usuário e WhatsApp!")
-            else:
-                l_b = base64.b64encode(img_serv.read()).decode() if img_serv else None
-                conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, inicio, whatsapp, observacao, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (nome, user, senha, serv, sist, venc.strftime('%Y-%m-%d'), custo, valor, ini.strftime('%Y-%m-%d'), whats, obs, l_b))
-                conn.commit(); conn.close()
-                st.success("Salvo!")
-                st.rerun()
+            l_b = base64.b64encode(img_serv.read()).decode() if img_serv else None
+            conn = sqlite3.connect('supertv_gestao.db')
+            conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, inicio, whatsapp, observacao, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (nome, user, senha, serv, sist, venc.strftime('%Y-%m-%d'), custo, valor, ini.strftime('%Y-%m-%d'), whats, obs, l_b))
+            conn.commit(); conn.close(); st.rerun()
 
 with tab3:
     st.subheader("🚨 Central de Cobrança")
@@ -205,16 +212,15 @@ with tab4:
     st.subheader("⚙️ Ajustes")
     aj1, aj2, aj3 = st.columns(3)
     with aj1:
-        up = st.file_uploader("UPLOAD EXCEL", type=["xlsx"])
+        up = st.file_uploader("EXCEL", type=["xlsx"])
         if up and st.button("🚀 Importar"):
-            pd.read_excel(up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
-            st.rerun()
+            pd.read_excel(up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False); st.rerun()
     with aj2:
-        if st.button("📦 GERAR BACKUP"):
+        if st.button("📦 BACKUP"):
             out = io.BytesIO()
             pd.read_sql_query("SELECT * FROM clientes", sqlite3.connect('supertv_gestao.db')).to_excel(out, index=False)
-            st.download_button("⬇️ Baixar Arquivo", out.getvalue(), "backup_supertv.xlsx")
+            st.download_button("⬇️ Baixar", out.getvalue(), "backup.xlsx")
     with aj3:
         ns = st.text_input("NOVO SERVIDOR")
-        if st.button("➕ ADICIONAR"):
+        if st.button("➕ ADD"):
             conn = sqlite3.connect('supertv_gestao.db'); conn.execute("INSERT INTO lista_servidores (nome) VALUES (?)", (ns.upper(),)); conn.commit(); conn.close(); st.rerun()
