@@ -92,8 +92,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 with tab1:
     busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
     if not df.empty:
-        # Filtra para não mostrar nomes nulos ou None
-        df_f = df[df['nome'].notnull() & (df['nome'].astype(str).lower() != 'none') & (df['nome'].astype(str) != '')].copy()
+        # Filtro de exibição: ignora quem não tem nome
+        df_f = df[df['nome'].notnull() & (df['nome'].astype(str).str.lower() != 'none') & (df['nome'].astype(str).str.strip() != '')].copy()
         
         if busca:
             df_f = df_f[df_f['nome'].str.contains(busca, case=False, na=False) | df_f['usuario'].str.contains(busca, case=False, na=False)]
@@ -128,11 +128,14 @@ with tab2:
         n_w = st.text_input("WHATSAPP (Ex: 62999999999)")
         n_l = st.file_uploader("LOGOMARCA", type=['png','jpg'])
         if st.form_submit_button("🚀 CADASTRAR"):
-            l_b = image_to_base64(n_l)
-            c_in = sqlite3.connect('supertv_gestao.db')
-            c_in.execute("INSERT INTO clientes (nome, usuario, servidor, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?)",
-                        (n_n, n_u, n_srv, n_v.strftime('%Y-%m-%d'), n_c, n_m, n_w, l_b))
-            c_in.commit(); st.rerun()
+            if n_n.strip() == "":
+                st.error("Erro: O nome do cliente não pode estar vazio.")
+            else:
+                l_b = image_to_base64(n_l)
+                c_in = sqlite3.connect('supertv_gestao.db')
+                c_in.execute("INSERT INTO clientes (nome, usuario, servidor, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?)",
+                            (n_n, n_u, n_srv, n_v.strftime('%Y-%m-%d'), n_c, n_m, n_w, l_b))
+                c_in.commit(); st.rerun()
 
 with tab3:
     st.subheader("🚨 COBRANÇA")
@@ -150,37 +153,51 @@ with tab4:
     
     with c_limp1:
         st.markdown("### 🧹 Limpeza Profunda")
-        if st.button("🗑️ LIMPAR CLIENTES SEM NOME", use_container_width=True):
+        if st.button("🗑️ REMOVER REGISTROS INVÁLIDOS", use_container_width=True):
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("DELETE FROM clientes WHERE nome IS NULL OR nome = '' OR nome = 'None' OR nome = 'nan'")
-            conn.commit(); conn.close(); st.success("Registros limpos!"); st.rerun()
+            conn.commit(); conn.close(); st.success("Registros fantasmas removidos!"); st.rerun()
 
-        if st.button("🚨 RESET TOTAL (APAGAR TUDO)", type="primary", use_container_width=True):
+        if st.button("🚨 RESET TOTAL DO BANCO", type="primary", use_container_width=True):
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("DELETE FROM clientes")
-            conn.commit(); conn.close(); st.success("Banco resetado!"); st.rerun()
+            conn.commit(); conn.close(); st.success("Tudo apagado com sucesso!"); st.rerun()
 
     with c_limp2:
         st.markdown("### 📥 Importação Blindada")
-        f_up = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"])
+        f_up = st.file_uploader("Subir Excel corrigido", type=["xlsx"])
         if f_up and st.button("🚀 IMPORTAR AGORA"):
             try:
                 imp = pd.read_excel(f_up, engine='openpyxl')
                 imp.columns = [str(c).strip().upper() for c in imp.columns]
-                
-                mapeamento = {'CLIENTE': 'nome', 'USUÁRIO': 'usuario', 'SENHA': 'senha', 'SERVIDOR': 'servidor', 'VENCIMENTO': 'vencimento', 'CUSTO': 'custo', 'VALOR COBRADO': 'mensalidade', 'WHATSAPP': 'whatsapp'}
+                imp = imp.dropna(how='all')
+
+                mapeamento = {
+                    'CLIENTE': 'nome', 'USUÁRIO': 'usuario', 'SENHA': 'senha',
+                    'SERVIDOR': 'servidor', 'VENCIMENTO': 'vencimento',
+                    'CUSTO': 'custo', 'VALOR COBRADO': 'mensalidade', 'WHATSAPP': 'whatsapp'
+                }
                 imp = imp.rename(columns=mapeamento)
                 
-                # Filtra apenas quem tem nome válido
+                # Tratamento correto da coluna 'nome' (USO DO .STR)
                 if 'nome' in imp.columns:
-                    imp = imp[imp['nome'].notnull() & (imp['nome'].astype(str).lower() != 'none')]
+                    imp['nome'] = imp['nome'].astype(str).str.strip()
+                    imp = imp[
+                        (imp['nome'].notnull()) & 
+                        (imp['nome'].str.lower() != 'none') & 
+                        (imp['nome'].str.lower() != 'nan') & 
+                        (imp['nome'] != '')
+                    ]
                 
                 cols_banco = ['nome', 'usuario', 'senha', 'servidor', 'vencimento', 'custo', 'mensalidade', 'whatsapp']
                 for c in cols_banco:
                     if c not in imp.columns: imp[c] = None
                 
                 df_final = imp[cols_banco]
-                conn = sqlite3.connect('supertv_gestao.db')
-                df_final.to_sql('clientes', conn, if_exists='append', index=False)
-                conn.close(); st.success("Importado!"); st.rerun()
-            except Exception as e: st.error(f"Erro: {e}")
+                if not df_final.empty:
+                    conn = sqlite3.connect('supertv_gestao.db')
+                    df_final.to_sql('clientes', conn, if_exists='append', index=False)
+                    conn.close(); st.success(f"✅ {len(df_final)} Clientes importados!"); st.rerun()
+                else:
+                    st.warning("Nenhum dado válido com nome encontrado no Excel.")
+            except Exception as e: st.error(f"Erro na Importação: {e}")
