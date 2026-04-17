@@ -9,10 +9,6 @@ import base64
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# Inicializa o estado da aba se não existir
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "👤 CLIENTES"
-
 # --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
@@ -70,14 +66,23 @@ if not df.empty:
 # --- 4. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# Controle de abas via Session State
-tab_list = ["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"]
-active_tab = st.radio("", tab_list, index=tab_list.index(st.session_state.active_tab), horizontal=True, label_visibility="collapsed")
-st.session_state.active_tab = active_tab
+# --- 5. MÉTRICAS ---
+if not df.empty:
+    m1, m2, m3, m4 = st.columns(4)
+    total_clie = len(df)
+    vencidos = len(df[df['dias_res'] < 0])
+    hoje_venc = len(df[df['dias_res'] == 0])
+    lucro = df['mensalidade'].sum() - df['custo'].sum()
+    
+    m1.metric("TOTAL CLIENTES", total_clie)
+    m2.metric("VENCIDOS", vencidos, delta_color="inverse")
+    m3.metric("VENCEM HOJE", hoje_venc)
+    m4.metric("LUCRO ESTIMADO", f"R$ {lucro:,.2f}")
 
-st.divider()
+# --- 6. ABAS ---
+tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-if active_tab == "👤 CLIENTES":
+with tab1:
     busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário")
     if not df.empty:
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
@@ -94,15 +99,19 @@ if active_tab == "👤 CLIENTES":
                             ed_nome = ce1.text_input("CLIENTE", value=r['nome'])
                             ed_user = ce2.text_input("USUÁRIO", value=r['usuario'])
                             ed_senha = ce3.text_input("SENHA", value=r['senha'])
+                            
                             ed_serv = ce1.selectbox("SERVIDOR", get_servidores(), index=get_servidores().index(r['servidor']) if r['servidor'] in get_servidores() else 0)
                             ed_sist = ce2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0 if r['sistema'] == "IPTV" else 1)
                             ed_venc = ce3.date_input("VENCIMENTO", value=datetime.strptime(r['vencimento'], '%Y-%m-%d'), format="DD/MM/YYYY")
+                            
                             ed_custo = ce1.number_input("CUSTO", value=float(r['custo']))
                             ed_valor = ce2.number_input("VALOR COBRADO", value=float(r['mensalidade']))
                             ed_ini = ce3.date_input("INÍCIOU DIA", value=datetime.strptime(r['inicio'], '%Y-%m-%d'), format="DD/MM/YYYY")
+                            
                             ed_whats = ce1.text_input("WHATSAPP", value=r['whatsapp'])
                             ed_obs = st.text_area("OBSERVAÇÃO", value=r['observacao'])
                             
+                            # Botão de salvar dentro do form
                             if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                                 conn = sqlite3.connect('supertv_gestao.db')
                                 conn.execute("""UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
@@ -110,30 +119,31 @@ if active_tab == "👤 CLIENTES":
                                              (ed_nome, ed_user, ed_senha, ed_serv, ed_sist, ed_venc.strftime('%Y-%m-%d'), 
                                               ed_custo, ed_valor, ed_ini.strftime('%Y-%m-%d'), ed_whats, ed_obs, r['id']))
                                 conn.commit(); conn.close()
-                                st.success("Alterações salvas com sucesso!")
-                                st.session_state.active_tab = "👤 CLIENTES"
+                                st.success("Atualizado com sucesso!")
                                 st.rerun()
 
+                        # Botões de Renovação e Exclusão fora do Form de edição
                         st.divider()
                         br1, br2 = st.columns([2, 1])
-                        dias_add = br1.number_input("Adicionar dias", value=30, key=f"days_{r['id']}")
+                        dias_add = br1.number_input("Adicionar dias na renovação", value=30, key=f"days_{r['id']}")
                         if br1.button(f"➕ RENOVAR +{dias_add} DIAS", key=f"renov_{r['id']}"):
                             nova_data = (datetime.strptime(r['vencimento'], '%Y-%m-%d') + timedelta(days=dias_add)).strftime('%Y-%m-%d')
                             conn = sqlite3.connect('supertv_gestao.db')
                             conn.execute("UPDATE clientes SET vencimento = ? WHERE id = ?", (nova_data, r['id']))
                             conn.commit(); conn.close(); st.rerun()
                         
-                        if br2.button("🗑️ EXCLUIR", key=f"del_{r['id']}", type="primary", use_container_width=True):
+                        if br2.button("🗑️ EXCLUIR CLIENTE", key=f"del_{r['id']}", type="primary", use_container_width=True):
                             conn = sqlite3.connect('supertv_gestao.db')
                             conn.execute("DELETE FROM clientes WHERE id = ?", (r['id'],))
-                            conn.commit(); conn.close(); st.rerun()
+                            conn.commit(); conn.close()
+                            st.rerun()
 
-elif active_tab == "➕ NOVO CADASTRO":
+with tab2:
     st.subheader("🚀 Novo Cadastro")
     with st.form("form_add", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
-        nome = c1.text_input("CLIENTE (Obrigatório)")
-        user = c2.text_input("USUÁRIO (Obrigatório)")
+        nome = c1.text_input("CLIENTE")
+        user = c2.text_input("USUÁRIO")
         senha = c3.text_input("SENHA")
         serv = c1.selectbox("SERVIDOR", get_servidores())
         sist = c2.selectbox("SISTEMA", ["IPTV", "P2P"])
@@ -146,23 +156,21 @@ elif active_tab == "➕ NOVO CADASTRO":
         obs = st.text_area("OBSERVAÇÃO")
         
         if st.form_submit_button("🚀 SALVAR CADASTRO"):
-            if nome and user and whats: # Validação simples
+            if not nome or not user or not whats:
+                st.error("⚠️ Preencha Nome, Usuário e WhatsApp!")
+            else:
                 l_b = base64.b64encode(img_serv.read()).decode() if img_serv else None
                 conn = sqlite3.connect('supertv_gestao.db')
                 conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, inicio, whatsapp, observacao, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                             (nome, user, senha, serv, sist, venc.strftime('%Y-%m-%d'), custo, valor, ini.strftime('%Y-%m-%d'), whats, obs, l_b))
                 conn.commit(); conn.close()
-                st.success("Cliente cadastrado com sucesso!")
-                st.session_state.active_tab = "👤 CLIENTES" # Força a volta para aba de clientes
+                st.success("Salvo!")
                 st.rerun()
-            else:
-                st.error("⚠️ Por favor, preencha Nome, Usuário e WhatsApp para continuar.")
 
-elif active_tab == "🚨 COBRANÇA":
+with tab3:
     st.subheader("🚨 Central de Cobrança")
     pix = "62.326.879/0001-13"
     if not df.empty:
-        # (Restante do seu código de cobrança permanece o mesmo)
         f_cols = st.columns(7)
         if 'f_cob' not in st.session_state: st.session_state.f_cob = "Todos"
         if f_cols[0].button("TODOS"): st.session_state.f_cob = "Todos"
@@ -193,7 +201,7 @@ elif active_tab == "🚨 COBRANÇA":
                 msg = f"Olá {str(i['nome']).split()[0]}! 👋 Sua assinatura {i['servidor']} vence dia {format_data_br(i['vencimento'])}. Pix: {pix}"
                 st.link_button(f"Enviar para {i['nome']}", f"https://wa.me/55{i['whatsapp']}?text={urllib.parse.quote(msg)}")
 
-elif active_tab == "⚙️ AJUSTES":
+with tab4:
     st.subheader("⚙️ Ajustes")
     aj1, aj2, aj3 = st.columns(3)
     with aj1:
