@@ -65,11 +65,11 @@ conn.close()
 # --- 5. HEADER ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- 6. DASHBOARD (CÁLCULO PROTEGIDO) ---
+# --- 6. DASHBOARD (CORREÇÃO DO ERRO DE CÁLCULO) ---
 if not df.empty:
     hoje = datetime.now().date()
     
-    # PROTEÇÃO: Garante que valores financeiros sejam números para evitar erro de cálculo
+    # Tratamento para evitar o erro TypeError: transforma nulo em 0
     df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
     df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
     
@@ -99,7 +99,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADD CLIENTE", "🚨 COBR
 with tab1:
     busca = st.text_input("🔎 Pesquisar por Nome ou Usuário...", placeholder="Digite aqui...")
     if not df.empty:
-        # Filtra para não mostrar clientes bugados (sem nome)
+        # Filtro para não exibir linhas sem nome
         df_f = df[df['nome'].notnull() & (df['nome'].astype(str).str.lower() != 'none') & (df['nome'].astype(str).str.strip() != '')].copy()
         
         if busca:
@@ -165,14 +165,14 @@ with tab4:
             conn.execute("DELETE FROM clientes WHERE nome IS NULL OR nome = '' OR nome = 'None' OR nome = 'nan'")
             conn.commit(); conn.close(); st.success("Banco limpo!"); st.rerun()
 
-        if st.button("🚨 RESET TOTAL", type="primary", use_container_width=True):
+        if st.button("🚨 RESET TOTAL DO BANCO", type="primary", use_container_width=True):
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("DELETE FROM clientes")
-            conn.commit(); conn.close(); st.success("Tudo apagado!"); st.rerun()
+            conn.commit(); conn.close(); st.success("Banco de dados resetado!"); st.rerun()
 
     with c_limp2:
         st.markdown("### 📥 Importação Blindada")
-        f_up = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"])
+        f_up = st.file_uploader("Subir Excel corrigido", type=["xlsx"])
         if f_up and st.button("🚀 IMPORTAR AGORA"):
             try:
                 imp = pd.read_excel(f_up, engine='openpyxl')
@@ -186,7 +186,6 @@ with tab4:
                 }
                 imp = imp.rename(columns=mapeamento)
                 
-                # Tratamento da coluna Nome
                 if 'nome' in imp.columns:
                     imp['nome'] = imp['nome'].astype(str).str.strip()
                     imp = imp[(imp['nome'].notnull()) & (imp['nome'].str.lower() != 'none') & (imp['nome'] != '')]
@@ -200,4 +199,4 @@ with tab4:
                     conn = sqlite3.connect('supertv_gestao.db')
                     df_final.to_sql('clientes', conn, if_exists='append', index=False)
                     conn.close(); st.success("Importação concluída!"); st.rerun()
-            except Exception as e: st.error(f"Erro: {e}")
+            except Exception as e: st.error(f"Erro na Importação: {e}")
