@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
+import sqlite3
 from datetime import datetime, date
 
 # =====================
@@ -9,32 +9,24 @@ from datetime import datetime, date
 st.set_page_config(page_title="SUPERTV4K PRO", layout="wide")
 
 # =====================
-# CONEXÃO POSTGRES
-# =====================
-DB_URL = "postgresql://USER:PASSWORD@HOST:5432/DB"
-
-def conn_db():
-    return psycopg2.connect(DB_URL)
-
-# =====================
-# INIT DB
+# DB LOCAL (ESTÁVEL)
 # =====================
 def init_db():
-    conn = conn_db()
-    cur = conn.cursor()
+    conn = sqlite3.connect("supertv.db")
+    c = conn.cursor()
 
-    cur.execute("""
+    c.execute("""
     CREATE TABLE IF NOT EXISTS clientes (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         cliente TEXT,
         usuario TEXT,
         senha TEXT,
         servidor TEXT,
         sistema TEXT,
-        vencimento DATE,
-        custo FLOAT,
-        valor FLOAT,
-        inicio DATE,
+        vencimento TEXT,
+        custo REAL,
+        valor REAL,
+        inicio TEXT,
         whatsapp TEXT,
         observacao TEXT
     )
@@ -49,7 +41,7 @@ init_db()
 # LOAD DATA
 # =====================
 def load_data():
-    conn = conn_db()
+    conn = sqlite3.connect("supertv.db")
     df = pd.read_sql("SELECT * FROM clientes ORDER BY id DESC", conn)
     conn.close()
     return df
@@ -72,14 +64,14 @@ SERVIDORES = [
 # =====================
 # DASHBOARD
 # =====================
-df = load_data()
-
 st.title("📊 SUPERTV4K DASHBOARD PRO")
 
-if not df.empty:
+df = load_data()
 
+if not df.empty:
     total = len(df)
-    vencidos = len(df[df["vencimento"] < date.today()])
+
+    vencidos = len(df[pd.to_datetime(df["vencimento"]) < pd.to_datetime(date.today())])
     ativos = total - vencidos
 
     c1, c2, c3 = st.columns(3)
@@ -121,53 +113,44 @@ if "edit" in st.session_state:
         servidor = st.selectbox("SERVIDOR", SERVIDORES)
         sistema = st.selectbox("SISTEMA", ["IPTV", "P2P"])
 
-        vencimento = st.date_input("VENCIMENTO", cli["vencimento"])
+        vencimento = st.date_input("VENCIMENTO")
         custo = st.number_input("CUSTO", value=float(cli["custo"]))
         valor = st.number_input("VALOR COBRADO", value=float(cli["valor"]))
 
-        inicio = st.date_input("INÍCIOU DIA", cli["inicio"])
+        inicio = st.date_input("INÍCIOU DIA")
 
         whatsapp = st.text_input("WHATSAPP", cli["whatsapp"])
         obs = st.text_area("OBSERVAÇÃO", cli["observacao"])
 
         if st.form_submit_button("SALVAR"):
 
-            conn = conn_db()
-            cur = conn.cursor()
+            conn = sqlite3.connect("supertv.db")
+            c = conn.cursor()
 
-            cur.execute("""
+            c.execute("""
                 UPDATE clientes SET
-                    cliente=%s,
-                    usuario=%s,
-                    senha=%s,
-                    servidor=%s,
-                    sistema=%s,
-                    vencimento=%s,
-                    custo=%s,
-                    valor=%s,
-                    inicio=%s,
-                    whatsapp=%s,
-                    observacao=%s
-                WHERE id=%s
+                    cliente=?, usuario=?, senha=?,
+                    servidor=?, sistema=?,
+                    vencimento=?, custo=?, valor=?,
+                    inicio=?, whatsapp=?, observacao=?
+                WHERE id=?
             """, (
                 cliente, usuario, senha,
                 servidor, sistema,
-                vencimento, custo, valor,
-                inicio, whatsapp, obs,
+                vencimento.strftime("%Y-%m-%d"),
+                custo, valor,
+                inicio.strftime("%Y-%m-%d"),
+                whatsapp, obs,
                 cli["id"]
             ))
 
             conn.commit()
             conn.close()
 
-            st.success("✔ Atualizado com sucesso")
+            st.success("✔ Salvo com sucesso")
 
             del st.session_state["edit"]
             st.rerun()
-
-    if st.button("⬅️ Voltar"):
-        del st.session_state["edit"]
-        st.rerun()
 
 # =====================
 # NOVO CLIENTE
@@ -193,27 +176,29 @@ with st.form("novo"):
     whatsapp = st.text_input("WHATSAPP")
     obs = st.text_area("OBSERVAÇÃO")
 
-    if st.form_submit_button("SALVAR CLIENTE"):
+    if st.form_submit_button("SALVAR"):
 
-        conn = conn_db()
-        cur = conn.cursor()
+        conn = sqlite3.connect("supertv.db")
+        c = conn.cursor()
 
-        cur.execute("""
+        c.execute("""
             INSERT INTO clientes (
                 cliente, usuario, senha,
                 servidor, sistema,
                 vencimento, custo, valor,
                 inicio, whatsapp, observacao
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
         """, (
             cliente, usuario, senha,
             servidor, sistema,
-            vencimento, custo, valor,
-            inicio, whatsapp, obs
+            vencimento.strftime("%Y-%m-%d"),
+            custo, valor,
+            inicio.strftime("%Y-%m-%d"),
+            whatsapp, obs
         ))
 
         conn.commit()
         conn.close()
 
-        st.success("✔ Cliente cadastrado")
+        st.success("✔ Cliente adicionado")
         st.rerun()
