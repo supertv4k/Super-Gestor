@@ -1,20 +1,18 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime
 
-# =====================
-# CONFIG
-# =====================
 st.set_page_config(page_title="SUPERTV4K PRO", layout="wide")
 
+DB = "supertv.db"
+
 # =====================
-# DB LOCAL (ESTÁVEL)
+# DB
 # =====================
 def init_db():
-    conn = sqlite3.connect("supertv.db")
+    conn = sqlite3.connect(DB)
     c = conn.cursor()
-
     c.execute("""
     CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,17 +29,16 @@ def init_db():
         observacao TEXT
     )
     """)
-
     conn.commit()
     conn.close()
 
 init_db()
 
 # =====================
-# LOAD DATA
+# LOAD SEM CACHE BUGADO
 # =====================
-def load_data():
-    conn = sqlite3.connect("supertv.db")
+def load():
+    conn = sqlite3.connect(DB)
     df = pd.read_sql("SELECT * FROM clientes ORDER BY id DESC", conn)
     conn.close()
     return df
@@ -50,34 +47,28 @@ def load_data():
 # SERVIDORES
 # =====================
 SERVIDORES = [
-    "UNIPLAY",
-    "MUNDO GF",
-    "UNITV",
-    "P2BRAZ",
-    "BLADETV",
-    "P2CINETV",
-    "P2SPEEDTV",
-    "PLAYTV",
-    "MEGATV"
+    "UNIPLAY","MUNDO GF","UNITV","P2BRAZ","BLADETV",
+    "P2CINETV","P2SPEEDTV","PLAYTV","MEGATV"
 ]
 
 # =====================
-# DASHBOARD
+# STATE
 # =====================
-st.title("📊 SUPERTV4K DASHBOARD PRO")
+if "edit_id" not in st.session_state:
+    st.session_state.edit_id = None
 
-df = load_data()
+def set_edit(i):
+    st.session_state.edit_id = i
 
-if not df.empty:
-    total = len(df)
+def close_edit():
+    st.session_state.edit_id = None
 
-    vencidos = len(df[pd.to_datetime(df["vencimento"]) < pd.to_datetime(date.today())])
-    ativos = total - vencidos
+# =====================
+# DATA
+# =====================
+df = load()
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Clientes", total)
-    c2.metric("Ativos", ativos)
-    c3.metric("Vencidos", vencidos)
+st.title("📊 SUPERTV4K PRO")
 
 # =====================
 # LISTA
@@ -86,20 +77,20 @@ st.subheader("👤 CLIENTES")
 
 for _, r in df.iterrows():
 
-    col1, col2, col3 = st.columns([4,4,2])
+    c1, c2, c3 = st.columns([4,4,2])
 
-    col1.write(f"**{r['cliente']}** | {r['usuario']} | {r['servidor']}")
-    col2.write(f"📅 {r['vencimento']}")
+    c1.write(f"**{r['cliente']}** | {r['usuario']} | {r['servidor']}")
+    c2.write(f"📅 {r['vencimento']}")
 
-    if col3.button("Editar", key=r["id"]):
-        st.session_state.edit = r["id"]
+    if c3.button("Editar", key=f"e_{r['id']}"):
+        set_edit(r["id"])
 
 # =====================
-# EDITAR
+# EDITAR (BLOCO CORRIGIDO)
 # =====================
-if "edit" in st.session_state:
+if st.session_state.edit_id is not None:
 
-    cli = df[df["id"] == st.session_state.edit].iloc[0]
+    cli = df[df["id"] == st.session_state.edit_id].iloc[0]
 
     st.divider()
     st.subheader("✏️ EDITAR CLIENTE")
@@ -122,12 +113,14 @@ if "edit" in st.session_state:
         whatsapp = st.text_input("WHATSAPP", cli["whatsapp"])
         obs = st.text_area("OBSERVAÇÃO", cli["observacao"])
 
-        if st.form_submit_button("SALVAR"):
+        salvar = st.form_submit_button("💾 SALVAR ALTERAÇÕES")
 
-            conn = sqlite3.connect("supertv.db")
-            c = conn.cursor()
+        if salvar:
 
-            c.execute("""
+            conn = sqlite3.connect(DB)
+            cur = conn.cursor()
+
+            cur.execute("""
                 UPDATE clientes SET
                     cliente=?, usuario=?, senha=?,
                     servidor=?, sistema=?,
@@ -147,13 +140,18 @@ if "edit" in st.session_state:
             conn.commit()
             conn.close()
 
-            st.success("✔ Salvo com sucesso")
+            st.success("✔ Atualizado com sucesso")
 
-            del st.session_state["edit"]
+            # 🔥 ISSO AQUI É O QUE ESTAVA FALTANDO
+            close_edit()
             st.rerun()
 
+    if st.button("⬅️ VOLTAR"):
+        close_edit()
+        st.rerun()
+
 # =====================
-# NOVO CLIENTE
+# NOVO CLIENTE (CORRIGIDO)
 # =====================
 st.divider()
 st.subheader("➕ NOVO CLIENTE")
@@ -176,12 +174,12 @@ with st.form("novo"):
     whatsapp = st.text_input("WHATSAPP")
     obs = st.text_area("OBSERVAÇÃO")
 
-    if st.form_submit_button("SALVAR"):
+    if st.form_submit_button("SALVAR CLIENTE"):
 
-        conn = sqlite3.connect("supertv.db")
-        c = conn.cursor()
+        conn = sqlite3.connect(DB)
+        cur = conn.cursor()
 
-        c.execute("""
+        cur.execute("""
             INSERT INTO clientes (
                 cliente, usuario, senha,
                 servidor, sistema,
@@ -200,5 +198,7 @@ with st.form("novo"):
         conn.commit()
         conn.close()
 
-        st.success("✔ Cliente adicionado")
+        st.success("✔ Cliente salvo")
+
+        # 🔥 FORÇA RELOAD REAL
         st.rerun()
