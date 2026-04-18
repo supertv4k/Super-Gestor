@@ -38,7 +38,6 @@ st.markdown("""
     
     .img-servidor { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
     
-    /* Botões da lista de clientes */
     div.stButton > button {
         text-align: left !important;
         background-color: #161b22 !important;
@@ -92,7 +91,7 @@ if 'cliente_selecionado' not in st.session_state:
 # --- 5. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# Recarregar dados
+# Conexão para carregar dados
 conn = sqlite3.connect('supertv_gestao.db')
 df = pd.read_sql_query("SELECT * FROM clientes", conn)
 conn.close()
@@ -113,10 +112,10 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
-    # PAINEL DE EDIÇÃO FIXO (Aparece apenas quando um cliente é clicado)
-    if st.session_state.cliente_selecionado:
+    # --- CORREÇÃO DO ERRO VALUEERROR ---
+    if st.session_state.cliente_selecionado is not None:
         c_sel = st.session_state.cliente_selecionado
-        st.markdown(f'<div class="edit-panel"><h3>📝 Editando: {c_sel["nome"].upper()}</h3></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="edit-panel"><h3>📝 Editando: {str(c_sel["nome"]).upper()}</h3></div>', unsafe_allow_html=True)
         
         with st.container():
             col1, col2, col3 = st.columns(3)
@@ -124,27 +123,34 @@ with tab1:
             new_user = col2.text_input("Usuário", value=c_sel['usuario'])
             new_senha = col3.text_input("Senha", value=c_sel['senha'])
             
-            new_serv = col1.selectbox("Servidor", get_servidores(), index=get_servidores().index(c_sel['servidor']) if c_sel['servidor'] in get_servidores() else 0)
-            new_venc = col2.date_input("Vencimento", value=datetime.strptime(c_sel['vencimento'], '%Y-%m-%d'))
+            servidores_lista = get_servidores()
+            idx_serv = servidores_lista.index(c_sel['servidor']) if c_sel['servidor'] in servidores_lista else 0
+            new_serv = col1.selectbox("Servidor", servidores_lista, index=idx_serv)
+            
+            venc_data = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
+            new_venc = col2.date_input("Vencimento", value=venc_data)
             new_whats = col3.text_input("WhatsApp", value=c_sel['whatsapp'])
             
             new_custo = col1.number_input("Custo", value=float(c_sel['custo']))
             new_mensal = col2.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
-            new_obs = col3.text_area("Observação", value=c_sel['observacao'])
+            new_obs = col3.text_area("Observação", value=str(c_sel['observacao']))
 
             b_salvar, b_renovar, b_excluir, b_cancelar = st.columns(4)
             
             if b_salvar.button("💾 SALVAR", use_container_width=True):
+                whats_limpo = ''.join(filter(str.isdigit, str(new_whats)))
                 conn = sqlite3.connect('supertv_gestao.db')
                 conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, vencimento=?, custo=?, mensalidade=?, whatsapp=?, observacao=? WHERE id=?",
-                             (new_nome, new_user, new_senha, new_serv, new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, new_whats, new_obs, c_sel['id']))
+                             (new_nome, new_user, new_senha, new_serv, new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, whats_limpo, new_obs, c_sel['id']))
                 conn.commit()
                 conn.close()
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
             if b_renovar.button("➕ RENOVAR (+30d)", use_container_width=True):
-                nova_data = (datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
+                # Se for objeto date, converte. Se for string, converte.
+                v_atual = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
+                nova_data = (v_atual + timedelta(days=30)).strftime('%Y-%m-%d')
                 conn = sqlite3.connect('supertv_gestao.db')
                 conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (nova_data, c_sel['id']))
                 conn.commit()
@@ -175,9 +181,9 @@ with tab1:
             c_img, c_info = st.columns([1, 10])
             c_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             
-            # Ao clicar no botão, salvamos o cliente no state para editar no painel acima
-            if c_info.button(f"{r['nome'].upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"btn_{r['id']}"):
-                st.session_state.cliente_selecionado = r
+            # Converter a linha do DataFrame para um dicionário simples evita o erro do Pandas
+            if c_info.button(f"{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"btn_{r['id']}"):
+                st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
 with tab2:
@@ -195,10 +201,11 @@ with tab2:
         n_img = st.file_uploader("Logo", type=['png', 'jpg'])
         
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+            whats_ok = ''.join(filter(str.isdigit, n_whats))
             l_b = base64.b64encode(n_img.read()).decode() if n_img else None
             conn = sqlite3.connect('supertv_gestao.db')
             conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (n_nome, n_user, n_senha, n_serv, n_venc.strftime('%Y-%m-%d'), n_custo, n_valor, n_whats, l_b))
+                        (n_nome, n_user, n_senha, n_serv, n_venc.strftime('%Y-%m-%d'), n_custo, n_valor, whats_ok, l_b))
             conn.commit()
             conn.close()
             st.rerun()
@@ -206,9 +213,12 @@ with tab2:
 with tab3:
     st.subheader("🚨 Cobrança")
     if not df.empty:
+        # Filtrar apenas quem vence em breve
         for _, c in df[df['dias_res'] <= 5].sort_values(by='dias_res').iterrows():
-            msg = f"Olá {c['nome']}! Sua assinatura vence dia {format_data_br(c['vencimento'])}."
-            st.link_button(f"📲 Cobrar {c['nome']} (Vence em {c['dias_res']} dias)", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
+            num = str(c['whatsapp'])
+            if not num.startswith('55'): num = '55' + num
+            msg = f"Olá {str(c['nome']).split()[0]}! Sua assinatura vence dia {format_data_br(c['vencimento'])}."
+            st.link_button(f"📲 Cobrar {c['nome']} (Vence em {c['dias_res']} dias)", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ Sistema")
