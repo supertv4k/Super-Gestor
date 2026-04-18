@@ -1,41 +1,42 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
-from datetime import datetime
+import psycopg2
+from datetime import datetime, date
 
-# =========================
+# =====================
 # CONFIG
-# =========================
+# =====================
 st.set_page_config(page_title="SUPERTV4K PRO", layout="wide")
 
-# =========================
-# DB INIT
-# =========================
-def init_db():
-    conn = sqlite3.connect("supertv_gestao.db")
-    c = conn.cursor()
+# =====================
+# CONEXÃO POSTGRES
+# =====================
+DB_URL = "postgresql://USER:PASSWORD@HOST:5432/DB"
 
-    c.execute("""
+def conn_db():
+    return psycopg2.connect(DB_URL)
+
+# =====================
+# INIT DB
+# =====================
+def init_db():
+    conn = conn_db()
+    cur = conn.cursor()
+
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS clientes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT,
+        id SERIAL PRIMARY KEY,
+        cliente TEXT,
         usuario TEXT,
         senha TEXT,
         servidor TEXT,
         sistema TEXT,
-        vencimento TEXT,
-        custo REAL,
-        mensalidade REAL,
-        inicio TEXT,
+        vencimento DATE,
+        custo FLOAT,
+        valor FLOAT,
+        inicio DATE,
         whatsapp TEXT,
         observacao TEXT
-    )
-    """)
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS servidores_extra (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT UNIQUE
     )
     """)
 
@@ -44,10 +45,19 @@ def init_db():
 
 init_db()
 
-# =========================
+# =====================
+# LOAD DATA
+# =====================
+def load_data():
+    conn = conn_db()
+    df = pd.read_sql("SELECT * FROM clientes ORDER BY id DESC", conn)
+    conn.close()
+    return df
+
+# =====================
 # SERVIDORES
-# =========================
-SERVIDORES_FIXOS = [
+# =====================
+SERVIDORES = [
     "UNIPLAY",
     "MUNDO GF",
     "UNITV",
@@ -59,155 +69,124 @@ SERVIDORES_FIXOS = [
     "MEGATV"
 ]
 
-def get_servidores():
-    conn = sqlite3.connect("supertv_gestao.db")
-    df = pd.read_sql_query("SELECT nome FROM servidores_extra", conn)
-    conn.close()
-
-    extras = df["nome"].tolist() if not df.empty else []
-    return sorted(list(set(SERVIDORES_FIXOS + extras)))
-
-# =========================
-# DATA
-# =========================
-def load_data():
-    conn = sqlite3.connect("supertv_gestao.db")
-    df = pd.read_sql_query("SELECT * FROM clientes", conn)
-    conn.close()
-    return df
-
-# =========================
-# SESSION CONTROL
-# =========================
-if "edit_id" not in st.session_state:
-    st.session_state.edit_id = None
-
-def editar(id_):
-    st.session_state.edit_id = id_
-
-def voltar():
-    st.session_state.edit_id = None
-    st.rerun()
-
-# =========================
-# UI
-# =========================
-st.title("📊 SUPERTV4K DASHBOARD PRO")
-
+# =====================
+# DASHBOARD
+# =====================
 df = load_data()
 
-# =========================
-# LISTA OU EDITOR
-# =========================
-if st.session_state.edit_id is None:
+st.title("📊 SUPERTV4K DASHBOARD PRO")
 
-    st.subheader("👤 CLIENTES")
+if not df.empty:
 
-    if df.empty:
-        st.warning("Nenhum cliente cadastrado.")
-    else:
+    total = len(df)
+    vencidos = len(df[df["vencimento"] < date.today()])
+    ativos = total - vencidos
 
-        for _, r in df.iterrows():
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Clientes", total)
+    c2.metric("Ativos", ativos)
+    c3.metric("Vencidos", vencidos)
 
-            col1, col2, col3 = st.columns([4,3,2])
+# =====================
+# LISTA
+# =====================
+st.subheader("👤 CLIENTES")
 
-            col1.write(f"👤 **{r['nome']}** | {r['usuario']}")
-            col2.write(f"📡 {r['servidor']} | 📅 {r['vencimento']}")
+for _, r in df.iterrows():
 
-            if col3.button("✏️ EDITAR", key=f"e_{r['id']}"):
-                editar(r["id"])
+    col1, col2, col3 = st.columns([4,4,2])
 
-# =========================
-# EDITAR CLIENTE (FLUXO CORRETO)
-# =========================
-else:
+    col1.write(f"**{r['cliente']}** | {r['usuario']} | {r['servidor']}")
+    col2.write(f"📅 {r['vencimento']}")
 
-    cliente = df[df["id"] == st.session_state.edit_id].iloc[0]
+    if col3.button("Editar", key=r["id"]):
+        st.session_state.edit = r["id"]
 
+# =====================
+# EDITAR
+# =====================
+if "edit" in st.session_state:
+
+    cli = df[df["id"] == st.session_state.edit].iloc[0]
+
+    st.divider()
     st.subheader("✏️ EDITAR CLIENTE")
 
-    with st.form("form_edit"):
+    with st.form("edit_form"):
 
-        # ORDEM EXATA
-        nome = st.text_input("CLIENTE", cliente["nome"])
-        usuario = st.text_input("USUÁRIO", cliente["usuario"])
-        senha = st.text_input("SENHA", cliente["senha"])
+        cliente = st.text_input("CLIENTE", cli["cliente"])
+        usuario = st.text_input("USUÁRIO", cli["usuario"])
+        senha = st.text_input("SENHA", cli["senha"])
 
-        servidor = st.selectbox(
-            "SERVIDOR",
-            get_servidores(),
-            index=get_servidores().index(cliente["servidor"]) if cliente["servidor"] in get_servidores() else 0
-        )
-
+        servidor = st.selectbox("SERVIDOR", SERVIDORES)
         sistema = st.selectbox("SISTEMA", ["IPTV", "P2P"])
 
-        vencimento = st.date_input("VENCIMENTO", datetime.strptime(cliente["vencimento"], "%Y-%m-%d"))
+        vencimento = st.date_input("VENCIMENTO", cli["vencimento"])
+        custo = st.number_input("CUSTO", value=float(cli["custo"]))
+        valor = st.number_input("VALOR COBRADO", value=float(cli["valor"]))
 
-        custo = st.number_input("CUSTO", value=float(cliente["custo"]))
-        valor = st.number_input("VALOR COBRADO", value=float(cliente["mensalidade"]))
+        inicio = st.date_input("INÍCIOU DIA", cli["inicio"])
 
-        inicio = st.date_input("INÍCIOU DIA", datetime.strptime(cliente["inicio"], "%Y-%m-%d"))
+        whatsapp = st.text_input("WHATSAPP", cli["whatsapp"])
+        obs = st.text_area("OBSERVAÇÃO", cli["observacao"])
 
-        whatsapp = st.text_input("WHATSAPP", cliente["whatsapp"])
-        obs = st.text_area("OBSERVAÇÃO", cliente["observacao"])
+        if st.form_submit_button("SALVAR"):
 
-        salvar = st.form_submit_button("💾 SALVAR ALTERAÇÕES")
+            conn = conn_db()
+            cur = conn.cursor()
 
-        if salvar:
-
-            conn = sqlite3.connect("supertv_gestao.db")
-            conn.execute("""
+            cur.execute("""
                 UPDATE clientes SET
-                    nome=?,
-                    usuario=?,
-                    senha=?,
-                    servidor=?,
-                    sistema=?,
-                    vencimento=?,
-                    custo=?,
-                    mensalidade=?,
-                    inicio=?,
-                    whatsapp=?,
-                    observacao=?
-                WHERE id=?
+                    cliente=%s,
+                    usuario=%s,
+                    senha=%s,
+                    servidor=%s,
+                    sistema=%s,
+                    vencimento=%s,
+                    custo=%s,
+                    valor=%s,
+                    inicio=%s,
+                    whatsapp=%s,
+                    observacao=%s
+                WHERE id=%s
             """, (
-                nome, usuario, senha,
+                cliente, usuario, senha,
                 servidor, sistema,
-                vencimento.strftime("%Y-%m-%d"),
-                custo, valor,
-                inicio.strftime("%Y-%m-%d"),
-                whatsapp, obs,
-                cliente["id"]
+                vencimento, custo, valor,
+                inicio, whatsapp, obs,
+                cli["id"]
             ))
 
             conn.commit()
             conn.close()
 
-            st.success("✔ Cliente atualizado com sucesso")
+            st.success("✔ Atualizado com sucesso")
 
-            voltar()
+            del st.session_state["edit"]
+            st.rerun()
 
-    if st.button("⬅️ VOLTAR"):
-        voltar()
+    if st.button("⬅️ Voltar"):
+        del st.session_state["edit"]
+        st.rerun()
 
-# =========================
-# CADASTRO NOVO
-# =========================
+# =====================
+# NOVO CLIENTE
+# =====================
 st.divider()
 st.subheader("➕ NOVO CLIENTE")
 
-with st.form("cad"):
+with st.form("novo"):
 
-    nome = st.text_input("CLIENTE")
+    cliente = st.text_input("CLIENTE")
     usuario = st.text_input("USUÁRIO")
     senha = st.text_input("SENHA")
 
-    servidor = st.selectbox("SERVIDOR", get_servidores())
+    servidor = st.selectbox("SERVIDOR", SERVIDORES)
     sistema = st.selectbox("SISTEMA", ["IPTV", "P2P"])
 
     vencimento = st.date_input("VENCIMENTO")
-    custo = st.number_input("CUSTO", value=10.0)
-    valor = st.number_input("VALOR COBRADO", value=35.0)
+    custo = st.number_input("CUSTO", value=0.0)
+    valor = st.number_input("VALOR COBRADO", value=0.0)
 
     inicio = st.date_input("INÍCIOU DIA")
 
@@ -216,26 +195,25 @@ with st.form("cad"):
 
     if st.form_submit_button("SALVAR CLIENTE"):
 
-        conn = sqlite3.connect("supertv_gestao.db")
-        conn.execute("""
+        conn = conn_db()
+        cur = conn.cursor()
+
+        cur.execute("""
             INSERT INTO clientes (
-                nome, usuario, senha,
+                cliente, usuario, senha,
                 servidor, sistema,
-                vencimento, custo,
-                mensalidade, inicio,
-                whatsapp, observacao
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                vencimento, custo, valor,
+                inicio, whatsapp, observacao
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            nome, usuario, senha,
+            cliente, usuario, senha,
             servidor, sistema,
-            vencimento.strftime("%Y-%m-%d"),
-            custo, valor,
-            inicio.strftime("%Y-%m-%d"),
-            whatsapp, obs
+            vencimento, custo, valor,
+            inicio, whatsapp, obs
         ))
 
         conn.commit()
         conn.close()
 
-        st.success("✔ Cliente salvo")
+        st.success("✔ Cliente cadastrado")
         st.rerun()
