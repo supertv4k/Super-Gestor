@@ -121,7 +121,6 @@ with tab1:
             idx_s = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
             new_serv = col1.selectbox("Servidor", servs, index=idx_s)
             
-            # NOVO CAMPO: SISTEMA (Edição)
             lista_sistemas = ["IPTV", "P2P"]
             idx_sis = lista_sistemas.index(c_sel['sistema']) if c_sel['sistema'] in lista_sistemas else 0
             new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
@@ -175,7 +174,6 @@ with tab1:
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             
             prefixo = "🚨 [VENCIDO] " if r['dias_res'] < 0 else "⏰ [HOJE] " if r['dias_res'] == 0 else ""
-            # Mostra o tipo de sistema no botão da lista também
             tipo_sis = f" | ⚡ {r['sistema']}" if r['sistema'] else ""
             if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']}{tipo_sis} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
@@ -189,10 +187,7 @@ with tab2:
         n_user = f2.text_input("Usuário")
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
-        
-        # NOVO CAMPO: SISTEMA (Cadastro)
         n_sistema = f2.selectbox("Sistema", ["IPTV", "P2P"])
-        
         n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
         n_whats = f1.text_input("WhatsApp (DDD+Número)")
         n_custo = f2.number_input("Custo", value=10.0)
@@ -211,31 +206,52 @@ with tab3:
     st.subheader("🚨 Central de Cobrança Automática")
     pix_cnpj = "62.326.879/0001-13"
     
+    # --- FILTROS DE SELEÇÃO RÁPIDA ---
+    st.write("Selecione o grupo para cobrar:")
+    filtro_btn = st.radio("Filtro:", ["Todos", "Vencidos", "Vence Hoje", "Amanhã", "2 Dias", "3 Dias"], horizontal=True)
+
     if not df.empty:
-        for _, c in df[df['dias_res'] <= 3].sort_values(by='dias_res').iterrows():
-            dias = c['dias_res']
-            nome_cli = str(c['nome']).split()[0].upper()
-            
-            if dias < 0:
-                msg = f"🚨*{nome_cli}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                status_txt = "❌ VENCIDO"
-            elif dias == 0:
-                msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE HOJE ⏰ !*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                status_txt = "⏰ VENCE HOJE"
-            elif dias == 1:
-                msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰ !*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                status_txt = "📅 VENCE AMANHÃ"
-            elif dias == 2:
-                msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                status_txt = "⏳ 2 DIAS RESTANTES"
-            elif dias == 3:
-                msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                status_txt = "⏳ 3 DIAS RESTANTES"
-            
-            num = str(c['whatsapp'])
-            if not num.startswith('55'): num = '55' + num
-            
-            st.link_button(f"📲 {status_txt} | Enviar para: {c['nome']}", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
+        # Lógica de filtragem baseada no botão selecionado
+        if filtro_btn == "Vencidos":
+            df_cobranca = df[df['dias_res'] < 0]
+        elif filtro_btn == "Vence Hoje":
+            df_cobranca = df[df['dias_res'] == 0]
+        elif filtro_btn == "Amanhã":
+            df_cobranca = df[df['dias_res'] == 1]
+        elif filtro_btn == "2 Dias":
+            df_cobranca = df[df['dias_res'] == 2]
+        elif filtro_btn == "3 Dias":
+            df_cobranca = df[df['dias_res'] == 3]
+        else:
+            df_cobranca = df[df['dias_res'] <= 3] # Mostra todos de -inf até 3 dias
+
+        if df_cobranca.empty:
+            st.info(f"Nenhum cliente no grupo: {filtro_btn}")
+        else:
+            for _, c in df_cobranca.sort_values(by='dias_res').iterrows():
+                dias = c['dias_res']
+                nome_cli = str(c['nome']).split()[0].upper()
+                
+                if dias < 0:
+                    msg = f"🚨*{nome_cli}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
+                    status_txt = "❌ VENCIDO"
+                elif dias == 0:
+                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE HOJE ⏰ !*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
+                    status_txt = "⏰ VENCE HOJE"
+                elif dias == 1:
+                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰ !*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
+                    status_txt = "📅 VENCE AMANHÃ"
+                elif dias == 2:
+                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
+                    status_txt = "⏳ 2 DIAS"
+                elif dias == 3:
+                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
+                    status_txt = "⏳ 3 DIAS"
+                
+                num = str(c['whatsapp'])
+                if not num.startswith('55'): num = '55' + num
+                
+                st.link_button(f"📲 {status_txt} | {c['nome']}", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ Sistema")
