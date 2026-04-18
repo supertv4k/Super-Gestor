@@ -159,12 +159,19 @@ with tab1:
 
     busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário")
     if not df.empty:
+        # --- AJUSTE DE ORDENAÇÃO: VENCIDOS PRIMEIRO ---
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
-        for _, r in df_f.sort_values(by='nome').iterrows():
+        
+        # Ordenamos pela coluna 'dias_res' de forma crescente
+        # Assim, números negativos (vencidos) aparecem primeiro
+        for _, r in df_f.sort_values(by='dias_res', ascending=True).iterrows():
             img_tag = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             c1, c2 = st.columns([1, 10])
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-            if c2.button(f"{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
+            
+            # Adicionei um alerta visual no texto do botão para facilitar
+            prefixo = "🚨 [VENCIDO] " if r['dias_res'] < 0 else "⏰ [HOJE] " if r['dias_res'] == 0 else ""
+            if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
@@ -194,12 +201,10 @@ with tab3:
     pix_cnpj = "62.326.879/0001-13"
     
     if not df.empty:
-        # Filtramos clientes que vencem em 3 dias ou que já venceram
         for _, c in df[df['dias_res'] <= 3].sort_values(by='dias_res').iterrows():
             dias = c['dias_res']
             nome_cli = str(c['nome']).split()[0].upper()
             
-            # --- LÓGICA DE MENSAGENS ESPECÍFICAS ---
             if dias < 0:
                 msg = f"🚨*{nome_cli}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
                 status_txt = "❌ VENCIDO"
