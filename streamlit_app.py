@@ -64,7 +64,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# CONEXÃO SEGURA
+# CONEXÃO
 # -----------------------------
 def get_conn():
     return sqlite3.connect("supertv_gestao.db")
@@ -120,7 +120,7 @@ def get_servidores():
     return sorted(list(set(fixos + extras)))
 
 # -----------------------------
-# DATA
+# DATA BR
 # -----------------------------
 def format_data_br(data_str):
     try:
@@ -134,7 +134,7 @@ def format_data_br(data_str):
 init_db()
 
 # -----------------------------
-# LOAD CLIENTES
+# CARREGAR DADOS
 # -----------------------------
 try:
     conn = get_conn()
@@ -276,7 +276,7 @@ with tab3:
                 )
 
 # =============================
-# AJUSTES (BACKUP BLINDADO)
+# AJUSTES - BACKUP BLINDADO
 # =============================
 with tab4:
     st.subheader("Backup Blindado")
@@ -288,36 +288,36 @@ with tab4:
             df_b = pd.read_sql_query("SELECT * FROM clientes", conn)
             conn.close()
 
-            # ---------------- CSV (PRINCIPAL) ----------------
-            csv_data = df_b.to_csv(index=False).encode("utf-8")
+            # ================= CSV (GARANTIDO) =================
+            csv_bytes = df_b.to_csv(index=False, sep=";").encode("utf-8")
 
             st.download_button(
-                "⬇️ Baixar CSV (100% seguro)",
-                data=csv_data,
+                "⬇️ Baixar lista (CSV - seguro)",
+                data=csv_bytes,
                 file_name="backup_clientes.csv",
                 mime="text/csv"
             )
 
-            # ---------------- EXCEL (OPCIONAL) ----------------
+            # ================= EXCEL (OPCIONAL) =================
             try:
                 import openpyxl
 
-                excel_buffer = io.BytesIO()
+                buffer = io.BytesIO()
 
-                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
                     df_b.to_excel(writer, index=False, sheet_name="clientes")
 
-                excel_buffer.seek(0)
+                buffer.seek(0)
 
                 st.download_button(
-                    "⬇️ Baixar Excel (opcional)",
-                    data=excel_buffer.getvalue(),
+                    "⬇️ Baixar Excel",
+                    data=buffer.getvalue(),
                     file_name="backup_clientes.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
             except:
-                st.info("Excel indisponível no ambiente — use o CSV")
+                st.info("Excel indisponível — use o CSV")
 
         except Exception as e:
             st.error(f"Erro no backup: {e}")
