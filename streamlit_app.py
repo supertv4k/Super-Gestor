@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="SUPERTV4K DASHBOARD PRO", layout="wide")
 
 # =========================
-# DB INIT
+# DB
 # =========================
 def init_db():
     conn = sqlite3.connect("supertv_gestao.db")
@@ -78,7 +78,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# STATUS CALC
+# STATUS
 # =========================
 if not df.empty:
     hoje = datetime.now().date()
@@ -94,26 +94,25 @@ st.title("📊 SUPERTV4K DASHBOARD PRO")
 # SERVIDORES ADD
 # =========================
 with st.expander("⚙️ GERENCIAR SERVIDORES"):
-
     novo = st.text_input("Novo servidor")
 
-    if st.button("➕ ADICIONAR"):
+    if st.button("➕ ADICIONAR SERVIDOR"):
         if novo.strip():
             conn = sqlite3.connect("supertv_gestao.db")
             try:
                 conn.execute("INSERT INTO servidores_extra (nome) VALUES (?)", (novo.upper(),))
                 conn.commit()
-                st.success("Adicionado!")
+                st.success("Servidor adicionado!")
             except:
-                st.warning("Já existe.")
+                st.warning("Servidor já existe.")
             conn.close()
             st.rerun()
 
 # =========================
-# DASHBOARD
+# MÉTRICAS
 # =========================
 if df.empty:
-    st.warning("Sem clientes ainda.")
+    st.warning("Nenhum cliente cadastrado.")
     st.stop()
 
 total = len(df)
@@ -144,7 +143,7 @@ else:
     view = df
 
 # =========================
-# LISTA EDITÁVEL (CORRIGIDO)
+# LISTA EDITÁVEL (ORDEM CORRIGIDA)
 # =========================
 st.subheader("👤 CLIENTES")
 
@@ -156,6 +155,7 @@ for _, r in view.iterrows():
 
             col1, col2, col3 = st.columns(3)
 
+            # ORDEM EXATA PEDIDA
             nome = col1.text_input("CLIENTE", r["nome"])
             usuario = col2.text_input("USUÁRIO", r["usuario"])
             senha = col3.text_input("SENHA", r["senha"])
@@ -168,16 +168,25 @@ for _, r in view.iterrows():
 
             sistema = col2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0)
 
-            venc = col3.date_input("VENCIMENTO", datetime.strptime(r["vencimento"], "%Y-%m-%d"))
+            venc = col3.date_input(
+                "VENCIMENTO",
+                datetime.strptime(r["vencimento"], "%Y-%m-%d")
+            )
 
             custo = col1.number_input("CUSTO", value=float(r["custo"]))
             valor = col2.number_input("VALOR COBRADO", value=float(r["mensalidade"]))
-            inicio = col3.date_input("INÍCIOU DIA", datetime.strptime(r["inicio"], "%Y-%m-%d"))
+
+            inicio = col3.date_input(
+                "INÍCIOU DIA",
+                datetime.strptime(r["inicio"], "%Y-%m-%d")
+            )
 
             whatsapp = col1.text_input("WHATSAPP", r["whatsapp"])
             obs = st.text_area("OBSERVAÇÃO", r["observacao"])
 
-            if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+            salvar = st.form_submit_button("💾 SALVAR ALTERAÇÕES")
+
+            if salvar:
 
                 conn = sqlite3.connect("supertv_gestao.db")
                 conn.execute("""
@@ -207,5 +216,8 @@ for _, r in view.iterrows():
                 conn.commit()
                 conn.close()
 
-                st.success("Atualizado!")
+                st.success("✔ Cliente atualizado com sucesso!")
+
+                # 🔥 FORÇA VOLTAR E RECARREGAR TUDO
+                st.session_state.clear()
                 st.rerun()
