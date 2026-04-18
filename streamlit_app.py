@@ -109,7 +109,7 @@ def importar(file):
 df = carregar()
 
 if df.empty:
-    st.warning("⚠️ Nenhum cliente cadastrado ainda")
+    st.warning("Nenhum cliente cadastrado ainda")
 else:
     hoje = datetime.now().date()
     df["venc"] = pd.to_datetime(df["vencimento"], errors="coerce").dt.date
@@ -191,4 +191,4 @@ with tab4:
         buffer = io.BytesIO()
         df_b.to_excel(buffer, index=False)
 
-        st.download_button("Download", buffer.getvalue(), "clientes.xlsx"
+        st.download_button("Download", buffer.getvalue(), "clientes.xlsx")
