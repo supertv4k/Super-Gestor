@@ -43,9 +43,8 @@ def init_db():
 init_db()
 
 # =========================
-# LOAD DADOS (SEMPRE ATUAL)
+# CARREGAR DADOS (SEMPRE FRESCO)
 # =========================
-@st.cache_data(ttl=0)
 def load_data():
     conn = get_conn()
     df = pd.read_sql_query("SELECT * FROM clientes", conn)
@@ -68,7 +67,7 @@ if not df.empty:
 st.title("📊 SUPERTV4K CRM PRO")
 
 # =========================
-# TABS
+# TABS (OBRIGATÓRIO ANTES DE USAR)
 # =========================
 tab1, tab2, tab3, tab4 = st.tabs([
     "👤 CLIENTES",
@@ -78,7 +77,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # =========================
-# CLIENTES
+# LISTA CLIENTES
 # =========================
 with tab1:
     busca = st.text_input("🔎 Buscar cliente")
@@ -98,11 +97,11 @@ with tab1:
                 st.write(f"{cor} 👤 {r['nome']} | {r['usuario']} | vence {r['vencimento']}")
 
             with col2:
-                if st.button("⚙️ EDITAR", key=f"e_{r['id']}"):
+                if st.button("⚙️ EDITAR", key=f"edit_{r['id']}"):
                     st.session_state["edit_id"] = r["id"]
 
 # =========================
-# EDITOR GLOBAL (ESTÁVEL)
+# EDITAR CLIENTE (FORA DA LISTA)
 # =========================
 if st.session_state["edit_id"] is not None:
 
@@ -128,32 +127,58 @@ if st.session_state["edit_id"] is not None:
 
         conn = get_conn()
 
+        # =========================
+        # SALVAR
+        # =========================
         if salvar:
             conn.execute("""
                 UPDATE clientes
                 SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?
                 WHERE id=?
-            """, (nome, usuario, senha, servidor, sistema, venc.strftime("%Y-%m-%d"), cliente["id"]))
+            """, (
+                nome,
+                usuario,
+                senha,
+                servidor,
+                sistema,
+                venc.strftime("%Y-%m-%d"),
+                cliente["id"]
+            ))
+
             conn.commit()
             conn.close()
 
-            st.cache_data.clear()
+            st.success("✔ Alterações salvas com sucesso!")
+
             st.session_state["edit_id"] = None
-            st.success("Salvo com sucesso!")
             st.rerun()
 
+        # =========================
+        # RENOVAR
+        # =========================
         if renovar:
-            novo = (venc + timedelta(days=30)).strftime("%Y-%m-%d")
-            conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (novo, cliente["id"]))
+            novo_venc = (venc + timedelta(days=30)).strftime("%Y-%m-%d")
+
+            conn.execute(
+                "UPDATE clientes SET vencimento=? WHERE id=?",
+                (novo_venc, cliente["id"])
+            )
+
             conn.commit()
             conn.close()
 
-            st.cache_data.clear()
-            st.success("Renovado!")
+            st.success("✔ Cliente renovado!")
+
+            st.session_state["edit_id"] = None
             st.rerun()
 
+        # =========================
+        # FECHAR
+        # =========================
         if fechar:
             st.session_state["edit_id"] = None
+
+        conn.close()
 
 # =========================
 # CADASTRO
@@ -173,17 +198,32 @@ with tab2:
         valor = st.number_input("Valor Cobrado", value=30.0)
         whatsapp = st.text_input("WhatsApp")
 
-        if st.form_submit_button("💾 Salvar"):
+        if st.form_submit_button("💾 Salvar Cliente"):
+
             conn = get_conn()
             conn.execute("""
-                INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, inicio, whatsapp)
+                INSERT INTO clientes (
+                    nome, usuario, senha, servidor, sistema,
+                    vencimento, custo, mensalidade, inicio, whatsapp
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nome, usuario, senha, servidor, sistema, venc.strftime("%Y-%m-%d"), custo, valor, datetime.now().strftime("%Y-%m-%d"), whatsapp))
+            """, (
+                nome,
+                usuario,
+                senha,
+                servidor,
+                sistema,
+                venc.strftime("%Y-%m-%d"),
+                custo,
+                valor,
+                datetime.now().strftime("%Y-%m-%d"),
+                whatsapp
+            ))
+
             conn.commit()
             conn.close()
 
-            st.cache_data.clear()
-            st.success("Cliente cadastrado!")
+            st.success("✔ Cliente cadastrado com sucesso!")
             st.rerun()
 
 # =========================
@@ -208,7 +248,7 @@ with tab4:
         csv = df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Baixar Backup",
+            "⬇️ Baixar Backup CSV",
             csv,
             "backup_clientes.csv",
             "text/csv"
