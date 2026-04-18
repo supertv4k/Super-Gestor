@@ -6,51 +6,81 @@ import urllib.parse
 import io
 import base64
 
-# CONFIG
-st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
+# -----------------------------
+# CONFIGURAÇÃO
+# -----------------------------
+st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
+# -----------------------------
 # CSS
+# -----------------------------
 st.markdown("""
 <style>
 .main { background-color: #0e1117; color: white; }
-.header-container { display:flex; flex-direction:column; align-items:center; margin-bottom:30px; }
-.logo-gestao { width:420px; }
-.logo-supertv { width:350px; }
+
+.header-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.logo-gestao { width: 450px; margin-bottom: -20px; }
+.logo-supertv { width: 380px; }
 
 .metric-container {
-    background:#161b22;
-    padding:15px;
-    border-radius:10px;
-    border:1px solid #30363d;
-    text-align:center;
+    background-color: #161b22;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #30363d;
+    text-align: center;
 }
-.metric-label { font-size:14px; font-weight:bold; }
-.val-azul { color:#00d4ff; font-size:24px; font-weight:bold; }
-.val-verde { color:#28a745; font-size:24px; font-weight:bold; }
-.val-laranja { color:#ffa500; font-size:24px; font-weight:bold; }
-.val-vermelho { color:#ff4b4b; font-size:24px; font-weight:bold; }
 
-.cliente-row { border-radius:12px; padding:12px; margin-bottom:10px; border:1px solid #30363d; display:flex; align-items:center; }
-.row-vencido { background:#331111; border-left:8px solid red; }
-.row-hoje { background:#3d2b11; border-left:8px solid orange; }
-.row-amanha { background:#333311; border-left:8px solid yellow; }
-.row-ok { background:#112233; border-left:8px solid #00d4ff; }
+.metric-label { color: white; font-size: 14px; font-weight: bold; }
+.val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
+.val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
+.val-laranja { color: #ffa500; font-size: 24px; font-weight: bold; }
+.val-vermelho { color: #ff4b4b; font-size: 24px; font-weight: bold; }
 
-.img-servidor { width:55px; height:55px; border-radius:8px; }
+.cliente-row {
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #30363d;
+}
+
+.row-vencido { background-color: #331111; border-left: 8px solid #ff4b4b; }
+.row-hoje { background-color: #3d2b11; border-left: 8px solid #ffa500; }
+.row-amanha { background-color: #333311; border-left: 8px solid #ffff00; }
+.row-em-dia { background-color: #112233; border-left: 8px solid #00d4ff; }
+
+.img-servidor {
+    width: 55px;
+    height: 55px;
+    border-radius: 8px;
+    object-fit: cover;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# BANCO
-def conectar():
-    return sqlite3.connect('supertv_gestao.db')
+# -----------------------------
+# CONEXÃO SEGURA
+# -----------------------------
+def get_conn():
+    return sqlite3.connect("supertv_gestao.db")
 
+# -----------------------------
+# BANCO DE DADOS
+# -----------------------------
 def init_db():
-    conn = conectar()
-    conn.execute("""
+    conn = get_conn()
+    c = conn.cursor()
+
+    c.execute("""
     CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT,
-        usuario TEXT UNIQUE,
+        usuario TEXT,
         senha TEXT,
         servidor TEXT,
         sistema TEXT,
@@ -63,33 +93,67 @@ def init_db():
         logo_blob TEXT
     )
     """)
-    conn.execute("""
+
+    c.execute("""
     CREATE TABLE IF NOT EXISTS lista_servidores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT UNIQUE
     )
     """)
+
     conn.commit()
     conn.close()
 
+def get_servidores():
+    fixos = ["UNIPLAY", "MUNDOGF", "P2BRAZ", "BLADETV", "UNITV"]
+    conn = get_conn()
+
+    try:
+        extras = pd.read_sql_query("SELECT nome FROM lista_servidores", conn)["nome"].tolist()
+    except:
+        extras = []
+
+    conn.close()
+
+    return sorted(list(set(fixos + extras)))
+
+# -----------------------------
+# DATA BR
+# -----------------------------
+def format_data_br(data_str):
+    try:
+        return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except:
+        return data_str
+
+# -----------------------------
+# INIT
+# -----------------------------
 init_db()
 
-def get_servidores():
-    base = ["UNIPLAY","MUNDOGF","P2BRAZ","BLADETV","UNITV"]
-    conn = conectar()
-    extras = pd.read_sql("SELECT nome FROM lista_servidores", conn)["nome"].tolist()
+# -----------------------------
+# CARREGA DADOS (SEGURO)
+# -----------------------------
+try:
+    conn = get_conn()
+    df = pd.read_sql_query("SELECT * FROM clientes", conn)
     conn.close()
-    return sorted(list(set(base + extras)))
+except:
+    df = pd.DataFrame()
 
-def carregar():
-    conn = conectar()
-    df = pd.read_sql("SELECT * FROM clientes", conn)
-    conn.close()
-    return df
+# -----------------------------
+# CALCULO DIAS
+# -----------------------------
+if not df.empty:
+    hoje = datetime.now().date()
+    df["dt_venc_calc"] = pd.to_datetime(df["vencimento"], errors="coerce").dt.date
+    df["dias_res"] = df["dt_venc_calc"].apply(
+        lambda x: (x - hoje).days if pd.notnull(x) else 999
+    )
 
-df = carregar()
-
+# -----------------------------
 # HEADER
+# -----------------------------
 st.markdown("""
 <div class="header-container">
 <img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao">
@@ -97,97 +161,149 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# PROCESSAMENTO
-if not df.empty:
-    hoje = datetime.now().date()
-    df["venc"] = pd.to_datetime(df["vencimento"], errors="coerce").dt.date
-    df["dias"] = df["venc"].apply(lambda x: (x-hoje).days if pd.notnull(x) else 999)
-
+# -----------------------------
 # MÉTRICAS
+# -----------------------------
 if not df.empty:
     total = len(df)
-    vencidos = len(df[df["dias"] < 0])
-    hoje_v = len(df[df["dias"] == 0])
+    vencidos = len(df[df["dias_res"] < 0])
+    hoje_venc = len(df[df["dias_res"] == 0])
     ativos = total - vencidos
-    custo = df["custo"].sum()
-    bruto = df["mensalidade"].sum()
-    liquido = bruto - custo
 
-    c1,c2,c3,c4 = st.columns(4)
-    c1.markdown(f"<div class='metric-container'><div class='metric-label'>CLIENTES</div><div class='val-azul'>{total}</div></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div class='metric-container'><div class='metric-label'>ATIVOS</div><div class='val-verde'>{ativos}</div></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='metric-container'><div class='metric-label'>HOJE</div><div class='val-laranja'>{hoje_v}</div></div>", unsafe_allow_html=True)
-    c4.markdown(f"<div class='metric-container'><div class='metric-label'>VENCIDOS</div><div class='val-vermelho'>{vencidos}</div></div>", unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
 
-    c5,c6,c7 = st.columns(3)
-    c5.markdown(f"<div class='metric-container'><div class='metric-label'>CUSTO</div><div class='val-vermelho'>R$ {custo:.2f}</div></div>", unsafe_allow_html=True)
-    c6.markdown(f"<div class='metric-container'><div class='metric-label'>BRUTO</div><div class='val-azul'>R$ {bruto:.2f}</div></div>", unsafe_allow_html=True)
-    c7.markdown(f"<div class='metric-container'><div class='metric-label'>LÍQUIDO</div><div class='val-verde'>R$ {liquido:.2f}</div></div>", unsafe_allow_html=True)
+    m1.markdown(f"<div class='metric-container'><div class='metric-label'>TOTAL</div><div class='val-azul'>{total}</div></div>", unsafe_allow_html=True)
+    m2.markdown(f"<div class='metric-container'><div class='metric-label'>ATIVOS</div><div class='val-verde'>{ativos}</div></div>", unsafe_allow_html=True)
+    m3.markdown(f"<div class='metric-container'><div class='metric-label'>VENCE HOJE</div><div class='val-laranja'>{hoje_venc}</div></div>", unsafe_allow_html=True)
+    m4.markdown(f"<div class='metric-container'><div class='metric-label'>VENCIDOS</div><div class='val-vermelho'>{vencidos}</div></div>", unsafe_allow_html=True)
 
-# TABS
-tab1, tab2, tab3, tab4 = st.tabs(["CLIENTES","CADASTRO","COBRANÇA","AJUSTES"])
+# -----------------------------
+# ABAS
+# -----------------------------
+tab1, tab2, tab3, tab4 = st.tabs(["CLIENTES", "NOVO", "COBRANÇA", "AJUSTES"])
 
-# CLIENTES
+# =============================
+# TAB 1 - CLIENTES
+# =============================
 with tab1:
+    busca = st.text_input("Buscar cliente")
+
     if not df.empty:
-        busca = st.text_input("Buscar")
-        df_f = df[df["nome"].str.contains(busca, case=False, na=False)] if busca else df
+        if busca:
+            df_f = df[df["nome"].str.contains(busca, case=False, na=False)]
+        else:
+            df_f = df
 
         for _, r in df_f.iterrows():
-            status = "row-ok"
-            if r["dias"] < 0: status = "row-vencido"
-            elif r["dias"] == 0: status = "row-hoje"
-            elif r["dias"] == 1: status = "row-amanha"
+            status = (
+                "row-vencido" if r["dias_res"] < 0 else
+                "row-hoje" if r["dias_res"] == 0 else
+                "row-amanha" if r["dias_res"] == 1 else
+                "row-em-dia"
+            )
 
-            img = f"data:image/png;base64,{r['logo_blob']}" if r["logo_blob"] else "https://i.imgur.com/vH9XvI0.png"
+            st.markdown(f"""
+            <div class="cliente-row {status}">
+                <b>{r['nome']}</b> | {r['usuario']} | {r['servidor']} | {format_data_br(r['vencimento'])}
+            </div>
+            """, unsafe_allow_html=True)
 
-            col1,col2 = st.columns([1,8])
-            col1.markdown(f"<img src='{img}' class='img-servidor'>", unsafe_allow_html=True)
-
-            if col2.button(f"{r['nome']} | {r['usuario']} | {r['servidor']} | {r['vencimento']}", key=r["id"]):
-                st.info("Editar em breve (mantido simples para estabilidade)")
-
-# CADASTRO
+# =============================
+# TAB 2 - NOVO CLIENTE
+# =============================
 with tab2:
-    with st.form("novo"):
-        nome = st.text_input("Nome")
-        user = st.text_input("Usuário")
-        senha = st.text_input("Senha")
-        serv = st.selectbox("Servidor", get_servidores())
-        venc = st.date_input("Vencimento", datetime.now()+timedelta(days=30))
-        valor = st.number_input("Mensalidade", value=35.0)
+    st.subheader("Novo Cadastro")
+
+    with st.form("form"):
+        c1, c2, c3 = st.columns(3)
+
+        nome = c1.text_input("Nome")
+        usuario = c2.text_input("Usuário")
+        senha = c3.text_input("Senha")
+
+        servidor = c1.selectbox("Servidor", get_servidores())
+        sistema = c2.selectbox("Sistema", ["IPTV", "P2P"])
+        venc = c3.date_input("Vencimento", datetime.now() + timedelta(days=30))
+
+        custo = c1.number_input("Custo", value=10.0)
+        valor = c2.number_input("Valor", value=35.0)
+        inicio = c3.date_input("Início", datetime.now())
+
+        whatsapp = c1.text_input("WhatsApp")
+        obs = st.text_area("Observação")
+
+        img = st.file_uploader("Imagem", type=["png", "jpg", "jpeg"])
 
         if st.form_submit_button("Salvar"):
-            conn = conectar()
+            logo = base64.b64encode(img.read()).decode() if img else None
+
+            conn = get_conn()
             conn.execute("""
-            INSERT INTO clientes (nome,usuario,senha,servidor,sistema,vencimento,custo,mensalidade,inicio,whatsapp,observacao)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-            """,(nome,user,senha,serv,"IPTV",venc.strftime("%Y-%m-%d"),0,valor,datetime.now().strftime("%Y-%m-%d"),"",""))
+            INSERT INTO clientes (
+                nome, usuario, senha, servidor, sistema,
+                vencimento, custo, mensalidade, inicio,
+                whatsapp, observacao, logo_blob
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                nome, usuario, senha, servidor, sistema,
+                venc.strftime("%Y-%m-%d"), custo, valor,
+                inicio.strftime("%Y-%m-%d"), whatsapp, obs, logo
+            ))
             conn.commit()
             conn.close()
+
+            st.success("Cliente salvo!")
             st.rerun()
 
-# COBRANÇA
+# =============================
+# TAB 3 - COBRANÇA
+# =============================
 with tab3:
-    if not df.empty:
-        for _, c in df.iterrows():
-            if c["whatsapp"]:
-                msg = f"Olá {c['nome']}! Vence {c['vencimento']}"
-                link = f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}"
-                st.link_button(f"Cobrar {c['nome']}", link)
+    st.subheader("Cobrança")
 
-# AJUSTES
+    if not df.empty:
+        selecionados = []
+
+        for _, c in df.iterrows():
+            if st.checkbox(c["nome"]):
+                selecionados.append(c)
+
+        if st.button("Enviar WhatsApp"):
+            for i in selecionados:
+                msg = f"Olá {i['nome']}, vencimento: {format_data_br(i['vencimento'])}"
+                st.link_button(
+                    "Enviar",
+                    f"https://wa.me/55{i['whatsapp']}?text={urllib.parse.quote(msg)}"
+                )
+
+# =============================
+# TAB 4 - AJUSTES
+# =============================
 with tab4:
-    file = st.file_uploader("Importar Excel", type=["xlsx"])
-    if file and st.button("Importar"):
-        pd.read_excel(file).to_sql("clientes", conectar(), if_exists="append", index=False)
-        st.success("Importado com sucesso")
-        st.rerun()
+    st.subheader("Importação")
+
+    up = st.file_uploader("Excel", type=["xlsx"])
+
+    if up and st.button("Importar"):
+        try:
+            df_imp = pd.read_excel(up)
+
+            conn = get_conn()
+            df_imp.to_sql("clientes", conn, if_exists="append", index=False)
+            conn.close()
+
+            st.success("Importado!")
+            st.rerun()
+
+        except Exception as e:
+            st.error(e)
 
     if st.button("Backup"):
-        conn = conectar()
-        df_b = pd.read_sql("SELECT * FROM clientes", conn)
+        conn = get_conn()
+        df_b = pd.read_sql_query("SELECT * FROM clientes", conn)
         conn.close()
-        buf = io.BytesIO()
-        df_b.to_excel(buf, index=False)
-        st.download_button("Download", buf.getvalue(), "clientes.xlsx")
+
+        out = io.BytesIO()
+        df_b.to_excel(out, index=False)
+
+        st.download_button("Baixar backup", out.getvalue(), "backup.xlsx")
