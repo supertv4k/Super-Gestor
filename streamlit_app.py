@@ -2,159 +2,200 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime, timedelta
-import urllib.parse
-import io
 import base64
+import io
 
-# --- CONFIG ---
-st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
+# =========================
+# CONFIG
+# =========================
+st.set_page_config(page_title="SUPERTV4K DASHBOARD PRO", layout="wide")
 
-# --- CSS ---
+# =========================
+# STYLE CLEAN PRO
+# =========================
 st.markdown("""
 <style>
-.main { background-color: #0e1117; color: white; }
-.metric-container {
+body { background-color: #0e1117; }
+
+.card {
     background-color: #161b22;
     padding: 15px;
-    border-radius: 10px;
+    border-radius: 12px;
     border: 1px solid #30363d;
-    text-align: center;
 }
-.metric-label { color: white; font-size: 14px; font-weight: bold; }
-.val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
-.val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
-.val-laranja { color: #ffa500; font-size: 24px; font-weight: bold; }
-.val-vermelho { color: #ff4b4b; font-size: 24px; font-weight: bold; }
+
+.title {
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
+}
+
+.metric {
+    font-size: 26px;
+    font-weight: bold;
+}
+
+.green { color: #28a745; }
+.red { color: #ff4b4b; }
+.blue { color: #00d4ff; }
+.orange { color: #ffa500; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- DB ---
-def init_db():
-    conn = sqlite3.connect('supertv_gestao.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS clientes 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT, usuario TEXT, senha TEXT,
-        servidor TEXT, sistema TEXT,
-        vencimento TEXT, custo REAL,
-        mensalidade REAL, inicio TEXT,
-        whatsapp TEXT, observacao TEXT,
-        logo_blob TEXT)''')
-    conn.commit()
-    conn.close()
-
+# =========================
+# DB
+# =========================
 def load_data():
-    conn = sqlite3.connect('supertv_gestao.db')
+    conn = sqlite3.connect("supertv_gestao.db")
     df = pd.read_sql_query("SELECT * FROM clientes", conn)
     conn.close()
     return df
 
-init_db()
-
-# 🔥 IMPORTANTE: sempre recarregar aqui
+# =========================
+# INIT VIEW
+# =========================
 df = load_data()
 
 if not df.empty:
     hoje = datetime.now().date()
-    df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
-    df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
+    df["venc"] = pd.to_datetime(df["vencimento"], errors="coerce").dt.date
+    df["dias"] = df["venc"].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
 
-# --- TABS ---
-tab1, tab2, tab3, tab4 = st.tabs(["CLIENTES", "CADASTRO", "COBRANÇA", "AJUSTES"])
+# =========================
+# HEADER DASHBOARD
+# =========================
+st.title("📊 SUPERTV4K DASHBOARD PRO")
 
-# ======================
-# CLIENTES FUNCIONANDO
-# ======================
-with tab1:
-    st.subheader("Clientes")
+# =========================
+# METRICS
+# =========================
+if df.empty:
+    st.warning("Nenhum cliente cadastrado ainda.")
+else:
 
-    if not df.empty:
-        for _, r in df.iterrows():
-            st.write(f"{r['nome']} | {r['usuario']} | {r['servidor']} | {r['vencimento']}")
+    total = len(df)
+    vencidos = len(df[df["dias"] < 0])
+    hoje_vence = len(df[df["dias"] == 0])
+    ativos = total - vencidos
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.markdown(f"""
+    <div class="card">
+        <div class="title">CLIENTES</div>
+        <div class="metric blue">{total}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col2.markdown(f"""
+    <div class="card">
+        <div class="title">ATIVOS</div>
+        <div class="metric green">{ativos}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col3.markdown(f"""
+    <div class="card">
+        <div class="title">VENCE HOJE</div>
+        <div class="metric orange">{hoje_vence}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col4.markdown(f"""
+    <div class="card">
+        <div class="title">VENCIDOS</div>
+        <div class="metric red">{vencidos}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# =========================
+# FILTROS
+# =========================
+st.divider()
+
+filtro = st.selectbox(
+    "🔎 FILTRAR CLIENTES",
+    ["TODOS", "ATIVOS", "VENCIDOS", "VENCE HOJE", "3 DIAS", "7 DIAS"]
+)
+
+if not df.empty:
+
+    if filtro == "VENCIDOS":
+        df_view = df[df["dias"] < 0]
+    elif filtro == "ATIVOS":
+        df_view = df[df["dias"] >= 0]
+    elif filtro == "VENCE HOJE":
+        df_view = df[df["dias"] == 0]
+    elif filtro == "3 DIAS":
+        df_view = df[df["dias"].between(1, 3)]
+    elif filtro == "7 DIAS":
+        df_view = df[df["dias"].between(1, 7)]
     else:
-        st.warning("Nenhum cliente cadastrado")
+        df_view = df
 
-# ======================
-# CADASTRO CORRIGIDO
-# ======================
-with tab2:
-    st.subheader("Novo Cadastro")
+    # =========================
+    # LISTA CLIENTES
+    # =========================
+    st.subheader("📋 CLIENTES")
 
-    with st.form("form", clear_on_submit=True):
+    for _, r in df_view.sort_values("dias").iterrows():
 
-        nome = st.text_input("CLIENTE")
-        user = st.text_input("USUÁRIO")
-        senha = st.text_input("SENHA")
+        status = "green" if r["dias"] >= 5 else "orange" if r["dias"] >= 0 else "red"
 
-        serv = st.text_input("SERVIDOR")
-        sist = st.selectbox("SISTEMA", ["IPTV", "P2P"])
+        st.markdown(f"""
+        <div class="card">
+            <b>{r['nome']}</b> | {r['usuario']} | {r['servidor']}  
+            <br>
+            📅 Venc: {r['vencimento']} | 🔴 Status: <span class="{status}">{r['dias']} dias</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-        venc = st.date_input("VENCIMENTO", datetime.now() + timedelta(days=30))
+# =========================
+# CADASTRO SIMPLES E ESTÁVEL
+# =========================
+st.divider()
+st.subheader("➕ NOVO CLIENTE")
 
-        custo = st.number_input("CUSTO", value=10.0)
-        valor = st.number_input("VALOR COBRADO", value=35.0)
+with st.form("cad"):
 
-        ini = st.date_input("INÍCIOU DIA", datetime.now())
+    nome = st.text_input("CLIENTE")
+    usuario = st.text_input("USUÁRIO")
+    senha = st.text_input("SENHA")
 
-        whats = st.text_input("WHATSAPP")
-        obs = st.text_area("OBSERVAÇÃO")
+    servidor = st.text_input("SERVIDOR")
+    sistema = st.selectbox("SISTEMA", ["IPTV", "P2P"])
 
-        img = st.file_uploader("IMAGEM", type=["png", "jpg", "jpeg"])
+    vencimento = st.date_input("VENCIMENTO", datetime.now() + timedelta(days=30))
 
-        if st.form_submit_button("SALVAR"):
+    custo = st.number_input("CUSTO", value=10.0)
+    valor = st.number_input("VALOR COBRADO", value=35.0)
 
-            logo = base64.b64encode(img.read()).decode() if img else None
+    inicio = st.date_input("INÍCIOU DIA", datetime.now())
 
-            conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("""
-                INSERT INTO clientes (
-                    nome, usuario, senha,
-                    servidor, sistema,
-                    vencimento, custo,
-                    mensalidade, inicio,
-                    whatsapp, observacao,
-                    logo_blob
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
-                nome, user, senha,
-                serv, sist,
-                venc.strftime("%Y-%m-%d"),
-                custo, valor,
-                ini.strftime("%Y-%m-%d"),
-                whats, obs,
-                logo
-            ))
-            conn.commit()
-            conn.close()
+    whatsapp = st.text_input("WHATSAPP")
+    obs = st.text_area("OBSERVAÇÃO")
 
-            st.rerun()
+    if st.form_submit_button("SALVAR CLIENTE"):
 
-# ======================
-# COBRANÇA (RESTAURADO)
-# ======================
-with tab3:
-    st.subheader("Cobrança")
+        conn = sqlite3.connect("supertv_gestao.db")
+        conn.execute("""
+        INSERT INTO clientes (
+            nome, usuario, senha,
+            servidor, sistema,
+            vencimento, custo,
+            mensalidade, inicio,
+            whatsapp, observacao
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            nome, usuario, senha,
+            servidor, sistema,
+            vencimento.strftime("%Y-%m-%d"),
+            custo, valor,
+            inicio.strftime("%Y-%m-%d"),
+            whatsapp, obs
+        ))
+        conn.commit()
+        conn.close()
 
-    if df.empty:
-        st.warning("Sem dados")
-    else:
-        for _, r in df.iterrows():
-            st.write(f"🔴 {r['nome']} vence {r['vencimento']}")
-
-# ======================
-# AJUSTES (RESTAURADO)
-# ======================
-with tab4:
-    st.subheader("Ajustes")
-
-    up = st.file_uploader("Importar Excel", type=["xlsx"])
-
-    if up and st.button("Importar"):
-        pd.read_excel(up).to_sql('clientes', sqlite3.connect('supertv_gestao.db'),
-                                 if_exists='append', index=False)
+        st.success("Cliente salvo!")
         st.rerun()
-
-    if st.button("Backup"):
-        out = io.BytesIO()
-        pd.read_sql_query("SELECT * FROM clientes", sqlite3.connect('supertv_gestao.db')).to_excel(out, index=False)
-        st.download_button("Baixar", out.getvalue(), "backup.xlsx")
