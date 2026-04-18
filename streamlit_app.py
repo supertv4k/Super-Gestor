@@ -7,7 +7,7 @@ import io
 import base64
 
 # -----------------------------
-# CONFIGURAÇÃO
+# CONFIG
 # -----------------------------
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
@@ -70,7 +70,7 @@ def get_conn():
     return sqlite3.connect("supertv_gestao.db")
 
 # -----------------------------
-# BANCO DE DADOS
+# BANCO
 # -----------------------------
 def init_db():
     conn = get_conn()
@@ -104,21 +104,23 @@ def init_db():
     conn.commit()
     conn.close()
 
+# -----------------------------
+# SERVIDORES
+# -----------------------------
 def get_servidores():
     fixos = ["UNIPLAY", "MUNDOGF", "P2BRAZ", "BLADETV", "UNITV"]
-    conn = get_conn()
 
+    conn = get_conn()
     try:
         extras = pd.read_sql_query("SELECT nome FROM lista_servidores", conn)["nome"].tolist()
     except:
         extras = []
-
     conn.close()
 
     return sorted(list(set(fixos + extras)))
 
 # -----------------------------
-# DATA BR
+# DATA
 # -----------------------------
 def format_data_br(data_str):
     try:
@@ -132,7 +134,7 @@ def format_data_br(data_str):
 init_db()
 
 # -----------------------------
-# CARREGA DADOS (SEGURO)
+# LOAD CLIENTES
 # -----------------------------
 try:
     conn = get_conn()
@@ -142,7 +144,7 @@ except:
     df = pd.DataFrame()
 
 # -----------------------------
-# CALCULO DIAS
+# DIAS
 # -----------------------------
 if not df.empty:
     hoje = datetime.now().date()
@@ -170,12 +172,12 @@ if not df.empty:
     hoje_venc = len(df[df["dias_res"] == 0])
     ativos = total - vencidos
 
-    m1, m2, m3, m4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
-    m1.markdown(f"<div class='metric-container'><div class='metric-label'>TOTAL</div><div class='val-azul'>{total}</div></div>", unsafe_allow_html=True)
-    m2.markdown(f"<div class='metric-container'><div class='metric-label'>ATIVOS</div><div class='val-verde'>{ativos}</div></div>", unsafe_allow_html=True)
-    m3.markdown(f"<div class='metric-container'><div class='metric-label'>VENCE HOJE</div><div class='val-laranja'>{hoje_venc}</div></div>", unsafe_allow_html=True)
-    m4.markdown(f"<div class='metric-container'><div class='metric-label'>VENCIDOS</div><div class='val-vermelho'>{vencidos}</div></div>", unsafe_allow_html=True)
+    c1.markdown(f"<div class='metric-container'><div class='metric-label'>TOTAL</div><div class='val-azul'>{total}</div></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='metric-container'><div class='metric-label'>ATIVOS</div><div class='val-verde'>{ativos}</div></div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='metric-container'><div class='metric-label'>HOJE</div><div class='val-laranja'>{hoje_venc}</div></div>", unsafe_allow_html=True)
+    c4.markdown(f"<div class='metric-container'><div class='metric-label'>VENCIDOS</div><div class='val-vermelho'>{vencidos}</div></div>", unsafe_allow_html=True)
 
 # -----------------------------
 # ABAS
@@ -183,16 +185,13 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["CLIENTES", "NOVO", "COBRANÇA", "AJUSTES"])
 
 # =============================
-# TAB 1 - CLIENTES
+# CLIENTES
 # =============================
 with tab1:
     busca = st.text_input("Buscar cliente")
 
     if not df.empty:
-        if busca:
-            df_f = df[df["nome"].str.contains(busca, case=False, na=False)]
-        else:
-            df_f = df
+        df_f = df[df["nome"].str.contains(busca, case=False, na=False)] if busca else df
 
         for _, r in df_f.iterrows():
             status = (
@@ -209,7 +208,7 @@ with tab1:
             """, unsafe_allow_html=True)
 
 # =============================
-# TAB 2 - NOVO CLIENTE
+# NOVO CLIENTE
 # =============================
 with tab2:
     st.subheader("Novo Cadastro")
@@ -256,7 +255,7 @@ with tab2:
             st.rerun()
 
 # =============================
-# TAB 3 - COBRANÇA
+# COBRANÇA
 # =============================
 with tab3:
     st.subheader("Cobrança")
@@ -270,14 +269,14 @@ with tab3:
 
         if st.button("Enviar WhatsApp"):
             for i in selecionados:
-                msg = f"Olá {i['nome']}, vencimento: {format_data_br(i['vencimento'])}"
+                msg = f"Olá {i['nome']}, vence em {format_data_br(i['vencimento'])}"
                 st.link_button(
                     "Enviar",
                     f"https://wa.me/55{i['whatsapp']}?text={urllib.parse.quote(msg)}"
                 )
 
 # =============================
-# TAB 4 - AJUSTES
+# AJUSTES
 # =============================
 with tab4:
     st.subheader("Importação")
@@ -304,6 +303,15 @@ with tab4:
         conn.close()
 
         out = io.BytesIO()
-        df_b.to_excel(out, index=False)
 
-        st.download_button("Baixar backup", out.getvalue(), "backup.xlsx")
+        with pd.ExcelWriter(out, engine="openpyxl") as writer:
+            df_b.to_excel(writer, index=False, sheet_name="clientes")
+
+        out.seek(0)
+
+        st.download_button(
+            "Baixar backup",
+            data=out,
+            file_name="backup.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
