@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime, timedelta
-import urllib.parse
-import base64
 
 # =========================
 # CONFIG
@@ -11,10 +9,10 @@ import base64
 st.set_page_config(page_title="SUPERTV4K CRM PRO", layout="wide")
 
 # =========================
-# ESTADO GLOBAL
+# ESTADO
 # =========================
-if "cliente_editando" not in st.session_state:
-    st.session_state["cliente_editando"] = None
+if "edit_id" not in st.session_state:
+    st.session_state["edit_id"] = None
 
 # =========================
 # BANCO
@@ -36,8 +34,7 @@ def init_db():
             custo REAL,
             mensalidade REAL,
             inicio TEXT,
-            whatsapp TEXT,
-            observacao TEXT
+            whatsapp TEXT
         )
     """)
     conn.commit()
@@ -45,6 +42,10 @@ def init_db():
 
 init_db()
 
+# =========================
+# LOAD DADOS (SEMPRE ATUAL)
+# =========================
+@st.cache_data(ttl=0)
 def load_data():
     conn = get_conn()
     df = pd.read_sql_query("SELECT * FROM clientes", conn)
@@ -54,7 +55,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# CALCULOS
+# CALCULO DIAS
 # =========================
 if not df.empty:
     hoje = datetime.now().date()
@@ -67,7 +68,7 @@ if not df.empty:
 st.title("📊 SUPERTV4K CRM PRO")
 
 # =========================
-# TABS (IMPORTANTE ESTAR AQUI)
+# TABS
 # =========================
 tab1, tab2, tab3, tab4 = st.tabs([
     "👤 CLIENTES",
@@ -77,7 +78,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # =========================
-# TAB 1 - CLIENTES
+# CLIENTES
 # =========================
 with tab1:
     busca = st.text_input("🔎 Buscar cliente")
@@ -97,20 +98,20 @@ with tab1:
                 st.write(f"{cor} 👤 {r['nome']} | {r['usuario']} | vence {r['vencimento']}")
 
             with col2:
-                if st.button("⚙️ EDITAR", key=f"edit_{r['id']}"):
-                    st.session_state["cliente_editando"] = r["id"]
+                if st.button("⚙️ EDITAR", key=f"e_{r['id']}"):
+                    st.session_state["edit_id"] = r["id"]
 
 # =========================
-# EDITOR GLOBAL (FORA DA LISTA)
+# EDITOR GLOBAL (ESTÁVEL)
 # =========================
-if st.session_state["cliente_editando"] is not None:
+if st.session_state["edit_id"] is not None:
 
-    cliente = df[df["id"] == st.session_state["cliente_editando"]].iloc[0]
+    cliente = df[df["id"] == st.session_state["edit_id"]].iloc[0]
 
     st.divider()
     st.subheader("✏️ EDITAR CLIENTE")
 
-    with st.form("form_edit"):
+    with st.form("edit_form"):
 
         nome = st.text_input("Cliente", value=cliente["nome"])
         usuario = st.text_input("Usuário", value=cliente["usuario"])
@@ -134,22 +135,28 @@ if st.session_state["cliente_editando"] is not None:
                 WHERE id=?
             """, (nome, usuario, senha, servidor, sistema, venc.strftime("%Y-%m-%d"), cliente["id"]))
             conn.commit()
-            st.success("Atualizado!")
-            st.session_state["cliente_editando"] = None
+            conn.close()
+
+            st.cache_data.clear()
+            st.session_state["edit_id"] = None
+            st.success("Salvo com sucesso!")
+            st.rerun()
 
         if renovar:
             novo = (venc + timedelta(days=30)).strftime("%Y-%m-%d")
             conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (novo, cliente["id"]))
             conn.commit()
+            conn.close()
+
+            st.cache_data.clear()
             st.success("Renovado!")
+            st.rerun()
 
         if fechar:
-            st.session_state["cliente_editando"] = None
-
-        conn.close()
+            st.session_state["edit_id"] = None
 
 # =========================
-# TAB 2 - CADASTRO
+# CADASTRO
 # =========================
 with tab2:
     st.subheader("➕ Novo Cliente")
@@ -174,10 +181,13 @@ with tab2:
             """, (nome, usuario, senha, servidor, sistema, venc.strftime("%Y-%m-%d"), custo, valor, datetime.now().strftime("%Y-%m-%d"), whatsapp))
             conn.commit()
             conn.close()
+
+            st.cache_data.clear()
             st.success("Cliente cadastrado!")
+            st.rerun()
 
 # =========================
-# TAB 3 - COBRANÇA
+# COBRANÇA
 # =========================
 with tab3:
     st.subheader("🚨 Cobrança")
@@ -186,11 +196,10 @@ with tab3:
         for _, r in df.sort_values("dias").iterrows():
 
             cor = "🔴" if r["dias"] < 0 else "🟡" if r["dias"] <= 2 else "🟢"
-
             st.write(f"{cor} {r['nome']} - vence {r['vencimento']}")
 
 # =========================
-# TAB 4 - BACKUP
+# BACKUP
 # =========================
 with tab4:
     st.subheader("⚙️ Backup")
@@ -199,7 +208,7 @@ with tab4:
         csv = df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Baixar Backup CSV",
+            "⬇️ Baixar Backup",
             csv,
             "backup_clientes.csv",
             "text/csv"
