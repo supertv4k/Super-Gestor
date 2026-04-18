@@ -137,7 +137,7 @@ with tab1:
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
-            if b_renovar.button("➕ RENOVAR (+30d)", use_container_width=True):
+            if b_renovar.button("➕ RENOVAR (+30D)", use_container_width=True):
                 v_at = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
                 n_data = (v_at + timedelta(days=30)).strftime('%Y-%m-%d')
                 conn = sqlite3.connect('supertv_gestao.db')
@@ -171,18 +171,18 @@ with tab1:
                 st.rerun()
 
 with tab2:
-    st.subheader("🚀 Novo Cadastro")
+    st.subheader("🚀 NOVO CADASTRO")
     with st.form("add", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
-        n_nome = f1.text_input("Nome")
-        n_user = f2.text_input("Usuário")
-        n_senha = f3.text_input("Senha")
-        n_serv = f1.selectbox("Servidor", get_servidores())
-        n_venc = f2.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
-        n_whats = f3.text_input("WhatsApp (DDD+Número)")
-        n_custo = f1.number_input("Custo", value=10.0)
-        n_valor = f2.number_input("Valor Cobrado", value=35.0)
-        n_img = st.file_uploader("Logo", type=['png', 'jpg'])
+        n_nome = f1.text_input("NOME")
+        n_user = f2.text_input("USUÁRIO")
+        n_senha = f3.text_input("SENHA")
+        n_serv = f1.selectbox("SERVIDOR", get_servidores())
+        n_venc = f2.date_input("VENCIMENTO", value=datetime.now() + timedelta(days=30))
+        n_whats = f3.text_input("WHATSAPP (DDD+Número)")
+        n_custo = f1.number_input("CUSTO", value=10.0)
+        n_valor = f2.number_input(" VALOR COBRADO ", value=35.0)
+        n_img = st.file_uploader("LOGO", type=['png', 'jpg'])
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
             w_ok = ''.join(filter(str.isdigit, n_whats))
             l_b = base64.b64encode(n_img.read()).decode() if n_img else None
@@ -192,17 +192,17 @@ with tab2:
             conn.commit(); conn.close(); st.rerun()
 
 with tab3:
-    st.subheader("🚨 Cobrança")
-    if not df.empty:
+    st.subheader("🚨 COBRANÇA")
+    if not df.
         for _, c in df[df['dias_res'] <= 5].sort_values(by='dias_res').iterrows():
             num = str(c['whatsapp'])
             if not num.startswith('55'): num = '55' + num
-            msg = f"Olá {str(c['nome']).split()[0]}! Sua assinatura vence dia {format_data_br(c['vencimento'])}."
+            msg = f"Olá {str(c['nome']).split()[0]}! SUA ASSINATURA VENCE DIA {format_data_br(c['vencimento'])}."
             st.link_button(f"📲 Cobrar {c['nome']} (Vence em {c['dias_res']} dias)", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ Sistema")
-    if st.button("📦 Gerar Backup Excel"):
+    st.subheader("⚙️ SISTEMA")
+    if st.button("📦 GERADOR DE BECKUP EXCEL"):
         out = io.BytesIO()
         df.to_excel(out, index=False)
-        st.download_button("⬇️ Baixar Backup", out.getvalue(), "backup.xlsx")
+        st.download_button("⬇️ BAIXAR BECKUP", out.getvalue(), "backup.xlsx")
