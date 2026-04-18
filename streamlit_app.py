@@ -29,6 +29,7 @@ st.markdown("""
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
     .val-laranja { color: #ffa500; font-size: 24px; font-weight: bold; }
     .val-vermelho { color: #ff4b4b; font-size: 24px; font-weight: bold; }
+    .val-lucro { color: #00ff88; font-size: 24px; font-weight: bold; }
 
     .img-servidor { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
     
@@ -93,12 +94,16 @@ if not df.empty:
     hoje = datetime.now().date()
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
+    
+    # Cálculo do Lucro Líquido Total
+    lucro_total = (df['mensalidade'].sum()) - (df['custo'].sum())
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.markdown(f'<div class="metric-container"><div class="metric-label">TOTAL</div><div class="val-azul">{len(df)}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-container"><div class="metric-label">ATIVOS</div><div class="val-verde">{len(df[df["dias_res"] >= 0])}</div></div>', unsafe_allow_html=True)
     m3.markdown(f'<div class="metric-container"><div class="metric-label">VENCE HOJE</div><div class="val-laranja">{len(df[df["dias_res"] == 0])}</div></div>', unsafe_allow_html=True)
     m4.markdown(f'<div class="metric-container"><div class="metric-label">VENCIDOS</div><div class="val-vermelho">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
+    m5.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO ESTIMADO</div><div class="val-lucro">R$ {lucro_total:,.2f}</div></div>', unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
@@ -159,17 +164,13 @@ with tab1:
 
     busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário")
     if not df.empty:
-        # --- AJUSTE DE ORDENAÇÃO: VENCIDOS PRIMEIRO ---
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
         
-        # Ordenamos pela coluna 'dias_res' de forma crescente
-        # Assim, números negativos (vencidos) aparecem primeiro
         for _, r in df_f.sort_values(by='dias_res', ascending=True).iterrows():
             img_tag = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             c1, c2 = st.columns([1, 10])
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             
-            # Adicionei um alerta visual no texto do botão para facilitar
             prefixo = "🚨 [VENCIDO] " if r['dias_res'] < 0 else "⏰ [HOJE] " if r['dias_res'] == 0 else ""
             if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
