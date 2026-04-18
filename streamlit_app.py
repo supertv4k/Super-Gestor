@@ -95,7 +95,6 @@ if not df.empty:
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # Cálculo do Lucro Líquido Total
     lucro_total = (df['mensalidade'].sum()) - (df['custo'].sum())
 
     m1, m2, m3, m4, m5 = st.columns(5)
@@ -119,24 +118,29 @@ with tab1:
             new_senha = col3.text_input("Senha", value=c_sel['senha'])
             
             servs = get_servidores()
-            idx = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
-            new_serv = col1.selectbox("Servidor", servs, index=idx)
+            idx_s = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
+            new_serv = col1.selectbox("Servidor", servs, index=idx_s)
+            
+            # NOVO CAMPO: SISTEMA (Edição)
+            lista_sistemas = ["IPTV", "P2P"]
+            idx_sis = lista_sistemas.index(c_sel['sistema']) if c_sel['sistema'] in lista_sistemas else 0
+            new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
             
             v_data = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
-            new_venc = col2.date_input("Vencimento", value=v_data)
-            new_whats = col3.text_input("WhatsApp", value=c_sel['whatsapp'])
+            new_venc = col3.date_input("Vencimento", value=v_data)
             
-            new_custo = col1.number_input("Custo", value=float(c_sel['custo']))
-            new_mensal = col2.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
-            new_obs = col3.text_area("Observação", value=str(c_sel['observacao']))
+            new_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
+            new_custo = col2.number_input("Custo", value=float(c_sel['custo']))
+            new_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
+            new_obs = st.text_area("Observação", value=str(c_sel['observacao']))
 
             b_salvar, b_renovar, b_excluir, b_cancelar = st.columns(4)
             
             if b_salvar.button("💾 SALVAR", use_container_width=True):
                 w_limpo = ''.join(filter(str.isdigit, str(new_whats)))
                 conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, vencimento=?, custo=?, mensalidade=?, whatsapp=?, observacao=? WHERE id=?",
-                             (new_nome, new_user, new_senha, new_serv, new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, w_limpo, new_obs, c_sel['id']))
+                conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, custo=?, mensalidade=?, whatsapp=?, observacao=? WHERE id=?",
+                             (new_nome, new_user, new_senha, new_serv, new_sistema, new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, w_limpo, new_obs, c_sel['id']))
                 conn.commit(); conn.close()
                 st.session_state.cliente_selecionado = None
                 st.rerun()
@@ -165,14 +169,15 @@ with tab1:
     busca = st.text_input("🔎 Pesquisar...", placeholder="Nome ou Usuário")
     if not df.empty:
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
-        
         for _, r in df_f.sort_values(by='dias_res', ascending=True).iterrows():
             img_tag = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             c1, c2 = st.columns([1, 10])
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             
             prefixo = "🚨 [VENCIDO] " if r['dias_res'] < 0 else "⏰ [HOJE] " if r['dias_res'] == 0 else ""
-            if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
+            # Mostra o tipo de sistema no botão da lista também
+            tipo_sis = f" | ⚡ {r['sistema']}" if r['sistema'] else ""
+            if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']}{tipo_sis} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
@@ -184,17 +189,22 @@ with tab2:
         n_user = f2.text_input("Usuário")
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
-        n_venc = f2.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
-        n_whats = f3.text_input("WhatsApp (DDD+Número)")
-        n_custo = f1.number_input("Custo", value=10.0)
-        n_valor = f2.number_input("Valor Cobrado", value=35.0)
+        
+        # NOVO CAMPO: SISTEMA (Cadastro)
+        n_sistema = f2.selectbox("Sistema", ["IPTV", "P2P"])
+        
+        n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
+        n_whats = f1.text_input("WhatsApp (DDD+Número)")
+        n_custo = f2.number_input("Custo", value=10.0)
+        n_valor = f3.number_input("Valor Cobrado", value=35.0)
         n_img = st.file_uploader("Logo", type=['png', 'jpg'])
+        
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
             w_ok = ''.join(filter(str.isdigit, n_whats))
             l_b = base64.b64encode(n_img.read()).decode() if n_img else None
             conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (n_nome, n_user, n_senha, n_serv, n_venc.strftime('%Y-%m-%d'), n_custo, n_valor, w_ok, l_b))
+            conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (n_nome, n_user, n_senha, n_serv, n_sistema, n_venc.strftime('%Y-%m-%d'), n_custo, n_valor, w_ok, l_b))
             conn.commit(); conn.close(); st.rerun()
 
 with tab3:
