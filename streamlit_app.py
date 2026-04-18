@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="SUPERTV4K DASHBOARD PRO", layout="wide")
 
 # =========================
-# DB
+# DB INIT
 # =========================
 def init_db():
     conn = sqlite3.connect("supertv_gestao.db")
@@ -45,7 +45,7 @@ def init_db():
 init_db()
 
 # =========================
-# SERVIDORES FIXOS + EXTRAS
+# SERVIDORES
 # =========================
 SERVIDORES_FIXOS = [
     "UNIPLAY",
@@ -63,13 +63,11 @@ def get_servidores():
     conn = sqlite3.connect("supertv_gestao.db")
     df = pd.read_sql_query("SELECT nome FROM servidores_extra", conn)
     conn.close()
-
     extras = df["nome"].tolist() if not df.empty else []
-
     return sorted(list(set(SERVIDORES_FIXOS + extras)))
 
 # =========================
-# LOAD CLIENTES
+# LOAD DATA
 # =========================
 def load_data():
     conn = sqlite3.connect("supertv_gestao.db")
@@ -80,7 +78,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# STATUS
+# STATUS CALC
 # =========================
 if not df.empty:
     hoje = datetime.now().date()
@@ -93,112 +91,121 @@ if not df.empty:
 st.title("📊 SUPERTV4K DASHBOARD PRO")
 
 # =========================
-# LISTA SERVIDORES (ADMIN)
+# SERVIDORES ADD
 # =========================
 with st.expander("⚙️ GERENCIAR SERVIDORES"):
 
-    novo_server = st.text_input("Adicionar novo servidor")
+    novo = st.text_input("Novo servidor")
 
-    if st.button("➕ ADICIONAR SERVIDOR"):
-        if novo_server.strip() != "":
+    if st.button("➕ ADICIONAR"):
+        if novo.strip():
             conn = sqlite3.connect("supertv_gestao.db")
             try:
-                conn.execute("INSERT INTO servidores_extra (nome) VALUES (?)", (novo_server.upper(),))
+                conn.execute("INSERT INTO servidores_extra (nome) VALUES (?)", (novo.upper(),))
                 conn.commit()
-                st.success("Servidor adicionado!")
+                st.success("Adicionado!")
             except:
-                st.warning("Servidor já existe.")
+                st.warning("Já existe.")
             conn.close()
             st.rerun()
 
 # =========================
-# CADASTRO
-# =========================
-st.subheader("➕ NOVO CLIENTE")
-
-with st.form("cadastro"):
-
-    nome = st.text_input("CLIENTE")
-    usuario = st.text_input("USUÁRIO")
-    senha = st.text_input("SENHA")
-
-    servidor = st.selectbox("SERVIDOR", get_servidores())
-    sistema = st.selectbox("SISTEMA", ["IPTV", "P2P"])
-
-    vencimento = st.date_input("VENCIMENTO", datetime.now() + timedelta(days=30))
-    custo = st.number_input("CUSTO", value=10.0)
-    valor = st.number_input("VALOR COBRADO", value=35.0)
-
-    inicio = st.date_input("INÍCIOU DIA", datetime.now())
-
-    whatsapp = st.text_input("WHATSAPP")
-    obs = st.text_area("OBSERVAÇÃO")
-
-    if st.form_submit_button("SALVAR CLIENTE"):
-
-        conn = sqlite3.connect("supertv_gestao.db")
-        conn.execute("""
-        INSERT INTO clientes (
-            nome, usuario, senha,
-            servidor, sistema,
-            vencimento, custo,
-            mensalidade, inicio,
-            whatsapp, observacao
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            nome, usuario, senha,
-            servidor, sistema,
-            vencimento.strftime("%Y-%m-%d"),
-            custo, valor,
-            inicio.strftime("%Y-%m-%d"),
-            whatsapp, obs
-        ))
-        conn.commit()
-        conn.close()
-
-        st.success("Cliente cadastrado!")
-        st.rerun()
-
-# =========================
 # DASHBOARD
 # =========================
+if df.empty:
+    st.warning("Sem clientes ainda.")
+    st.stop()
+
+total = len(df)
+vencidos = len(df[df["dias"] < 0])
+ativos = total - vencidos
+hoje_v = len(df[df["dias"] == 0])
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("CLIENTES", total)
+c2.metric("ATIVOS", ativos)
+c3.metric("VENCE HOJE", hoje_v)
+c4.metric("VENCIDOS", vencidos)
+
 st.divider()
 
-if df.empty:
-    st.warning("Nenhum cliente cadastrado.")
+# =========================
+# FILTRO
+# =========================
+filtro = st.selectbox("FILTRAR", ["TODOS", "ATIVOS", "VENCIDOS", "HOJE"])
+
+if filtro == "VENCIDOS":
+    view = df[df["dias"] < 0]
+elif filtro == "ATIVOS":
+    view = df[df["dias"] >= 0]
+elif filtro == "HOJE":
+    view = df[df["dias"] == 0]
 else:
+    view = df
 
-    total = len(df)
-    vencidos = len(df[df["dias"] < 0])
-    ativos = total - vencidos
-    hoje_v = len(df[df["dias"] == 0])
+# =========================
+# LISTA EDITÁVEL (CORRIGIDO)
+# =========================
+st.subheader("👤 CLIENTES")
 
-    c1, c2, c3, c4 = st.columns(4)
+for _, r in view.iterrows():
 
-    c1.metric("CLIENTES", total)
-    c2.metric("ATIVOS", ativos)
-    c3.metric("VENCE HOJE", hoje_v)
-    c4.metric("VENCIDOS", vencidos)
+    with st.expander(f"👤 {r['nome']} | {r['usuario']} | {r['servidor']}"):
 
-    st.divider()
+        with st.form(f"edit_{r['id']}"):
 
-    filtro = st.selectbox("FILTRAR", ["TODOS", "ATIVOS", "VENCIDOS", "HOJE"])
+            col1, col2, col3 = st.columns(3)
 
-    if filtro == "VENCIDOS":
-        view = df[df["dias"] < 0]
-    elif filtro == "ATIVOS":
-        view = df[df["dias"] >= 0]
-    elif filtro == "HOJE":
-        view = df[df["dias"] == 0]
-    else:
-        view = df
+            nome = col1.text_input("CLIENTE", r["nome"])
+            usuario = col2.text_input("USUÁRIO", r["usuario"])
+            senha = col3.text_input("SENHA", r["senha"])
 
-    st.subheader("CLIENTES")
+            servidor = col1.selectbox(
+                "SERVIDOR",
+                get_servidores(),
+                index=get_servidores().index(r["servidor"]) if r["servidor"] in get_servidores() else 0
+            )
 
-    for _, r in view.iterrows():
+            sistema = col2.selectbox("SISTEMA", ["IPTV", "P2P"], index=0)
 
-        st.write(f"""
-        👤 {r['nome']} | {r['usuario']}  
-        📡 {r['servidor']} | 📅 {r['vencimento']}  
-        ---
-        """)
+            venc = col3.date_input("VENCIMENTO", datetime.strptime(r["vencimento"], "%Y-%m-%d"))
+
+            custo = col1.number_input("CUSTO", value=float(r["custo"]))
+            valor = col2.number_input("VALOR COBRADO", value=float(r["mensalidade"]))
+            inicio = col3.date_input("INÍCIOU DIA", datetime.strptime(r["inicio"], "%Y-%m-%d"))
+
+            whatsapp = col1.text_input("WHATSAPP", r["whatsapp"])
+            obs = st.text_area("OBSERVAÇÃO", r["observacao"])
+
+            if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+
+                conn = sqlite3.connect("supertv_gestao.db")
+                conn.execute("""
+                    UPDATE clientes SET
+                        nome=?,
+                        usuario=?,
+                        senha=?,
+                        servidor=?,
+                        sistema=?,
+                        vencimento=?,
+                        custo=?,
+                        mensalidade=?,
+                        inicio=?,
+                        whatsapp=?,
+                        observacao=?
+                    WHERE id=?
+                """, (
+                    nome, usuario, senha,
+                    servidor, sistema,
+                    venc.strftime("%Y-%m-%d"),
+                    custo, valor,
+                    inicio.strftime("%Y-%m-%d"),
+                    whatsapp, obs,
+                    r["id"]
+                ))
+
+                conn.commit()
+                conn.close()
+
+                st.success("Atualizado!")
+                st.rerun()
