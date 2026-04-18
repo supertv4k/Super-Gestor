@@ -131,7 +131,6 @@ with tab1:
                             ed_obs = st.text_area("OBSERVAÇÃO", value=r['observacao'])
                             
                             if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
-                                # Limpeza do WhatsApp antes de salvar
                                 whats_limpo = ''.join(filter(str.isdigit, ed_whats))
                                 conn = sqlite3.connect('supertv_gestao.db')
                                 conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, custo=?, mensalidade=?, inicio=?, whatsapp=?, observacao=? WHERE id=?",
@@ -169,7 +168,6 @@ with tab2:
         img_serv = st.file_uploader("IMAGEM", type=['png', 'jpg', 'jpeg'])
         obs = st.text_area("OBSERVAÇÃO")
         if st.form_submit_button("🚀 SALVAR CADASTRO"):
-            # Limpeza do WhatsApp antes de inserir
             whats_limpo = ''.join(filter(str.isdigit, whats))
             l_b = base64.b64encode(img_serv.read()).decode() if img_serv else None
             conn = sqlite3.connect('supertv_gestao.db')
@@ -208,11 +206,10 @@ with tab3:
 
         if st.button(f"📲 DISPARAR ({len(clientes_sel)})", use_container_width=True):
             for i in clientes_sel:
-                # Garante código do país no link do WhatsApp
-                numero = str(i['whatsapp'])
-                if not numero.startswith('55'): numero = '55' + numero
+                num = str(i['whatsapp'])
+                if not num.startswith('55'): num = '55' + num
                 msg = f"Olá {str(i['nome']).split()[0]}! 👋 Sua assinatura {i['servidor']} vence dia {format_data_br(i['vencimento'])}. Pix: {pix}"
-                st.link_button(f"Enviar para {i['nome']}", f"https://wa.me/{numero}?text={urllib.parse.quote(msg)}")
+                st.link_button(f"Enviar para {i['nome']}", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ Ajustes")
@@ -221,7 +218,6 @@ with tab4:
         up = st.file_uploader("EXCEL", type=["xlsx"])
         if up and st.button("🚀 Importar"):
             new_data = pd.read_excel(up)
-            # Lista de colunas oficiais do banco para evitar erros de importação
             cols_db = ["nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "inicio", "whatsapp", "observacao", "logo_blob"]
             new_data = new_data[[c for c in cols_db if c in new_data.columns]]
             new_data.to_sql('clientes', sqlite3.connect('supertv_gestao.db'), if_exists='append', index=False)
