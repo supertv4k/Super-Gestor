@@ -276,42 +276,48 @@ with tab3:
                 )
 
 # =============================
-# AJUSTES
+# AJUSTES (BACKUP BLINDADO)
 # =============================
 with tab4:
-    st.subheader("Importação")
+    st.subheader("Backup Blindado")
 
-    up = st.file_uploader("Excel", type=["xlsx"])
+    if st.button("📦 GERAR BACKUP SEGURO"):
 
-    if up and st.button("Importar"):
         try:
-            df_imp = pd.read_excel(up)
-
             conn = get_conn()
-            df_imp.to_sql("clientes", conn, if_exists="append", index=False)
+            df_b = pd.read_sql_query("SELECT * FROM clientes", conn)
             conn.close()
 
-            st.success("Importado!")
-            st.rerun()
+            # ---------------- CSV (PRINCIPAL) ----------------
+            csv_data = df_b.to_csv(index=False).encode("utf-8")
+
+            st.download_button(
+                "⬇️ Baixar CSV (100% seguro)",
+                data=csv_data,
+                file_name="backup_clientes.csv",
+                mime="text/csv"
+            )
+
+            # ---------------- EXCEL (OPCIONAL) ----------------
+            try:
+                import openpyxl
+
+                excel_buffer = io.BytesIO()
+
+                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                    df_b.to_excel(writer, index=False, sheet_name="clientes")
+
+                excel_buffer.seek(0)
+
+                st.download_button(
+                    "⬇️ Baixar Excel (opcional)",
+                    data=excel_buffer.getvalue(),
+                    file_name="backup_clientes.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            except:
+                st.info("Excel indisponível no ambiente — use o CSV")
 
         except Exception as e:
-            st.error(e)
-
-    if st.button("Backup"):
-        conn = get_conn()
-        df_b = pd.read_sql_query("SELECT * FROM clientes", conn)
-        conn.close()
-
-        out = io.BytesIO()
-
-        with pd.ExcelWriter(out, engine="openpyxl") as writer:
-            df_b.to_excel(writer, index=False, sheet_name="clientes")
-
-        out.seek(0)
-
-        st.download_button(
-            "Baixar backup",
-            data=out,
-            file_name="backup.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            st.error(f"Erro no backup: {e}")
