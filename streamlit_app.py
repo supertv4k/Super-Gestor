@@ -206,12 +206,10 @@ with tab3:
     st.subheader("🚨 Central de Cobrança Automática")
     pix_cnpj = "62.326.879/0001-13"
     
-    # --- FILTROS DE SELEÇÃO RÁPIDA ---
     st.write("Selecione o grupo para cobrar:")
     filtro_btn = st.radio("Filtro:", ["Todos", "Vencidos", "Vence Hoje", "Amanhã", "2 Dias", "3 Dias"], horizontal=True)
 
     if not df.empty:
-        # Lógica de filtragem baseada no botão selecionado
         if filtro_btn == "Vencidos":
             df_cobranca = df[df['dias_res'] < 0]
         elif filtro_btn == "Vence Hoje":
@@ -223,7 +221,7 @@ with tab3:
         elif filtro_btn == "3 Dias":
             df_cobranca = df[df['dias_res'] == 3]
         else:
-            df_cobranca = df[df['dias_res'] <= 3] # Mostra todos de -inf até 3 dias
+            df_cobranca = df[df['dias_res'] <= 3]
 
         if df_cobranca.empty:
             st.info(f"Nenhum cliente no grupo: {filtro_btn}")
@@ -250,12 +248,44 @@ with tab3:
                 
                 num = str(c['whatsapp'])
                 if not num.startswith('55'): num = '55' + num
-                
                 st.link_button(f"📲 {status_txt} | {c['nome']}", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ Sistema")
+    st.write("📤 **Exportar Dados**")
     if st.button("📦 Gerar Backup Excel"):
         out = io.BytesIO()
-        df.to_excel(out, index=False)
+        df_export = df.drop(columns=['dt_venc_calc', 'dias_res'], errors='ignore')
+        df_export.to_excel(out, index=False)
         st.download_button("⬇️ Baixar Backup", out.getvalue(), "backup.xlsx")
+
+    st.divider()
+    st.write("📥 **Importar Dados**")
+    arquivo_upload = st.file_uploader("Selecione o arquivo backup.xlsx para restaurar", type=['xlsx'])
+
+    if arquivo_upload is not None:
+        if st.button("🚀 Iniciar Importação"):
+            try:
+                df_importado = pd.read_excel(arquivo_upload)
+                colunas_bd = ['nome', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade', 'whatsapp', 'observacao', 'logo_blob']
+                for col in colunas_bd:
+                    if col not in df_importado.columns: df_importado[col] = None
+
+                conn = sqlite3.connect('supertv_gestao.db')
+                sucesso, erros = 0, 0
+                for _, row in df_importado.iterrows():
+                    try:
+                        check = conn.execute("SELECT id FROM clientes WHERE nome=? AND usuario=?", (row['nome'], row['usuario'])).fetchone()
+                        if not check:
+                            conn.execute("""INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, observacao, logo_blob) 
+                                            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                                         (row['nome'], row['usuario'], row['senha'], row['servidor'], row['sistema'], str(row['vencimento']).split()[0], 
+                                          row['custo'], row['mensalidade'], row['whatsapp'], row['observacao'], row['logo_blob']))
+                            sucesso += 1
+                        else: erros += 1
+                    except: erros += 1
+                conn.commit(); conn.close()
+                st.success(f"✅ Concluído! {sucesso} importados.")
+                if erros > 0: st.warning(f"⚠️ {erros} já existiam ou deram erro.")
+                st.rerun()
+            except Exception as e: st.error(f"❌ Erro: {e}")
