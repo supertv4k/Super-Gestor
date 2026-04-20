@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -252,6 +253,27 @@ with tab3:
 
 with tab4:
     st.subheader("⚙️ Sistema")
+    
+    # --- 1. GESTÃO DE SERVIDORES ---
+    st.write("🖥️ **Gerenciar Servidores**")
+    col_srv1, col_srv2 = st.columns([3, 1])
+    novo_srv = col_srv1.text_input("Nome do novo servidor", placeholder="Ex: NOVO_SRV")
+    if col_srv2.button("➕ Adicionar"):
+        if novo_srv:
+            try:
+                conn = sqlite3.connect('supertv_gestao.db')
+                conn.execute("INSERT INTO lista_servidores (nome) VALUES (?)", (novo_srv.upper().strip(),))
+                conn.commit(); conn.close()
+                st.success(f"Servidor {novo_srv} adicionado!")
+                st.rerun()
+            except:
+                st.error("Servidor já existe!")
+        else:
+            st.warning("Digite um nome.")
+    
+    st.divider()
+
+    # --- 2. BACKUP ---
     st.write("📤 **Exportar Dados**")
     if st.button("📦 Gerar Backup Excel"):
         out = io.BytesIO()
@@ -260,6 +282,8 @@ with tab4:
         st.download_button("⬇️ Baixar Backup", out.getvalue(), "backup.xlsx")
 
     st.divider()
+
+    # --- 3. RESTAURAR ---
     st.write("📥 **Importar Dados**")
     arquivo_upload = st.file_uploader("Selecione o arquivo backup.xlsx para restaurar", type=['xlsx'])
 
