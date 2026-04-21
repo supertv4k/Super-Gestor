@@ -68,11 +68,22 @@ def init_db():
     conn.close()
 
 def get_servidores():
-    fixos = ["UNIPLAY", "MUNDOGF", "P2BRAZ", "BLADETV", "UNITV", "P2CINETV", "SPEEDTV", "PLAYTV", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBOPLAYER PRO"]
+    # Ordem exata conforme sua lista enviada
+    lista_fixa = [
+        "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", 
+        "P2CINE", "P2SPEED", "BLADE", "MEGATV", 
+        "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER"
+    ]
+    
+    # Busca servidores extras que você cadastrou no banco
     conn = sqlite3.connect('supertv_gestao.db')
     extras = pd.read_sql_query("SELECT nome FROM lista_servidores", conn)['nome'].tolist()
     conn.close()
-    return sorted(list(set(fixos + extras)))
+    
+    # Adiciona os extras no final, ordenados alfabeticamente
+    extras_filtrados = sorted([e for e in extras if e not in lista_fixa])
+    
+    return lista_fixa + extras_filtrados
 
 def format_data_br(data_str):
     try: return datetime.strptime(data_str, '%Y-%m-%d').strftime('%d/%m/%Y')
@@ -96,7 +107,7 @@ if not df.empty:
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # Métrica de Lucro apenas para Ativos (vencimento hoje ou futuro)
+    # Lucro calculado apenas sobre clientes Ativos (vence hoje ou futuro)
     df_ativos = df[df['dias_res'] >= 0]
     lucro_total = (df_ativos['mensalidade'].sum()) - (df_ativos['custo'].sum())
 
@@ -124,12 +135,12 @@ with tab1:
             idx_s = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
             new_serv = col1.selectbox("Servidor", servs, index=idx_s)
             
-            lista_sistemas = ["IPTV", "P2P"]
+            # P2P em primeiro lugar na lista de seleção
+            lista_sistemas = ["P2P", "IPTV"]
             idx_sis = lista_sistemas.index(c_sel['sistema']) if c_sel['sistema'] in lista_sistemas else 0
             new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
             
             v_data = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
-            # Data formatada para PT-BR no componente
             new_venc = col3.date_input("Vencimento", value=v_data, format="DD/MM/YYYY")
             
             new_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
@@ -191,8 +202,8 @@ with tab2:
         n_user = f2.text_input("Usuário")
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
-        n_sistema = f2.selectbox("Sistema", ["IPTV", "P2P"])
-        # Data formatada para PT-BR no componente
+        # P2P como padrão inicial no cadastro
+        n_sistema = f2.selectbox("Sistema", ["P2P", "IPTV"])
         n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
         n_whats = f1.text_input("WhatsApp (DDD+Número)")
         n_custo = f2.number_input("Custo", value=10.0)
