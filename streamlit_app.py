@@ -68,21 +68,15 @@ def init_db():
     conn.close()
 
 def get_servidores():
-    # Ordem exata conforme sua lista enviada
     lista_fixa = [
         "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", 
         "P2CINE", "P2SPEED", "BLADE", "MEGATV", 
         "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER"
     ]
-    
-    # Busca servidores extras que você cadastrou no banco
     conn = sqlite3.connect('supertv_gestao.db')
     extras = pd.read_sql_query("SELECT nome FROM lista_servidores", conn)['nome'].tolist()
     conn.close()
-    
-    # Adiciona os extras no final, ordenados alfabeticamente
     extras_filtrados = sorted([e for e in extras if e not in lista_fixa])
-    
     return lista_fixa + extras_filtrados
 
 def format_data_br(data_str):
@@ -107,7 +101,6 @@ if not df.empty:
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # Lucro calculado apenas sobre clientes Ativos (vence hoje ou futuro)
     df_ativos = df[df['dias_res'] >= 0]
     lucro_total = (df_ativos['mensalidade'].sum()) - (df_ativos['custo'].sum())
 
@@ -135,7 +128,6 @@ with tab1:
             idx_s = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
             new_serv = col1.selectbox("Servidor", servs, index=idx_s)
             
-            # P2P em primeiro lugar na lista de seleção
             lista_sistemas = ["P2P", "IPTV"]
             idx_sis = lista_sistemas.index(c_sel['sistema']) if c_sel['sistema'] in lista_sistemas else 0
             new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
@@ -147,16 +139,29 @@ with tab1:
             new_custo = col2.number_input("Custo", value=float(c_sel['custo']))
             new_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
             new_obs = st.text_area("Observação", value=str(c_sel['observacao']))
+            
+            # --- NOVO: CAMPO DE UPLOAD NA EDIÇÃO ---
+            st.write("🖼️ **Trocar Logo do Servidor**")
+            new_img = st.file_uploader("Selecione uma nova imagem para atualizar", type=['png', 'jpg'], key="edit_img")
 
             b_salvar, b_renovar, b_excluir, b_cancelar = st.columns(4)
             
-            if b_salvar.button("💾 SALVAR", use_container_width=True):
+            if b_salvar.button("💾 SALVAR ALTERAÇÕES", use_container_width=True):
                 w_limpo = ''.join(filter(str.isdigit, str(new_whats)))
+                # Lógica para manter imagem antiga ou salvar a nova
+                l_b = base64.b64encode(new_img.read()).decode() if new_img else c_sel['logo_blob']
+                
                 conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("UPDATE clientes SET nome=?, usuario=?, senha=?, servidor=?, sistema=?, vencimento=?, custo=?, mensalidade=?, whatsapp=?, observacao=? WHERE id=?",
-                             (new_nome, new_user, new_senha, new_serv, new_sistema, new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, w_limpo, new_obs, c_sel['id']))
+                conn.execute("""UPDATE clientes SET 
+                             nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
+                             vencimento=?, custo=?, mensalidade=?, whatsapp=?, 
+                             observacao=?, logo_blob=? WHERE id=?""",
+                             (new_nome, new_user, new_senha, new_serv, new_sistema, 
+                              new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, 
+                              w_limpo, new_obs, l_b, c_sel['id']))
                 conn.commit(); conn.close()
                 st.session_state.cliente_selecionado = None
+                st.success("Dados atualizados com sucesso!")
                 st.rerun()
 
             if b_renovar.button("➕ RENOVAR (+30d)", use_container_width=True):
@@ -202,7 +207,6 @@ with tab2:
         n_user = f2.text_input("Usuário")
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
-        # P2P como padrão inicial no cadastro
         n_sistema = f2.selectbox("Sistema", ["P2P", "IPTV"])
         n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
         n_whats = f1.text_input("WhatsApp (DDD+Número)")
