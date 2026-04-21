@@ -96,7 +96,9 @@ if not df.empty:
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    lucro_total = (df['mensalidade'].sum()) - (df['custo'].sum())
+    # Métrica de Lucro apenas para Ativos (vencimento hoje ou futuro)
+    df_ativos = df[df['dias_res'] >= 0]
+    lucro_total = (df_ativos['mensalidade'].sum()) - (df_ativos['custo'].sum())
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.markdown(f'<div class="metric-container"><div class="metric-label">TOTAL</div><div class="val-azul">{len(df)}</div></div>', unsafe_allow_html=True)
@@ -127,7 +129,8 @@ with tab1:
             new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
             
             v_data = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
-            new_venc = col3.date_input("Vencimento", value=v_data)
+            # Data formatada para PT-BR no componente
+            new_venc = col3.date_input("Vencimento", value=v_data, format="DD/MM/YYYY")
             
             new_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
             new_custo = col2.number_input("Custo", value=float(c_sel['custo']))
@@ -189,7 +192,8 @@ with tab2:
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
         n_sistema = f2.selectbox("Sistema", ["IPTV", "P2P"])
-        n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
+        # Data formatada para PT-BR no componente
+        n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
         n_whats = f1.text_input("WhatsApp (DDD+Número)")
         n_custo = f2.number_input("Custo", value=10.0)
         n_valor = f3.number_input("Valor Cobrado", value=35.0)
@@ -254,7 +258,6 @@ with tab3:
 with tab4:
     st.subheader("⚙️ Sistema")
     
-    # --- 1. GESTÃO DE SERVIDORES ---
     st.write("🖥️ **Gerenciar Servidores**")
     col_srv1, col_srv2 = st.columns([3, 1])
     novo_srv = col_srv1.text_input("Nome do novo servidor", placeholder="Ex: NOVO_SRV")
@@ -273,7 +276,6 @@ with tab4:
     
     st.divider()
 
-    # --- 2. BACKUP ---
     st.write("📤 **Exportar Dados**")
     if st.button("📦 Gerar Backup Excel"):
         out = io.BytesIO()
@@ -283,7 +285,6 @@ with tab4:
 
     st.divider()
 
-    # --- 3. RESTAURAR ---
     st.write("📥 **Importar Dados**")
     arquivo_upload = st.file_uploader("Selecione o arquivo backup.xlsx para restaurar", type=['xlsx'])
 
