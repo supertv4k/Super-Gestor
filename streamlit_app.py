@@ -51,7 +51,6 @@ def carregar_dados(sheet):
         return df
     return pd.DataFrame()
 
-# Inicialização da lista de servidores no estado da sessão
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
@@ -117,7 +116,7 @@ with tab1:
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
+                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist.upper(), en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
                 st.session_state.cliente_selecionado = None
                 st.rerun()
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
@@ -136,7 +135,11 @@ with tab1:
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        if col_btn.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"btn_{r['id']}"):
+        
+        # AJUSTE SOLICITADO: Adicionado SISTEMA / DATA no rótulo do botão
+        label_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | {str(r.get('sistema')).upper()} / {format_data_br(r.get('vencimento'))}"
+        
+        if col_btn.button(label_botao, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
@@ -159,7 +162,7 @@ with tab2:
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
-            sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
+            sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist.upper(), n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ CLIENTE CADASTRADO!")
             st.rerun()
 
@@ -190,41 +193,26 @@ with tab3:
             
             st.link_button(f"📲 COBRAR: {nome_c}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES (RESTAURADA) ---
+# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
-    
     col_aj1, col_aj2 = st.columns(2)
-    
     with col_aj1:
         st.markdown("### 🔄 DADOS")
         if st.button("SINCRONIZAR COM GOOGLE SHEETS"):
             st.cache_data.clear()
-            st.success("Dados sincronizados com sucesso!")
+            st.success("Dados sincronizados!")
             st.rerun()
-            
         st.markdown("---")
         st.markdown("### 📥 BACKUP")
         if not df.empty:
             csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="BAIXAR PLANILHA DE CLIENTES (CSV)",
-                data=csv_data,
-                file_name=f"backup_supertv_clientes_{datetime.now().strftime('%d_%m_%Y')}.csv",
-                mime="text/csv"
-            )
-            
+            st.download_button(label="BAIXAR PLANILHA (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
     with col_aj2:
-        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
+        st.markdown("### 🖥️ SERVIDORES")
         servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
-        
-        if st.button("ATUALIZAR LISTA DE SERVIDORES"):
-            if novos_servidores:
-                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-                st.session_state.lista_servidores = lista_limpa
-                st.success("Lista de servidores atualizada!")
-                st.rerun()
-
-    st.markdown("---")
-    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
+        novos_servidores = st.text_area("LISTA (UM POR LINHA):", value=servs_formatados, height=200)
+        if st.button("ATUALIZAR LISTA"):
+            st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+            st.success("Lista atualizada!")
+            st.rerun()
