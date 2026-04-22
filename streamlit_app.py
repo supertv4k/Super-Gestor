@@ -58,7 +58,7 @@ def format_data_br(data_str):
     try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
     except: return data_str
 
-# --- 4. INTERFACE INICIAL ---
+# --- 4. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
@@ -90,7 +90,6 @@ with tab1:
         st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
         
         with st.form("edit_form"):
-            # Sequência solicitada
             en_nome = st.text_input("NOME", value=str(c_sel.get('nome')).upper())
             en_user = st.text_input("USUÁRIO", value=c_sel.get('usuario'))
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
@@ -108,11 +107,16 @@ with tab1:
             en_whats = st.text_input("WHATSAPP", value=c_sel.get('whatsapp'))
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
             
+            # --- BOTÃO DE UPLOAD NA EDIÇÃO ---
+            en_img = st.file_uploader("TROCAR LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
+            
             b_salvar, b_excluir, b_fechar = st.columns(3)
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+                # Se subir nova imagem, converte; se não, mantém a atual
+                l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.update(range_name=f'A{row_idx}:K{row_idx}', values=[[c_sel['id'], en_nome, en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs]])
+                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
                 st.session_state.cliente_selecionado = None
                 st.rerun()
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
@@ -128,7 +132,11 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     for _, r in df_f.sort_values(by='dias_res').iterrows():
-        if st.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"btn_{r['id']}"):
+        # Exibe a logo salva ou uma padrão se estiver vazio
+        img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+        col_img, col_btn = st.columns([1, 10])
+        col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
+        if col_btn.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
@@ -136,7 +144,6 @@ with tab1:
 with tab2:
     st.subheader("🚀 ADICIONAR NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
-        # Sequência solicitada em ordem
         n_nome = st.text_input("NOME")
         n_user = st.text_input("USUÁRIO")
         n_senha = st.text_input("SENHA")
@@ -148,9 +155,13 @@ with tab2:
         n_whats = st.text_input("WHATSAPP")
         n_obs = st.text_area("OBSERVAÇÃO")
         
+        # --- BOTÃO DE UPLOAD NO NOVO CADASTRO ---
+        n_img = st.file_uploader("LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
+        
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+            l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
-            sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs])
+            sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ CLIENTE CADASTRADO!")
             st.rerun()
 
@@ -173,7 +184,6 @@ with tab3:
         nome_c = str(cli.get('nome')).upper()
         dias = cli['dias_res']
         if st.checkbox(f"{nome_c} ({format_data_br(cli['vencimento'])})", value=sel_todos, key=f"cb_{cli['id']}"):
-            # Lógica de mensagens enviada anteriormente
             if dias < 0: msg = f"🚨 *{nome_c}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
             elif dias == 0: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE HOJE ⏰!*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
             elif dias == 1: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
