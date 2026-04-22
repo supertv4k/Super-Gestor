@@ -4,3 +4,5 @@ openpyxl
 xlsxwriter
 st-gsheets-connection
 gspread
+gspread-dataframe
+
