@@ -10,7 +10,7 @@ import base64
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (Original Gilmar) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -30,7 +30,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE SUPORTE E CONEXÃO ---
+# --- 3. CONEXÃO GOOGLE SHEETS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -41,31 +41,29 @@ def conectar_gs():
         st.error(f"Erro de conexão: {e}")
         return None
 
-def format_data_br(data_str):
-    try: 
-        return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
-    except: 
-        return data_str
-
 def carregar_dados(sheet):
     if sheet:
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         if df.empty:
             return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
-        # Remove linhas que não possuem nome (evita erro de linhas fantasmas do Sheets)
+        # CORREÇÃO: Remove linhas "fantasma" do Google Sheets
         df = df[df['nome'].astype(str).str.strip() != ""]
         return df
     return pd.DataFrame()
 
-# Estados da Sessão
-if 'lista_servidores' not in st.session_state:
-    st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
+def get_servidores():
+    return ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
+def format_data_br(data_str):
+    try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
+    except: return data_str
+
+# --- 4. LÓGICA DE ESTADO ---
 if 'cliente_selecionado' not in st.session_state:
     st.session_state.cliente_selecionado = None
 
-# --- 4. CARREGAMENTO E MÉTRICAS ---
+# --- 5. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
@@ -77,74 +75,100 @@ if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     df_ativos = df[df['dias_res'] >= 0]
     
-    lucro = pd.to_numeric(df_ativos['mensalidade'], errors='coerce').sum() - pd.to_numeric(df_ativos['custo'], errors='coerce').sum()
+    # Cálculos financeiros corrigidos para lidar com campos vazios
+    m_val = pd.to_numeric(df_ativos['mensalidade'], errors='coerce').fillna(0)
+    c_val = pd.to_numeric(df_ativos['custo'], errors='coerce').fillna(0)
+    lucro_total = m_val.sum() - c_val.sum()
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.markdown(f'<div class="metric-container"><div class="metric-label">TOTAL</div><div class="val-azul">{len(df)}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-container"><div class="metric-label">ATIVOS</div><div class="val-verde">{len(df_ativos)}</div></div>', unsafe_allow_html=True)
-    m3.markdown(f'<div class="metric-container"><div class="metric-label">HOJE</div><div class="val-laranja">{len(df[df["dias_res"] == 0])}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-container"><div class="metric-label">VENCE HOJE</div><div class="val-laranja">{len(df[df["dias_res"] == 0])}</div></div>', unsafe_allow_html=True)
     m4.markdown(f'<div class="metric-container"><div class="metric-label">VENCIDOS</div><div class="val-vermelho">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
-    m5.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO</div><div class="val-lucro">R$ {lucro:,.2f}</div></div>', unsafe_allow_html=True)
+    m5.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO ESTIMADO</div><div class="val-lucro">R$ {lucro_total:,.2f}</div></div>', unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ NOVO CADASTRO", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES ---
 with tab1:
     if st.session_state.cliente_selecionado is not None:
         c_sel = st.session_state.cliente_selecionado
-        st.markdown(f'<div class="edit-panel"><h3>📝 Editando: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="edit-panel"><h3>📝 Editando: {str(c_sel.get("nome", "Cliente")).upper()}</h3></div>', unsafe_allow_html=True)
         with st.form("edit_form"):
             col1, col2, col3 = st.columns(3)
-            en_nome = col1.text_input("Nome", value=c_sel.get('nome'))
-            en_user = col2.text_input("Usuário", value=c_sel.get('usuario'))
-            en_venc = col3.date_input("Vencimento", value=pd.to_datetime(c_sel.get('vencimento')).date(), format="DD/MM/YYYY")
-            if st.form_submit_button("💾 SALVAR"):
+            en_nome = col1.text_input("Nome", value=c_sel.get('nome', ''))
+            en_user = col2.text_input("Usuário", value=c_sel.get('usuario', ''))
+            en_senha = col3.text_input("Senha", value=c_sel.get('senha', ''))
+            
+            en_serv = col1.selectbox("Servidor", get_servidores(), index=get_servidores().index(c_sel.get('servidor')) if c_sel.get('servidor') in get_servidores() else 0)
+            
+            try: dt_val = pd.to_datetime(c_sel.get('vencimento')).date()
+            except: dt_val = hoje
+            
+            en_venc = col2.date_input("Vencimento", value=dt_val, format="DD/MM/YYYY")
+            en_whats = col3.text_input("WhatsApp", value=c_sel.get('whatsapp', ''))
+            en_custo = col1.number_input("Custo", value=float(c_sel.get('custo') or 0))
+            en_mensal = col2.number_input("Valor Cobrado", value=float(c_sel.get('mensalidade') or 0))
+            en_obs = st.text_area("Observação", value=str(c_sel.get('observacao') or ""))
+            en_img = st.file_uploader("Trocar Logo", type=['png', 'jpg'])
+
+            b_salvar, b_excluir, b_cancelar = st.columns(3)
+            if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+                l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.update_cell(row_idx, 2, en_nome)
-                sheet.update_cell(row_idx, 3, en_user)
-                sheet.update_cell(row_idx, 7, en_venc.strftime('%Y-%m-%d'))
+                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome, en_user, en_senha, en_serv, c_sel.get('sistema', 'P2P'), en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
+                st.session_state.cliente_selecionado = None
+                st.success("Sincronizado!")
+                st.rerun()
+            if b_excluir.form_submit_button("🗑️ EXCLUIR CLIENTE"):
+                ids = sheet.col_values(1)
+                row_idx = ids.index(str(c_sel['id'])) + 1
+                sheet.delete_rows(row_idx)
                 st.session_state.cliente_selecionado = None
                 st.rerun()
-            if st.form_submit_button("✖️ CANCELAR"):
+            if b_cancelar.form_submit_button("✖️ FECHAR"):
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
-    busca = st.text_input("🔎 Pesquisar cliente...")
-    df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
-    for _, r in df_f.sort_values(by='dias_res').iterrows():
-        img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        c1, c2 = st.columns([1, 10])
-        c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        if c2.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"b_{r['id']}"):
-            st.session_state.cliente_selecionado = r.to_dict()
-            st.rerun()
+    busca = st.text_input("🔎 Pesquisar cliente...", placeholder="Nome ou Usuário")
+    if not df.empty:
+        df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
+        for _, r in df_f.sort_values(by='dias_res', ascending=True).iterrows():
+            img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+            c1, c2 = st.columns([1, 10])
+            c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
+            # CORREÇÃO KEYERROR: Usando .get() para segurança
+            btn_label = f"{str(r.get('nome', 'S/N')).upper()} | 🔑 {r.get('usuario', 'S/U')} | 📅 {format_data_br(r.get('vencimento'))}"
+            if c2.button(btn_label, key=f"b_{r['id']}"):
+                st.session_state.cliente_selecionado = r.to_dict()
+                st.rerun()
 
-# --- TAB 2: NOVO CADASTRO ---
 with tab2:
     st.subheader("🚀 Novo Cadastro")
     with st.form("add_new", clear_on_submit=True):
         f1, f2, f3 = st.columns(3)
         n_nome = f1.text_input("Nome")
         n_user = f2.text_input("Usuário")
-        n_serv = f3.selectbox("Servidor", st.session_state.lista_servidores)
-        n_venc = f1.date_input("Vencimento", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
-        n_whats = f2.text_input("WhatsApp (com DDD)")
-        n_valor = f3.number_input("Mensalidade", value=35.0)
-        if st.form_submit_button("🚀 CADASTRAR"):
+        n_senha = f3.text_input("Senha")
+        n_serv = f1.selectbox("Servidor", get_servidores())
+        n_venc = f3.date_input("Vencimento", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
+        n_whats = f1.text_input("WhatsApp")
+        n_valor = f3.number_input("Valor Cobrado", value=35.0)
+        n_img = st.file_uploader("Logo", type=['png', 'jpg'])
+        
+        if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+            l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
-            sheet.append_row([novo_id, n_nome, n_user, "123456", n_serv, "P2P", n_venc.strftime('%Y-%m-%d'), 10.0, n_valor, n_whats, "", ""])
-            st.success("Cadastrado com sucesso!")
+            sheet.append_row([novo_id, n_nome, n_user, n_senha, n_serv, "P2P", n_venc.strftime('%Y-%m-%d'), 10.0, n_valor, n_whats, "", l_b])
+            st.success("✅ Salvo no Google Sheets!")
             st.rerun()
 
-# --- TAB 3: COBRANÇA (SISTEMA INTEGRAL) ---
 with tab3:
     st.subheader("🚨 Central de Cobrança SUPERTv4k")
     pix_cnpj = "62.326.879/0001-13"
     
     if not df.empty:
-        # Filtros Rápido
-        filtro = st.radio("Selecione o prazo:", ["Todos", "Vencidos", "Hoje", "Amanhã", "2 Dias", "3 Dias"], horizontal=True)
+        filtro = st.radio("Filtrar por status:", ["Todos", "Vencidos", "Hoje", "Amanhã", "2 Dias", "3 Dias"], horizontal=True)
         
         if filtro == "Vencidos": df_c = df[df['dias_res'] < 0]
         elif filtro == "Hoje": df_c = df[df['dias_res'] == 0]
@@ -155,7 +179,6 @@ with tab3:
 
         st.markdown("---")
         sel_todos = st.checkbox("✅ Selecionar todos desta lista")
-        
         clientes_finais = []
 
         for _, cli in df_c.sort_values(by='dias_res').iterrows():
@@ -163,11 +186,9 @@ with tab3:
             nome_c = str(cli.get('nome', '')).upper()
             data_v = format_data_br(cli.get('vencimento'))
             
-            # Label da lista
             label = f"{nome_c} | Venc: {data_v} ({'🔴 Vencido' if dias < 0 else f'🟡 {dias} dias'})"
 
             if st.checkbox(label, value=sel_todos, key=f"cobr_{cli['id']}"):
-                # MENSAGENS OFICIAIS GILMAR
                 if dias < 0:
                     msg = f"🚨 *{nome_c}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
                 elif dias == 0:
@@ -178,28 +199,24 @@ with tab3:
                     msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
                 else:
                     msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-                
                 clientes_finais.append({"nome": nome_c, "zap": cli['whatsapp'], "msg": msg})
 
         st.markdown("---")
         if clientes_finais:
-            st.write(f"📲 **{len(clientes_finais)} mensagens prontas:**")
             for item in clientes_finais:
                 link = f"https://wa.me/55{item['zap']}?text={urllib.parse.quote(item['msg'])}"
-                st.link_button(f"Enviar para {item['nome']}", link)
+                st.link_button(f"📲 Cobrar: {item['nome']}", link)
 
-# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ Ajustes")
+    if st.button("🔄 Forçar Sincronização"):
+        st.cache_data.clear()
+        st.rerun()
+    
+    # Restauração dos botões de backup e servidores
     col_aj1, col_aj2 = st.columns(2)
     with col_aj1:
-        if st.button("🔄 Sincronizar Agora"):
-            st.cache_data.clear()
-            st.rerun()
         csv_data = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 Backup Excel (CSV)", data=csv_data, file_name="backup_supertv.csv", mime="text/csv")
+        st.download_button("📥 Baixar Backup Excel (CSV)", data=csv_data, file_name="backup_supertv.csv", mime="text/csv")
     with col_aj2:
-        servs = st.text_area("Servidores (um por linha):", value="\n".join(st.session_state.lista_servidores))
-        if st.button("Salvar Servidores"):
-            st.session_state.lista_servidores = servs.split("\n")
-            st.success("Lista atualizada!")
+        st.info("A edição da lista de servidores está ativa no código via função get_servidores().")
