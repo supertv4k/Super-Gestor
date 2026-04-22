@@ -51,8 +51,12 @@ def carregar_dados(sheet):
         return df
     return pd.DataFrame()
 
+# Inicialização da lista de servidores no estado da sessão
+if 'lista_servidores' not in st.session_state:
+    st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
+
 def get_servidores():
-    return ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
+    return st.session_state.lista_servidores
 
 def format_data_br(data_str):
     try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
@@ -106,13 +110,10 @@ with tab1:
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
             en_whats = st.text_input("WHATSAPP", value=c_sel.get('whatsapp'))
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
-            
-            # --- BOTÃO DE UPLOAD NA EDIÇÃO ---
             en_img = st.file_uploader("TROCAR LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
             
             b_salvar, b_excluir, b_fechar = st.columns(3)
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
-                # Se subir nova imagem, converte; se não, mantém a atual
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
@@ -132,7 +133,6 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     for _, r in df_f.sort_values(by='dias_res').iterrows():
-        # Exibe a logo salva ou uma padrão se estiver vazio
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
@@ -154,8 +154,6 @@ with tab2:
         n_mensal = st.number_input("MENSALIDADE", value=35.0)
         n_whats = st.text_input("WHATSAPP")
         n_obs = st.text_area("OBSERVAÇÃO")
-        
-        # --- BOTÃO DE UPLOAD NO NOVO CADASTRO ---
         n_img = st.file_uploader("LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
         
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
@@ -192,8 +190,41 @@ with tab3:
             
             st.link_button(f"📲 COBRAR: {nome_c}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES ---
+# --- TAB 4: AJUSTES (RESTAURADA) ---
 with tab4:
-    if st.button("🔄 SINCRONIZAR"):
-        st.cache_data.clear()
-        st.rerun()
+    st.subheader("⚙️ AJUSTES DO SISTEMA")
+    
+    col_aj1, col_aj2 = st.columns(2)
+    
+    with col_aj1:
+        st.markdown("### 🔄 DADOS")
+        if st.button("SINCRONIZAR COM GOOGLE SHEETS"):
+            st.cache_data.clear()
+            st.success("Dados sincronizados com sucesso!")
+            st.rerun()
+            
+        st.markdown("---")
+        st.markdown("### 📥 BACKUP")
+        if not df.empty:
+            csv_data = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="BAIXAR PLANILHA DE CLIENTES (CSV)",
+                data=csv_data,
+                file_name=f"backup_supertv_clientes_{datetime.now().strftime('%d_%m_%Y')}.csv",
+                mime="text/csv"
+            )
+            
+    with col_aj2:
+        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
+        servs_formatados = "\n".join(st.session_state.lista_servidores)
+        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
+        
+        if st.button("ATUALIZAR LISTA DE SERVIDORES"):
+            if novos_servidores:
+                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+                st.session_state.lista_servidores = lista_limpa
+                st.success("Lista de servidores atualizada!")
+                st.rerun()
+
+    st.markdown("---")
+    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
