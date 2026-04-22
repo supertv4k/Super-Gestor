@@ -10,7 +10,7 @@ import base64
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (Identidade Visual SuperTV4K) ---
+# --- 2. ESTILIZAÇÃO CSS (Original Gilmar) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -30,35 +30,33 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO COM GOOGLE SHEETS (GSPREAD) ---
+# --- 3. CONEXÃO GOOGLE SHEETS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        # Usa as credenciais do Streamlit Secrets
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
-        # ID DA NOVA PLANILHA FORNECIDO
+        # Sua nova planilha convertida
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
-        st.error(f"Erro na conexão: {e}")
+        st.error(f"Erro de conexão: {e}")
         return None
 
 def carregar_dados(sheet):
     if sheet:
-        try:
-            data = sheet.get_all_records()
-            return pd.DataFrame(data)
-        except:
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
+        if df.empty:
             return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
+        return df
     return pd.DataFrame()
-
-def format_data_br(data_str):
-    try:
-        return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
-    except: return data_str
 
 def get_servidores():
     return ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
+
+def format_data_br(data_str):
+    try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
+    except: return data_str
 
 # --- 4. LÓGICA DE ESTADO ---
 if 'cliente_selecionado' not in st.session_state:
@@ -94,26 +92,33 @@ with tab1:
             col1, col2, col3 = st.columns(3)
             en_nome = col1.text_input("Nome", value=c_sel['nome'])
             en_user = col2.text_input("Usuário", value=c_sel['usuario'])
-            en_venc = col3.date_input("Vencimento", value=pd.to_datetime(c_sel['vencimento']).date())
-            en_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
-            en_custo = col2.number_input("Custo", value=float(c_sel['custo'] or 0))
-            en_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade'] or 0))
-            
-            if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+            en_senha = col3.text_input("Senha", value=c_sel['senha'])
+            en_serv = col1.selectbox("Servidor", get_servidores(), index=0)
+            en_venc = col2.date_input("Vencimento", value=pd.to_datetime(c_sel['vencimento']).date())
+            en_whats = col3.text_input("WhatsApp", value=c_sel['whatsapp'])
+            en_custo = col1.number_input("Custo", value=float(c_sel['custo'] or 0))
+            en_mensal = col2.number_input("Valor Cobrado", value=float(c_sel['mensalidade'] or 0))
+            en_obs = st.text_area("Observação", value=str(c_sel['observacao'] or ""))
+            en_img = st.file_uploader("Trocar Logo", type=['png', 'jpg'])
+
+            b_salvar, b_excluir, b_cancelar = st.columns(3)
+            if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+                l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel['logo_blob']
                 ids = sheet.col_values(1)
-                try:
-                    row_idx = ids.index(str(c_sel['id'])) + 1
-                    sheet.update_cell(row_idx, 2, en_nome)
-                    sheet.update_cell(row_idx, 3, en_user)
-                    sheet.update_cell(row_idx, 7, en_venc.strftime('%Y-%m-%d'))
-                    sheet.update_cell(row_idx, 8, en_custo)
-                    sheet.update_cell(row_idx, 9, en_mensal)
-                    sheet.update_cell(row_idx, 10, en_whats)
-                    st.session_state.cliente_selecionado = None
-                    st.success("Atualizado com sucesso!")
-                    st.rerun()
-                except ValueError:
-                    st.error("Erro ao localizar cliente na planilha.")
+                row_idx = ids.index(str(c_sel['id'])) + 1
+                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome, en_user, en_senha, en_serv, c_sel['sistema'], en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
+                st.session_state.cliente_selecionado = None
+                st.success("Sincronizado!")
+                st.rerun()
+            if b_excluir.form_submit_button("🗑️ EXCLUIR CLIENTE"):
+                ids = sheet.col_values(1)
+                row_idx = ids.index(str(c_sel['id'])) + 1
+                sheet.delete_rows(row_idx)
+                st.session_state.cliente_selecionado = None
+                st.rerun()
+            if b_cancelar.form_submit_button("✖️ FECHAR"):
+                st.session_state.cliente_selecionado = None
+                st.rerun()
 
     busca = st.text_input("🔎 Pesquisar cliente...", placeholder="Nome ou Usuário")
     if not df.empty:
@@ -140,15 +145,11 @@ with tab2:
         n_img = st.file_uploader("Logo", type=['png', 'jpg'])
         
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
-            if sheet is not None:
-                l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
-                novo_id = int(df['id'].max() + 1) if not df.empty else 1
-                nova_linha = [novo_id, n_nome, n_user, n_senha, n_serv, "P2P", n_venc.strftime('%Y-%m-%d'), 10.0, n_valor, n_whats, "", l_b]
-                sheet.append_row(nova_linha)
-                st.success("✅ Salvo no Google Sheets!")
-                st.rerun()
-            else:
-                st.error("Planilha não conectada.")
+            l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
+            novo_id = int(df['id'].max() + 1) if not df.empty else 1
+            sheet.append_row([novo_id, n_nome, n_user, n_senha, n_serv, "P2P", n_venc.strftime('%Y-%m-%d'), 10.0, n_valor, n_whats, "", l_b])
+            st.success("✅ Salvo no Google Sheets!")
+            st.rerun()
 
 with tab3:
     st.subheader("🚨 Cobrança Automática")
@@ -156,11 +157,13 @@ with tab3:
     if not df.empty:
         df_c = df[df['dias_res'] <= 3]
         for _, c in df_c.sort_values(by='dias_res').iterrows():
-            msg = f"⚠️ *{str(c['nome']).upper()}, SUA ASSINATURA VENCE EM BREVE!* \n\nPara renovar, faça o PIX: {pix_cnpj}"
+            dias = c['dias_res']
+            nome_p = str(c['nome']).split()[0].upper()
+            msg = f"⚠️ *{nome_p}, SUA ASSINATURA VENCE EM {dias} DIAS!* \n\nPara renovar, PIX: {pix_cnpj}"
             st.link_button(f"📲 Cobrar: {c['nome']}", f"https://wa.me/55{c['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ Configurações")
-    if st.button("🔄 Sincronizar Agora"):
+    st.subheader("⚙️ Ajustes")
+    if st.button("🔄 Forçar Sincronização"):
         st.cache_data.clear()
         st.rerun()
