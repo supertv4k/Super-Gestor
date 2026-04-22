@@ -5,4 +5,5 @@ xlsxwriter
 st-gsheets-connection
 gspread
 gspread-dataframe
+google-auth
 
