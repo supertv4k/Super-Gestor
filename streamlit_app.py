@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import gspread
@@ -11,7 +10,7 @@ import base64
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (Original Gilmar) ---
+# --- 2. ESTILIZAÇÃO CSS (Identidade Visual SuperTV4K) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -35,19 +34,22 @@ st.markdown("""
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        # Usa o JSON que colamos no Secrets
+        # Usa as credenciais do Streamlit Secrets
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
-        # Abre a planilha pelo ID
-        return client.open_by_key("1R3MmGHAD3Qy5mp8GQTEHmQhUR0X2rD3J").sheet1
+        # ID DA NOVA PLANILHA FORNECIDO
+        return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
         st.error(f"Erro na conexão: {e}")
         return None
 
 def carregar_dados(sheet):
     if sheet:
-        data = sheet.get_all_records()
-        return pd.DataFrame(data)
+        try:
+            data = sheet.get_all_records()
+            return pd.DataFrame(data)
+        except:
+            return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
     return pd.DataFrame()
 
 def format_data_br(data_str):
@@ -94,28 +96,30 @@ with tab1:
             en_user = col2.text_input("Usuário", value=c_sel['usuario'])
             en_venc = col3.date_input("Vencimento", value=pd.to_datetime(c_sel['vencimento']).date())
             en_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
-            en_custo = col2.number_input("Custo", value=float(c_sel['custo']))
-            en_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
+            en_custo = col2.number_input("Custo", value=float(c_sel['custo'] or 0))
+            en_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade'] or 0))
             
             if st.form_submit_button("💾 SALVAR ALTERAÇÕES"):
-                # Busca a linha correta na planilha para atualizar
                 ids = sheet.col_values(1)
-                row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.update_cell(row_idx, 2, en_nome)
-                sheet.update_cell(row_idx, 3, en_user)
-                sheet.update_cell(row_idx, 7, en_venc.strftime('%Y-%m-%d'))
-                sheet.update_cell(row_idx, 8, en_custo)
-                sheet.update_cell(row_idx, 9, en_mensal)
-                sheet.update_cell(row_idx, 10, en_whats)
-                st.session_state.cliente_selecionado = None
-                st.success("Atualizado!")
-                st.rerun()
+                try:
+                    row_idx = ids.index(str(c_sel['id'])) + 1
+                    sheet.update_cell(row_idx, 2, en_nome)
+                    sheet.update_cell(row_idx, 3, en_user)
+                    sheet.update_cell(row_idx, 7, en_venc.strftime('%Y-%m-%d'))
+                    sheet.update_cell(row_idx, 8, en_custo)
+                    sheet.update_cell(row_idx, 9, en_mensal)
+                    sheet.update_cell(row_idx, 10, en_whats)
+                    st.session_state.cliente_selecionado = None
+                    st.success("Atualizado com sucesso!")
+                    st.rerun()
+                except ValueError:
+                    st.error("Erro ao localizar cliente na planilha.")
 
     busca = st.text_input("🔎 Pesquisar cliente...", placeholder="Nome ou Usuário")
     if not df.empty:
         df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res', ascending=True).iterrows():
-            img_tag = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
+            img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
             c1, c2 = st.columns([1, 10])
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             if c2.button(f"{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
@@ -136,13 +140,15 @@ with tab2:
         n_img = st.file_uploader("Logo", type=['png', 'jpg'])
         
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
-            if sheet:
+            if sheet is not None:
                 l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
                 novo_id = int(df['id'].max() + 1) if not df.empty else 1
                 nova_linha = [novo_id, n_nome, n_user, n_senha, n_serv, "P2P", n_venc.strftime('%Y-%m-%d'), 10.0, n_valor, n_whats, "", l_b]
                 sheet.append_row(nova_linha)
                 st.success("✅ Salvo no Google Sheets!")
                 st.rerun()
+            else:
+                st.error("Planilha não conectada.")
 
 with tab3:
     st.subheader("🚨 Cobrança Automática")
