@@ -1,7 +1,7 @@
 
 import streamlit as st
 import pandas as pd
-import sqlite3
+from streamlit_gsheets import GSheetsConnection
 from datetime import datetime, timedelta
 import urllib.parse
 import io
@@ -10,7 +10,7 @@ import base64
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (Mantida Original) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -54,56 +54,51 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. BANCO DE DADOS ---
-def init_db():
-    conn = sqlite3.connect('supertv_gestao.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS clientes 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, usuario TEXT, senha TEXT, 
-                  servidor TEXT, sistema TEXT, vencimento TEXT, custo REAL, 
-                  mensalidade REAL, inicio TEXT, whatsapp TEXT, observacao TEXT, logo_blob TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS lista_servidores 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)''')
-    conn.commit()
-    conn.close()
+# --- 3. CONEXÃO GOOGLE SHEETS ---
+conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
-def get_servidores():
-    lista_fixa = [
-        "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", 
-        "P2CINE", "P2SPEED", "BLADE", "MEGATV", 
-        "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER"
-    ]
-    conn = sqlite3.connect('supertv_gestao.db')
-    extras = pd.read_sql_query("SELECT nome FROM lista_servidores", conn)['nome'].tolist()
-    conn.close()
-    extras_filtrados = sorted([e for e in extras if e not in lista_fixa])
-    return lista_fixa + extras_filtrados
+def carregar_dados():
+    try:
+        # Lê os dados da planilha configurada no Secrets
+        return conn_gs.read(ttl=0)
+    except:
+        # Se falhar ou estiver vazia, retorna estrutura básica
+        return pd.DataFrame(columns=[
+            "id", "nome", "usuario", "senha", "servidor", "sistema", 
+            "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"
+        ])
 
 def format_data_br(data_str):
-    try: return datetime.strptime(data_str, '%Y-%m-%d').strftime('%d/%m/%Y')
-    except: return data_str
+    try:
+        if isinstance(data_str, str):
+            return datetime.strptime(data_str, '%Y-%m-%d').strftime('%d/%m/%Y')
+        return data_str.strftime('%d/%m/%Y')
+    except:
+        return data_str
 
-init_db()
+def get_servidores():
+    return ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
 # --- 4. LÓGICA DE ESTADO ---
 if 'cliente_selecionado' not in st.session_state:
     st.session_state.cliente_selecionado = None
 
-# --- 5. INTERFACE ---
+# --- 5. INTERFACE PRINCIPAL ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-conn = sqlite3.connect('supertv_gestao.db')
-df = pd.read_sql_query("SELECT * FROM clientes", conn)
-conn.close()
+# Carregar dados da Planilha
+df = carregar_dados()
 
 if not df.empty:
     hoje = datetime.now().date()
+    # Garante que a coluna de vencimento seja data para cálculos
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
     df_ativos = df[df['dias_res'] >= 0]
-    lucro_total = (df_ativos['mensalidade'].sum()) - (df_ativos['custo'].sum())
+    lucro_total = (pd.to_numeric(df_ativos['mensalidade'], errors='coerce').sum()) - (pd.to_numeric(df_ativos['custo'], errors='coerce').sum())
 
+    # Métricas
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.markdown(f'<div class="metric-container"><div class="metric-label">TOTAL</div><div class="val-azul">{len(df)}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-container"><div class="metric-label">ATIVOS</div><div class="val-verde">{len(df[df["dias_res"] >= 0])}</div></div>', unsafe_allow_html=True)
@@ -128,55 +123,46 @@ with tab1:
             idx_s = servs.index(c_sel['servidor']) if c_sel['servidor'] in servs else 0
             new_serv = col1.selectbox("Servidor", servs, index=idx_s)
             
-            lista_sistemas = ["P2P", "IPTV"]
-            idx_sis = lista_sistemas.index(c_sel['sistema']) if c_sel['sistema'] in lista_sistemas else 0
-            new_sistema = col2.selectbox("Sistema", lista_sistemas, index=idx_sis)
+            new_sistema = col2.selectbox("Sistema", ["P2P", "IPTV"], index=0 if c_sel['sistema']=="P2P" else 1)
             
-            v_data = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
-            new_venc = col3.date_input("Vencimento", value=v_data, format="DD/MM/YYYY")
+            v_data = pd.to_datetime(c_sel['vencimento']).date() if c_sel['vencimento'] else datetime.now().date()
+            new_venc = col3.date_input("Vencimento", value=v_data)
             
             new_whats = col1.text_input("WhatsApp", value=c_sel['whatsapp'])
-            new_custo = col2.number_input("Custo", value=float(c_sel['custo']))
-            new_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade']))
-            new_obs = st.text_area("Observação", value=str(c_sel['observacao']))
+            new_custo = col2.number_input("Custo", value=float(c_sel['custo'] or 0))
+            new_mensal = col3.number_input("Valor Cobrado", value=float(c_sel['mensalidade'] or 0))
+            new_obs = st.text_area("Observação", value=str(c_sel['observacao'] or ""))
             
-            # --- NOVO: CAMPO DE UPLOAD NA EDIÇÃO ---
-            st.write("🖼️ **Trocar Logo do Servidor**")
-            new_img = st.file_uploader("Selecione uma nova imagem para atualizar", type=['png', 'jpg'], key="edit_img")
+            st.write("🖼️ **Trocar Logo**")
+            new_img = st.file_uploader("Nova imagem", type=['png', 'jpg'], key="edit_img")
 
             b_salvar, b_renovar, b_excluir, b_cancelar = st.columns(4)
             
             if b_salvar.button("💾 SALVAR ALTERAÇÕES", use_container_width=True):
-                w_limpo = ''.join(filter(str.isdigit, str(new_whats)))
-                # Lógica para manter imagem antiga ou salvar a nova
                 l_b = base64.b64encode(new_img.read()).decode() if new_img else c_sel['logo_blob']
                 
-                conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("""UPDATE clientes SET 
-                             nome=?, usuario=?, senha=?, servidor=?, sistema=?, 
-                             vencimento=?, custo=?, mensalidade=?, whatsapp=?, 
-                             observacao=?, logo_blob=? WHERE id=?""",
-                             (new_nome, new_user, new_senha, new_serv, new_sistema, 
-                              new_venc.strftime('%Y-%m-%d'), new_custo, new_mensal, 
-                              w_limpo, new_obs, l_b, c_sel['id']))
-                conn.commit(); conn.close()
+                # Atualiza no DataFrame local
+                idx = df[df['id'] == c_sel['id']].index[0]
+                df.at[idx, 'nome'] = new_nome
+                df.at[idx, 'usuario'] = new_user
+                df.at[idx, 'senha'] = new_senha
+                df.at[idx, 'servidor'] = new_serv
+                df.at[idx, 'sistema'] = new_sistema
+                df.at[idx, 'vencimento'] = new_venc.strftime('%Y-%m-%d')
+                df.at[idx, 'whatsapp'] = ''.join(filter(str.isdigit, str(new_whats)))
+                df.at[idx, 'custo'] = new_custo
+                df.at[idx, 'mensalidade'] = new_mensal
+                df.at[idx, 'observacao'] = new_obs
+                df.at[idx, 'logo_blob'] = l_b
+                
+                conn_gs.update(data=df)
                 st.session_state.cliente_selecionado = None
-                st.success("Dados atualizados com sucesso!")
-                st.rerun()
-
-            if b_renovar.button("➕ RENOVAR (+30d)", use_container_width=True):
-                v_at = datetime.strptime(c_sel['vencimento'], '%Y-%m-%d') if isinstance(c_sel['vencimento'], str) else c_sel['vencimento']
-                n_data = (v_at + timedelta(days=30)).strftime('%Y-%m-%d')
-                conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("UPDATE clientes SET vencimento=? WHERE id=?", (n_data, c_sel['id']))
-                conn.commit(); conn.close()
-                st.session_state.cliente_selecionado = None
+                st.success("Sincronizado com Google Sheets!")
                 st.rerun()
 
             if b_excluir.button("🗑️ EXCLUIR", type="primary", use_container_width=True):
-                conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("DELETE FROM clientes WHERE id=?", (c_sel['id'],))
-                conn.commit(); conn.close()
+                df = df[df['id'] != c_sel['id']]
+                conn_gs.update(data=df)
                 st.session_state.cliente_selecionado = None
                 st.rerun()
                 
@@ -194,8 +180,7 @@ with tab1:
             c1.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
             
             prefixo = "🚨 [VENCIDO] " if r['dias_res'] < 0 else "⏰ [HOJE] " if r['dias_res'] == 0 else ""
-            tipo_sis = f" | ⚡ {r['sistema']}" if r['sistema'] else ""
-            if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']}{tipo_sis} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
+            if c2.button(f"{prefixo}{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {format_data_br(r['vencimento'])}", key=f"b_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
@@ -208,124 +193,56 @@ with tab2:
         n_senha = f3.text_input("Senha")
         n_serv = f1.selectbox("Servidor", get_servidores())
         n_sistema = f2.selectbox("Sistema", ["P2P", "IPTV"])
-        n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30), format="DD/MM/YYYY")
+        n_venc = f3.date_input("Vencimento", value=datetime.now() + timedelta(days=30))
         n_whats = f1.text_input("WhatsApp (DDD+Número)")
         n_custo = f2.number_input("Custo", value=10.0)
         n_valor = f3.number_input("Valor Cobrado", value=35.0)
         n_img = st.file_uploader("Logo", type=['png', 'jpg'])
         
         if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
-            w_ok = ''.join(filter(str.isdigit, n_whats))
-            l_b = base64.b64encode(n_img.read()).decode() if n_img else None
-            conn = sqlite3.connect('supertv_gestao.db')
-            conn.execute("INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, logo_blob) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (n_nome, n_user, n_senha, n_serv, n_sistema, n_venc.strftime('%Y-%m-%d'), n_custo, n_valor, w_ok, l_b))
-            conn.commit(); conn.close(); st.rerun()
+            l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
+            novo_id = int(df['id'].max() + 1) if not df.empty else 1
+            
+            nova_linha = pd.DataFrame([{
+                "id": novo_id, "nome": n_nome, "usuario": n_user, "senha": n_senha,
+                "servidor": n_serv, "sistema": n_sistema, "vencimento": n_venc.strftime('%Y-%m-%d'),
+                "custo": n_custo, "mensalidade": n_valor, "whatsapp": ''.join(filter(str.isdigit, n_whats)),
+                "observacao": "", "logo_blob": l_b
+            }])
+            
+            df_final = pd.concat([df, nova_linha], ignore_index=True)
+            conn_gs.update(data=df_final)
+            st.success("Salvo no Google Sheets!")
+            st.rerun()
 
 with tab3:
     st.subheader("🚨 Central de Cobrança Automática")
-    pix_cnpj = "62.326.879/0001-13"
-    
-    st.write("Selecione o grupo para cobrar:")
-    filtro_btn = st.radio("Filtro:", ["Todos", "Vencidos", "Vence Hoje", "Amanhã", "2 Dias", "3 Dias"], horizontal=True)
+    pix_cnpj = "62.326.879/0001-13" # Seu PIX
+    filtro_btn = st.radio("Filtro:", ["Vencidos", "Vence Hoje", "Amanhã", "3 Dias"], horizontal=True)
 
     if not df.empty:
-        if filtro_btn == "Vencidos":
-            df_cobranca = df[df['dias_res'] < 0]
-        elif filtro_btn == "Vence Hoje":
-            df_cobranca = df[df['dias_res'] == 0]
-        elif filtro_btn == "Amanhã":
-            df_cobranca = df[df['dias_res'] == 1]
-        elif filtro_btn == "2 Dias":
-            df_cobranca = df[df['dias_res'] == 2]
-        elif filtro_btn == "3 Dias":
-            df_cobranca = df[df['dias_res'] == 3]
-        else:
-            df_cobranca = df[df['dias_res'] <= 3]
+        # Lógica de filtro baseada em dias_res calculada acima
+        if filtro_btn == "Vencidos": df_c = df[df['dias_res'] < 0]
+        elif filtro_btn == "Vence Hoje": df_c = df[df['dias_res'] == 0]
+        elif filtro_btn == "Amanhã": df_c = df[df['dias_res'] == 1]
+        else: df_c = df[df['dias_res'].between(1, 3)]
 
-        if df_cobranca.empty:
-            st.info(f"Nenhum cliente no grupo: {filtro_btn}")
-        else:
-            for _, c in df_cobranca.sort_values(by='dias_res').iterrows():
-                dias = c['dias_res']
-                nome_cli = str(c['nome']).split()[0].upper()
-                
-                if dias < 0:
-                    msg = f"🚨*{nome_cli}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                    status_txt = "❌ VENCIDO"
-                elif dias == 0:
-                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE HOJE ⏰ !*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                    status_txt = "⏰ VENCE HOJE"
-                elif dias == 1:
-                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰ !*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                    status_txt = "📅 VENCE AMANHÃ"
-                elif dias == 2:
-                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                    status_txt = "⏳ 2 DIAS"
-                elif dias == 3:
-                    msg = f"⚠️*{nome_cli}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰ !*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠*PIX CNPJ*\n{pix_cnpj}\n\n⚠️ *NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!*"
-                    status_txt = "⏳ 3 DIAS"
-                
-                num = str(c['whatsapp'])
-                if not num.startswith('55'): num = '55' + num
-                st.link_button(f"📲 {status_txt} | {c['nome']}", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
+        for _, c in df_c.sort_values(by='dias_res').iterrows():
+            nome_p = str(c['nome']).split()[0].upper()
+            msg = f"⚠️ *{nome_p}, SUA ASSINATURA VENCE EM BREVE!* \n\nPara renovar, faça o PIX CNPJ: {pix_cnpj}\nEnvie o comprovante aqui!"
+            num = str(c['whatsapp'])
+            if not num.startswith('55'): num = '55' + num
+            st.link_button(f"📲 Cobrar: {c['nome']} ({c['vencimento']})", f"https://wa.me/{num}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ Sistema")
+    st.subheader("⚙️ Sistema Cloud")
+    st.info("Os dados agora são salvos diretamente na sua planilha do Google Sheets.")
     
-    st.write("🖥️ **Gerenciar Servidores**")
-    col_srv1, col_srv2 = st.columns([3, 1])
-    novo_srv = col_srv1.text_input("Nome do novo servidor", placeholder="Ex: NOVO_SRV")
-    if col_srv2.button("➕ Adicionar"):
-        if novo_srv:
-            try:
-                conn = sqlite3.connect('supertv_gestao.db')
-                conn.execute("INSERT INTO lista_servidores (nome) VALUES (?)", (novo_srv.upper().strip(),))
-                conn.commit(); conn.close()
-                st.success(f"Servidor {novo_srv} adicionado!")
-                st.rerun()
-            except:
-                st.error("Servidor já existe!")
-        else:
-            st.warning("Digite um nome.")
-    
-    st.divider()
+    if st.button("📊 Forçar Atualização de Dados"):
+        st.cache_data.clear()
+        st.rerun()
 
-    st.write("📤 **Exportar Dados**")
-    if st.button("📦 Gerar Backup Excel"):
-        out = io.BytesIO()
-        df_export = df.drop(columns=['dt_venc_calc', 'dias_res'], errors='ignore')
-        df_export.to_excel(out, index=False)
-        st.download_button("⬇️ Baixar Backup", out.getvalue(), "backup.xlsx")
-
-    st.divider()
-
-    st.write("📥 **Importar Dados**")
-    arquivo_upload = st.file_uploader("Selecione o arquivo backup.xlsx para restaurar", type=['xlsx'])
-
-    if arquivo_upload is not None:
-        if st.button("🚀 Iniciar Importação"):
-            try:
-                df_importado = pd.read_excel(arquivo_upload)
-                colunas_bd = ['nome', 'usuario', 'senha', 'servidor', 'sistema', 'vencimento', 'custo', 'mensalidade', 'whatsapp', 'observacao', 'logo_blob']
-                for col in colunas_bd:
-                    if col not in df_importado.columns: df_importado[col] = None
-
-                conn = sqlite3.connect('supertv_gestao.db')
-                sucesso, erros = 0, 0
-                for _, row in df_importado.iterrows():
-                    try:
-                        check = conn.execute("SELECT id FROM clientes WHERE nome=? AND usuario=?", (row['nome'], row['usuario'])).fetchone()
-                        if not check:
-                            conn.execute("""INSERT INTO clientes (nome, usuario, senha, servidor, sistema, vencimento, custo, mensalidade, whatsapp, observacao, logo_blob) 
-                                            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                                         (row['nome'], row['usuario'], row['senha'], row['servidor'], row['sistema'], str(row['vencimento']).split()[0], 
-                                          row['custo'], row['mensalidade'], row['whatsapp'], row['observacao'], row['logo_blob']))
-                            sucesso += 1
-                        else: erros += 1
-                    except: erros += 1
-                conn.commit(); conn.close()
-                st.success(f"✅ Concluído! {sucesso} importados.")
-                if erros > 0: st.warning(f"⚠️ {erros} já existiam ou deram erro.")
-                st.rerun()
-            except Exception as e: st.error(f"❌ Erro: {e}")
+    st.write("📤 **Backup em Excel**")
+    out = io.BytesIO()
+    df.to_excel(out, index=False)
+    st.download_button("⬇️ Baixar Tabela Atual", out.getvalue(), "gestao_supertv.xlsx")
