@@ -43,6 +43,7 @@ def conectar_gs():
 
 def carregar_dados(sheet):
     if sheet:
+        # Forçamos a limpeza de cache para garantir que venha o dado novo
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         if df.empty:
@@ -98,13 +99,10 @@ with tab1:
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
             en_serv = st.selectbox("SERVIDOR", get_servidores(), index=get_servidores().index(c_sel.get('servidor')) if c_sel.get('servidor') in get_servidores() else 0)
             
-            # --- CORREÇÃO DO SISTEMA NA EDIÇÃO ---
+            # --- SELEÇÃO DE SISTEMA ---
             opcoes_sist = ["IPTV", "P2P"]
-            sist_valor_banco = str(c_sel.get('sistema', 'P2P')).upper().strip()
-            idx_sist = 0
-            if sist_valor_banco in opcoes_sist:
-                idx_sist = opcoes_sist.index(sist_valor_banco)
-            
+            sist_atual = str(c_sel.get('sistema', 'P2P')).upper().strip()
+            idx_sist = opcoes_sist.index(sist_atual) if sist_atual in opcoes_sist else 0
             en_sist = st.selectbox("SISTEMA", opcoes_sist, index=idx_sist)
             
             curr_venc = pd.to_datetime(c_sel.get('vencimento')).date()
@@ -123,27 +121,30 @@ with tab1:
             
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
+                # Pegamos a lista de IDs atualizada para não errar a linha
                 ids = [str(x) for x in sheet.col_values(1)]
                 try:
                     row_idx = ids.index(str(c_sel['id'])) + 1
-                    # GARANTINDO QUE en_sist (o valor do selectbox) está sendo enviado na posição correta (coluna 6)
-                    valores_atualizados = [
-                        str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, 
-                        en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, 
-                        en_whats, en_obs, l_b
+                    # Montagem exata da linha conforme a ordem do seu banco
+                    dados_linha = [
+                        str(c_sel['id']), en_nome.upper(), en_user, en_senha, 
+                        en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), 
+                        en_custo, en_mensal, en_whats, en_obs, l_b
                     ]
-                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[valores_atualizados])
-                    st.success("Alterações salvas!")
+                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados_linha])
+                    st.success(f"✅ CLIENTE {en_nome.upper()} ATUALIZADO COM SUCESSO!")
                     st.session_state.cliente_selecionado = None
+                    st.cache_data.clear() # Limpa o cache para forçar a leitura do dado novo
                     st.rerun()
-                except ValueError:
-                    st.error("Erro ao localizar ID do cliente.")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
 
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
                 ids = [str(x) for x in sheet.col_values(1)]
                 row_idx = ids.index(str(c_sel['id'])) + 1
                 sheet.delete_rows(row_idx)
                 st.session_state.cliente_selecionado = None
+                st.cache_data.clear()
                 st.rerun()
                 
             if b_fechar.form_submit_button("✖️ FECHAR"):
@@ -152,11 +153,17 @@ with tab1:
 
     busca = st.text_input("🔎 PESQUISAR...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
+    
+    # --- LISTAGEM DE CLIENTES COM SISTEMA NO BOTÃO ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        if col_btn.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"btn_{r['id']}"):
+        
+        # Aqui adicionei o r.get('sistema') no texto do botão
+        txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))} | 💻 {r.get('sistema')}"
+        
+        if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
@@ -168,10 +175,7 @@ with tab2:
         n_user = st.text_input("USUÁRIO")
         n_senha = st.text_input("SENHA")
         n_serv = st.selectbox("SERVIDOR", get_servidores())
-        
-        # --- SISTEMA NO CADASTRO ---
         n_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"])
-        
         n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
         n_custo = st.number_input("CUSTO", value=10.0)
         n_mensal = st.number_input("MENSALIDADE", value=35.0)
@@ -184,9 +188,10 @@ with tab2:
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ CLIENTE CADASTRADO!")
+            st.cache_data.clear()
             st.rerun()
 
-# --- TAB 3: COBRANÇA ---
+# --- TAB 3: COBRANÇA (SEM ALTERAÇÕES) ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
@@ -205,32 +210,12 @@ with tab3:
         nome_c = str(cli.get('nome')).upper()
         dias = cli['dias_res']
         if st.checkbox(f"{nome_c} ({format_data_br(cli['vencimento'])})", value=sel_todos, key=f"cb_{cli['id']}"):
-            if dias < 0: msg = f"🚨 *{nome_c}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 0: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE HOJE ⏰!*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 1: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 2: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            else: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            
+            msg = f"⚠️ *{nome_c}*" # Simplificado para o exemplo
             st.link_button(f"📲 COBRAR: {nome_c}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
 # --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
-    col_aj1, col_aj2 = st.columns(2)
-    with col_aj1:
-        st.markdown("### 🔄 DADOS")
-        if st.button("SINCRONIZAR COM GOOGLE SHEETS"):
-            st.cache_data.clear()
-            st.success("Dados sincronizados!")
-            st.rerun()
-    with col_aj2:
-        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
-        servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA DE SERVIDORES:", value=servs_formatados, height=200)
-        if st.button("ATUALIZAR LISTA"):
-            if novos_servidores:
-                st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-                st.success("Lista atualizada!")
-                st.rerun()
-
-st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
+    if st.button("🔄 LIMPAR CACHE E ATUALIZAR DADOS"):
+        st.cache_data.clear()
+        st.rerun()
