@@ -175,7 +175,6 @@ with tab3:
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
     
-    # Lógica de filtro corrigida
     if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
     elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
     elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
@@ -196,8 +195,43 @@ with tab3:
             else: msg = f"⏳ *{nome_c}, VENCE EM {dias} DIAS!*\n\n💠PIX CNPJ\n{pix_cnpj}"
             st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES ---
+# --- TAB 4: AJUSTES (RESTAURADA) ---
 with tab4:
-    st.subheader("⚙️ AJUSTES")
-    if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
-        st.cache_data.clear(); st.rerun()
+    st.subheader("⚙️ AJUSTES DO SISTEMA")
+    
+    col_aj1, col_aj2 = st.columns(2)
+    
+    with col_aj1:
+        st.markdown("### 🔄 DADOS")
+        if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
+            st.cache_data.clear()
+            st.success("Cache limpo! Sincronizando...")
+            time.sleep(1)
+            st.rerun()
+            
+        st.markdown("---")
+        st.markdown("### 📥 BACKUP")
+        if not df.empty:
+            csv_data = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 BAIXAR PLANILHA DE CLIENTES (CSV)",
+                data=csv_data,
+                file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv",
+                mime="text/csv"
+            )
+            
+    with col_aj2:
+        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
+        servs_formatados = "\n".join(st.session_state.lista_servidores)
+        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
+        
+        if st.button("💾 ATUALIZAR LISTA DE SERVIDORES"):
+            if novos_servidores:
+                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+                st.session_state.lista_servidores = lista_limpa
+                st.success("Lista de servidores atualizada!")
+                time.sleep(1)
+                st.rerun()
+
+    st.markdown("---")
+    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0 - Final")
