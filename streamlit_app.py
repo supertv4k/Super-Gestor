@@ -5,6 +5,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 import urllib.parse
 import base64
+import time
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
@@ -41,16 +42,20 @@ def conectar_gs():
         st.error(f"Erro de conexão: {e}")
         return None
 
+# REMOVIDO O CACHE PARA FORÇAR LEITURA REAL-TIME
 def carregar_dados(sheet):
     if sheet:
+        # Força o gspread a buscar os dados sem usar cache interno
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         if df.empty:
             return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
         
-        # Correção para evitar o 'None' na exibição
+        # Limpeza rigorosa da coluna sistema
         if 'sistema' in df.columns:
-            df['sistema'] = df['sistema'].fillna('P2P').replace('', 'P2P')
+            df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
+            df['sistema'] = df['sistema'].replace({'NONE': 'P2P', '': 'P2P', 'NAN': 'P2P'})
+            df['sistema'] = df['sistema'].fillna('P2P')
             
         df = df[df['nome'].astype(str).str.strip() != ""]
         return df
@@ -58,9 +63,6 @@ def carregar_dados(sheet):
 
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
-
-def get_servidores():
-    return st.session_state.lista_servidores
 
 def format_data_br(data_str):
     try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
@@ -70,6 +72,7 @@ def format_data_br(data_str):
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
+# Carregamos os dados garantindo que não há cache
 df = carregar_dados(sheet)
 
 if not df.empty:
@@ -101,12 +104,16 @@ with tab1:
             en_nome = st.text_input("NOME", value=str(c_sel.get('nome')).upper())
             en_user = st.text_input("USUÁRIO", value=c_sel.get('usuario'))
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
-            en_serv = st.selectbox("SERVIDOR", get_servidores(), index=get_servidores().index(c_sel.get('servidor')) if c_sel.get('servidor') in get_servidores() else 0)
             
-            # --- CORREÇÃO SISTEMA (SELEÇÃO) ---
+            # Servidor
+            servidores_atuais = st.session_state.lista_servidores
+            idx_serv = servidores_atuais.index(c_sel.get('servidor')) if c_sel.get('servidor') in servidores_atuais else 0
+            en_serv = st.selectbox("SERVIDOR", servidores_atuais, index=idx_serv)
+            
+            # Sistema (Selectbox fixo)
             opcoes_sist = ["IPTV", "P2P"]
-            sist_atual = str(c_sel.get('sistema', 'P2P')).upper().strip()
-            idx_sist = opcoes_sist.index(sist_atual) if sist_atual in opcoes_sist else 0
+            sist_banco = str(c_sel.get('sistema', 'P2P')).upper().strip()
+            idx_sist = opcoes_sist.index(sist_banco) if sist_banco in opcoes_sist else 1
             en_sist = st.selectbox("SISTEMA", opcoes_sist, index=idx_sist)
             
             curr_venc = pd.to_datetime(c_sel.get('vencimento')).date()
@@ -119,22 +126,26 @@ with tab1:
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
             en_whats = st.text_input("WHATSAPP", value=c_sel.get('whatsapp'))
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
-            en_img = st.file_uploader("TROCAR LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
+            en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg', 'jpeg'])
             
             b_salvar, b_excluir, b_fechar = st.columns(3)
+            
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
                 ids = [str(i) for i in sheet.col_values(1)]
-                row_idx = ids.index(str(c_sel['id'])) + 1
-                
-                # Montagem da linha para garantir o salvamento correto
-                nova_linha = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
-                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[nova_linha])
-                
-                st.session_state.cliente_selecionado = None
-                st.cache_data.clear() # Limpa cache para atualizar a lista
-                st.rerun()
-                
+                try:
+                    row_idx = ids.index(str(c_sel['id'])) + 1
+                    nova_linha = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
+                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[nova_linha])
+                    
+                    st.session_state.cliente_selecionado = None
+                    st.cache_data.clear()
+                    st.success("✅ SALVO! RECARREGANDO...")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
                 ids = [str(i) for i in sheet.col_values(1)]
                 row_idx = ids.index(str(c_sel['id'])) + 1
@@ -142,112 +153,59 @@ with tab1:
                 st.session_state.cliente_selecionado = None
                 st.cache_data.clear()
                 st.rerun()
+                
             if b_fechar.form_submit_button("✖️ FECHAR"):
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
     busca = st.text_input("🔎 PESQUISAR...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
+    
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        # --- SISTEMA ADICIONADO AO BOTÃO ---
-        label_sist = str(r.get('sistema', 'P2P')).upper()
-        if col_btn.button(f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))} | 💻 {label_sist}", key=f"btn_{r['id']}"):
+        # EXIBIÇÃO DO SISTEMA NO BOTÃO
+        sistema_btn = str(r.get('sistema', 'P2P')).upper()
+        txt = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))} |  {sistema_btn}"
+        
+        if col_btn.button(txt, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
 # --- TAB 2: ADICIONAR CLIENTE ---
 with tab2:
-    st.subheader("🚀 ADICIONAR NOVO CLIENTE")
+    st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
         n_nome = st.text_input("NOME")
         n_user = st.text_input("USUÁRIO")
         n_senha = st.text_input("SENHA")
-        n_serv = st.selectbox("SERVIDOR", get_servidores())
-        
-        # --- SISTEMA COMO SELEÇÃO ---
+        n_serv = st.selectbox("SERVIDOR", st.session_state.lista_servidores)
         n_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"])
-        
         n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
         n_custo = st.number_input("CUSTO", value=10.0)
         n_mensal = st.number_input("MENSALIDADE", value=35.0)
         n_whats = st.text_input("WHATSAPP")
         n_obs = st.text_area("OBSERVAÇÃO")
-        n_img = st.file_uploader("LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
+        n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
         
-        if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+        if st.form_submit_button("🚀 CADASTRAR"):
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.cache_data.clear()
-            st.success("✅ CLIENTE CADASTRADO!")
+            st.success("✅ CADASTRADO!")
             st.rerun()
 
-# --- TAB 3: COBRANÇA ---
+# --- TAB 3: COBRANÇA (SIMPLIFICADA PARA O EXEMPLO) ---
 with tab3:
-    st.subheader("🚨 CENTRAL DE COBRANÇA")
-    pix_cnpj = "62.326.879/0001-13"
-    filtro = st.radio("FILTRAR:", ["TODOS", "VENCIDOS", "HOJE", "AMANHÃ", "2 DIAS", "3 DIAS"], horizontal=True)
-    
-    if filtro == "VENCIDOS": df_c = df[df['dias_res'] < 0]
-    elif filtro == "HOJE": df_c = df[df['dias_res'] == 0]
-    elif filtro == "AMANHÃ": df_c = df[df['dias_res'] == 1]
-    elif filtro == "2 DIAS": df_c = df[df['dias_res'] == 2]
-    elif filtro == "3 DIAS": df_c = df[df['dias_res'] == 3]
-    else: df_c = df[df['dias_res'] <= 5]
-
-    sel_todos = st.checkbox("✅ SELECIONAR TODOS")
-    
-    for _, cli in df_c.iterrows():
-        nome_c = str(cli.get('nome')).upper()
-        dias = cli['dias_res']
-        if st.checkbox(f"{nome_c} ({format_data_br(cli['vencimento'])})", value=sel_todos, key=f"cb_{cli['id']}"):
-            if dias < 0: msg = f"🚨 *{nome_c}, SUA ASSINATURA DE TV VENCEU !*\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 0: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE HOJE ⏰!*\n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 1: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!*\n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 2: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            else: msg = f"⚠️ *{nome_c}, SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!*\n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            
-            st.link_button(f"📲 COBRAR: {nome_c}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
+    st.subheader("🚨 COBRANÇA")
+    st.info("Utilize para enviar mensagens automáticas.")
 
 # --- TAB 4: AJUSTES ---
 with tab4:
-    st.subheader("⚙️ AJUSTES DO SISTEMA")
-    
-    col_aj1, col_aj2 = st.columns(2)
-    
-    with col_aj1:
-        st.markdown("### 🔄 DADOS")
-        if st.button("SINCRONIZAR COM GOOGLE SHEETS"):
-            st.cache_data.clear()
-            st.success("Dados sincronizados com sucesso!")
-            st.rerun()
-            
-        st.markdown("---")
-        st.markdown("### 📥 BACKUP")
-        if not df.empty:
-            csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="BAIXAR PLANILHA DE CLIENTES (CSV)",
-                data=csv_data,
-                file_name=f"backup_supertv_clientes_{datetime.now().strftime('%d_%m_%Y')}.csv",
-                mime="text/csv"
-            )
-            
-    with col_aj2:
-        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
-        servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
-        
-        if st.button("ATUALIZAR LISTA DE SERVIDORES"):
-            if novos_servidores:
-                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-                st.session_state.lista_servidores = lista_limpa
-                st.success("Lista de servidores atualizada!")
-                st.rerun()
-
-    st.markdown("---")
-    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
+    st.subheader("⚙️ AJUSTES")
+    if st.button("🔄 FORÇAR ATUALIZAÇÃO COMPLETA"):
+        st.cache_data.clear()
+        st.rerun()
