@@ -49,6 +49,10 @@ def carregar_dados(sheet):
         cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
         df = pd.DataFrame(valores_brutos[1:], columns=cabecalho)
         
+        # Correção crucial para o ID
+        if 'id' in df.columns:
+            df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
+            
         if 'sistema' in df.columns:
             df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
             df['sistema'] = df['sistema'].apply(lambda x: "IPTV" if "IPTV" in x else "P2P")
@@ -154,11 +158,12 @@ with tab2:
         n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
         if st.form_submit_button("🚀 CADASTRAR"):
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
+            # CORREÇÃO DO ERRO TYPEERROR:
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# --- TAB 3: COBRANÇA (MENSAGENS CORRIGIDAS) ---
+# --- TAB 3: COBRANÇA ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
@@ -188,8 +193,6 @@ with tab3:
         dias = cli['dias_res']
         
         if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
-            
-            # USO DE ASPAS TRIPLAS PARA EVITAR O SYNTAX ERROR EM TEXTO MULTILINHA
             if dias < 0:
                 msg = f"""🚨SUA ASSINATURA DE TV VENCEU !
 
@@ -199,7 +202,6 @@ NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
 {pix_cnpj}
 
 ⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-
             elif dias == 0:
                 msg = f"""⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
 
@@ -209,7 +211,6 @@ NÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!
 {pix_cnpj}
 
 ⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-
             elif dias == 1:
                 msg = f"""⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
 
@@ -219,7 +220,6 @@ NÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
 {pix_cnpj}
 
 ⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-
             elif dias == 2:
                 msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
 
@@ -229,7 +229,6 @@ FAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!
 {pix_cnpj}
 
 ⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-
             elif dias == 3:
                 msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
 
