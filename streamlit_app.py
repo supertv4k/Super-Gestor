@@ -51,7 +51,6 @@ def carregar_dados(sheet):
         return df
     return pd.DataFrame()
 
-# Inicialização da lista de servidores no estado da sessão
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
@@ -99,10 +98,13 @@ with tab1:
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
             en_serv = st.selectbox("SERVIDOR", get_servidores(), index=get_servidores().index(c_sel.get('servidor')) if c_sel.get('servidor') in get_servidores() else 0)
             
-            # --- ALTERAÇÃO AQUI: SISTEMA AGORA É SELEÇÃO FIXA NA EDIÇÃO ---
+            # --- CORREÇÃO DO SISTEMA NA EDIÇÃO ---
             opcoes_sist = ["IPTV", "P2P"]
-            sist_atual = str(c_sel.get('sistema')).upper()
-            idx_sist = opcoes_sist.index(sist_atual) if sist_atual in opcoes_sist else 0
+            sist_valor_banco = str(c_sel.get('sistema', 'P2P')).upper().strip()
+            idx_sist = 0
+            if sist_valor_banco in opcoes_sist:
+                idx_sist = opcoes_sist.index(sist_valor_banco)
+            
             en_sist = st.selectbox("SISTEMA", opcoes_sist, index=idx_sist)
             
             curr_venc = pd.to_datetime(c_sel.get('vencimento')).date()
@@ -118,19 +120,32 @@ with tab1:
             en_img = st.file_uploader("TROCAR LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
             
             b_salvar, b_excluir, b_fechar = st.columns(3)
+            
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
-                ids = sheet.col_values(1)
-                row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[[c_sel['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]])
-                st.session_state.cliente_selecionado = None
-                st.rerun()
+                ids = [str(x) for x in sheet.col_values(1)]
+                try:
+                    row_idx = ids.index(str(c_sel['id'])) + 1
+                    # GARANTINDO QUE en_sist (o valor do selectbox) está sendo enviado na posição correta (coluna 6)
+                    valores_atualizados = [
+                        str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, 
+                        en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, 
+                        en_whats, en_obs, l_b
+                    ]
+                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[valores_atualizados])
+                    st.success("Alterações salvas!")
+                    st.session_state.cliente_selecionado = None
+                    st.rerun()
+                except ValueError:
+                    st.error("Erro ao localizar ID do cliente.")
+
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
-                ids = sheet.col_values(1)
+                ids = [str(x) for x in sheet.col_values(1)]
                 row_idx = ids.index(str(c_sel['id'])) + 1
                 sheet.delete_rows(row_idx)
                 st.session_state.cliente_selecionado = None
                 st.rerun()
+                
             if b_fechar.form_submit_button("✖️ FECHAR"):
                 st.session_state.cliente_selecionado = None
                 st.rerun()
@@ -154,7 +169,7 @@ with tab2:
         n_senha = st.text_input("SENHA")
         n_serv = st.selectbox("SERVIDOR", get_servidores())
         
-        # --- ALTERAÇÃO AQUI: SISTEMA AGORA É SELEÇÃO FIXA NO CADASTRO ---
+        # --- SISTEMA NO CADASTRO ---
         n_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"])
         
         n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
@@ -198,41 +213,24 @@ with tab3:
             
             st.link_button(f"📲 COBRAR: {nome_c}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES (RESTAURADA) ---
+# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
-    
     col_aj1, col_aj2 = st.columns(2)
-    
     with col_aj1:
         st.markdown("### 🔄 DADOS")
         if st.button("SINCRONIZAR COM GOOGLE SHEETS"):
             st.cache_data.clear()
-            st.success("Dados sincronizados com sucesso!")
+            st.success("Dados sincronizados!")
             st.rerun()
-            
-        st.markdown("---")
-        st.markdown("### 📥 BACKUP")
-        if not df.empty:
-            csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="BAIXAR PLANILHA DE CLIENTES (CSV)",
-                data=csv_data,
-                file_name=f"backup_supertv_clientes_{datetime.now().strftime('%d_%m_%Y')}.csv",
-                mime="text/csv"
-            )
-            
     with col_aj2:
         st.markdown("### 🖥️ GERENCIAR SERVIDORES")
         servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
-        
-        if st.button("ATUALIZAR LISTA DE SERVIDORES"):
+        novos_servidores = st.text_area("LISTA DE SERVIDORES:", value=servs_formatados, height=200)
+        if st.button("ATUALIZAR LISTA"):
             if novos_servidores:
-                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-                st.session_state.lista_servidores = lista_limpa
-                st.success("Lista de servidores updated!")
+                st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+                st.success("Lista atualizada!")
                 st.rerun()
 
-    st.markdown("---")
-    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
+st.info("Versão GESTÃO PRO - SUPERTv4k v2.0")
