@@ -37,30 +37,31 @@ def conectar_gs():
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
+        # Abre a planilha
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
         return None
 
-# REMOVIDO O CACHE PARA FORÇAR LEITURA REAL-TIME
 def carregar_dados(sheet):
     if sheet:
-        # Força o gspread a buscar os dados sem usar cache interno
+        # Puxa os dados brutos sem cache
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         if df.empty:
             return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
         
-        # Limpeza rigorosa da coluna sistema
+        # Limpeza e padronização da coluna sistema
         if 'sistema' in df.columns:
             df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
-            df['sistema'] = df['sistema'].replace({'NONE': 'P2P', '': 'P2P', 'NAN': 'P2P'})
+            df['sistema'] = df['sistema'].replace({'NONE': 'P2P', 'NAN': 'P2P', '': 'P2P'})
             df['sistema'] = df['sistema'].fillna('P2P')
             
         df = df[df['nome'].astype(str).str.strip() != ""]
         return df
     return pd.DataFrame()
 
+# Estado inicial da lista de servidores
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
@@ -68,11 +69,10 @@ def format_data_br(data_str):
     try: return datetime.strptime(str(data_str), '%Y-%m-%d').strftime('%d/%m/%Y')
     except: return data_str
 
-# --- 4. INTERFACE ---
+# --- 4. INTERFACE PRINCIPAL ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
-# Carregamos os dados garantindo que não há cache
 df = carregar_dados(sheet)
 
 if not df.empty:
@@ -81,6 +81,7 @@ if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     df_ativos = df[df['dias_res'] >= 0]
     
+    # Métricas
     m_val = pd.to_numeric(df_ativos['mensalidade'], errors='coerce').fillna(0)
     c_val = pd.to_numeric(df_ativos['custo'], errors='coerce').fillna(0)
     lucro_total = m_val.sum() - c_val.sum()
@@ -92,9 +93,9 @@ if not df.empty:
     m4.markdown(f'<div class="metric-container"><div class="metric-label">VENCIDOS</div><div class="val-vermelho">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
     m5.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO ESTIMADO</div><div class="val-lucro">R$ {lucro_total:,.2f}</div></div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR CLIENTE", "🚨 COBRANÇA", "⚙️ AJUSTES"])
+tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES (EDIÇÃO) ---
+# --- TAB 1: CLIENTES ---
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
@@ -110,17 +111,14 @@ with tab1:
             idx_serv = servidores_atuais.index(c_sel.get('servidor')) if c_sel.get('servidor') in servidores_atuais else 0
             en_serv = st.selectbox("SERVIDOR", servidores_atuais, index=idx_serv)
             
-            # Sistema (Selectbox fixo)
+            # SISTEMA (IPTV OU P2P)
             opcoes_sist = ["IPTV", "P2P"]
-            sist_banco = str(c_sel.get('sistema', 'P2P')).upper().strip()
-            idx_sist = opcoes_sist.index(sist_banco) if sist_banco in opcoes_sist else 1
+            sist_valor = str(c_sel.get('sistema', 'P2P')).upper().strip()
+            idx_sist = opcoes_sist.index(sist_valor) if sist_valor in opcoes_sist else 1
             en_sist = st.selectbox("SISTEMA", opcoes_sist, index=idx_sist)
             
             curr_venc = pd.to_datetime(c_sel.get('vencimento')).date()
-            col_v1, col_v2 = st.columns([3, 1])
-            en_venc = col_v1.date_input("VENCIMENTO", value=curr_venc, format="DD/MM/YYYY")
-            if col_v2.form_submit_button("+30 DIAS"):
-                en_venc = curr_venc + timedelta(days=30)
+            en_venc = st.date_input("VENCIMENTO", value=curr_venc, format="DD/MM/YYYY")
             
             en_custo = st.number_input("CUSTO", value=float(c_sel.get('custo') or 0))
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
@@ -128,7 +126,7 @@ with tab1:
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
             en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg', 'jpeg'])
             
-            b_salvar, b_excluir, b_fechar = st.columns(3)
+            b_salvar, b_fechar = st.columns(2)
             
             if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
@@ -139,26 +137,18 @@ with tab1:
                     sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[nova_linha])
                     
                     st.session_state.cliente_selecionado = None
-                    st.cache_data.clear()
-                    st.success("✅ SALVO! RECARREGANDO...")
-                    time.sleep(1)
+                    st.success("✅ SALVO COM SUCESSO!")
+                    time.sleep(1) # Tempo para o Sheets respirar
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.error(f"Erro ao salvar: {e}")
 
-            if b_excluir.form_submit_button("🗑️ EXCLUIR"):
-                ids = [str(i) for i in sheet.col_values(1)]
-                row_idx = ids.index(str(c_sel['id'])) + 1
-                sheet.delete_rows(row_idx)
-                st.session_state.cliente_selecionado = None
-                st.cache_data.clear()
-                st.rerun()
-                
-            if b_fechar.form_submit_button("✖️ FECHAR"):
+            if b_fechar.form_submit_button("✖️ CANCELAR"):
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
-    busca = st.text_input("🔎 PESQUISAR...")
+    # Busca e Lista
+    busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
     for _, r in df_f.sort_values(by='dias_res').iterrows():
@@ -166,18 +156,18 @@ with tab1:
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        # EXIBIÇÃO DO SISTEMA NO BOTÃO
-        sistema_btn = str(r.get('sistema', 'P2P')).upper()
-        txt = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))} |  {sistema_btn}"
+        # EXIBE O SISTEMA NO BOTÃO
+        sist_label = str(r.get('sistema', 'P2P')).upper()
+        txt_btn = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))} | 💻 {sist_label}"
         
-        if col_btn.button(txt, key=f"btn_{r['id']}"):
+        if col_btn.button(txt_btn, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
-# --- TAB 2: ADICIONAR CLIENTE ---
+# --- TAB 2: ADICIONAR ---
 with tab2:
-    st.subheader("🚀 NOVO CLIENTE")
-    with st.form("add_new", clear_on_submit=True):
+    st.subheader("🚀 CADASTRAR NOVO")
+    with st.form("add_new"):
         n_nome = st.text_input("NOME")
         n_user = st.text_input("USUÁRIO")
         n_senha = st.text_input("SENHA")
@@ -194,18 +184,14 @@ with tab2:
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
-            st.cache_data.clear()
             st.success("✅ CADASTRADO!")
+            time.sleep(1)
             st.rerun()
 
-# --- TAB 3: COBRANÇA (SIMPLIFICADA PARA O EXEMPLO) ---
-with tab3:
-    st.subheader("🚨 COBRANÇA")
-    st.info("Utilize para enviar mensagens automáticas.")
-
-# --- TAB 4: AJUSTES ---
+# --- TAB 4: AJUSTES (FORÇAR ATUALIZAÇÃO) ---
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    if st.button("🔄 FORÇAR ATUALIZAÇÃO COMPLETA"):
+    if st.button("🔄 ATUALIZAR TUDO (FORÇAR LEITURA DO SHEETS)"):
+        # Limpa todos os caches possíveis
         st.cache_data.clear()
         st.rerun()
