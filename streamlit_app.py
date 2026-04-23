@@ -49,16 +49,13 @@ def carregar_dados(sheet):
         cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
         df = pd.DataFrame(valores_brutos[1:], columns=cabecalho)
         
-        # Tratamento do Sistema (IPTV/P2P)
         if 'sistema' in df.columns:
             df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
             df['sistema'] = df['sistema'].apply(lambda x: "IPTV" if "IPTV" in x else "P2P")
         
-        # Conversão de Datas e Números
         df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
         df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
         df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
-        
         df = df[df['nome'].astype(str).str.strip() != ""]
         return df
     return pd.DataFrame()
@@ -91,7 +88,7 @@ if not df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES (EDIÇÃO) ---
+# --- TAB 1: CLIENTES (LISTAGEM COM USUÁRIO) ---
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
@@ -105,7 +102,7 @@ with tab1:
             en_venc = st.date_input("VENCIMENTO", value=pd.to_datetime(c_sel.get('vencimento')).date())
             en_custo = st.number_input("CUSTO", value=float(c_sel.get('custo') or 0))
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
-            en_whats = st.text_input("WHATSAPP (Ex: 11999999999)", value=c_sel.get('whatsapp'))
+            en_whats = st.text_input("WHATSAPP", value=c_sel.get('whatsapp'))
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
             en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg', 'jpeg'])
             
@@ -117,8 +114,7 @@ with tab1:
                 dados = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
                 sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados])
                 st.session_state.cliente_selecionado = None
-                st.success("✅ Atualizado!")
-                time.sleep(1); st.rerun()
+                st.success("✅ Atualizado!"); time.sleep(1); st.rerun()
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
@@ -131,11 +127,16 @@ with tab1:
 
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
+    
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        if col_btn.button(f"{str(r.get('nome')).upper()} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}", key=f"btn_{r['id']}"):
+        
+        # AQUI FOI ADICIONADO O USUÁRIO NO TEXTO DO BOTÃO
+        txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
+        
+        if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
@@ -166,21 +167,13 @@ with tab3:
     pix_cnpj = "62.326.879/0001-13"
     
     col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
-    f_vencidos = col_f1.button("❌ VENCIDOS")
-    f_hoje = col_f2.button("⏰ HOJE")
-    f_amanha = col_f3.button("📅 AMANHÃ")
-    f_2dias = col_f4.button("⏳ 2 DIAS")
-    f_3dias = col_f5.button("⏳ 3 DIAS")
-
-    # Lógica de Filtro
-    if f_vencidos: st.session_state.filtro_cob = "vencidos"
-    elif f_hoje: st.session_state.filtro_cob = "hoje"
-    elif f_amanha: st.session_state.filtro_cob = "amanha"
-    elif f_2dias: st.session_state.filtro_cob = "2dias"
-    elif f_3dias: st.session_state.filtro_cob = "3dias"
+    if col_f1.button("❌ VENCIDOS"): st.session_state.filtro_cob = "vencidos"
+    if col_f2.button("⏰ HOJE"): st.session_state.filtro_cob = "hoje"
+    if col_f3.button("📅 AMANHÃ"): st.session_state.filtro_cob = "amanha"
+    if col_f4.button("⏳ 2 DIAS"): st.session_state.filtro_cob = "2dias"
+    if col_f5.button("⏳ 3 DIAS"): st.session_state.filtro_cob = "3dias"
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
-    
     if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
     elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
     elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
@@ -188,19 +181,16 @@ with tab3:
     elif filtro_atual == "3dias": df_c = df[df['dias_res'] == 3]
 
     st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
-    
     sel_todos = st.checkbox("✅ SELECIONAR TODOS OS LISTADOS")
     
     for _, cli in df_c.iterrows():
         nome_c = str(cli.get('nome')).upper()
         whats = str(cli.get('whatsapp')).strip()
         dias = cli['dias_res']
-        
-        if st.checkbox(f"{nome_c} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
+        if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
             if dias < 0: msg = f"🚨 *{nome_c}, SUA TV VENCEU!*\n\n💠PIX CNPJ\n{pix_cnpj}"
             elif dias == 0: msg = f"⏰ *{nome_c}, VENCE HOJE!*\n\n💠PIX CNPJ\n{pix_cnpj}"
             else: msg = f"⏳ *{nome_c}, VENCE EM {dias} DIAS!*\n\n💠PIX CNPJ\n{pix_cnpj}"
-            
             st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
 # --- TAB 4: AJUSTES ---
@@ -208,15 +198,9 @@ with tab4:
     st.subheader("⚙️ AJUSTES")
     if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
         st.cache_data.clear(); st.rerun()
-    
     st.markdown("---")
     st.markdown("### 🖥️ SERVIDORES")
     novos_servs = st.text_area("LISTA (UM POR LINHA):", value="\n".join(st.session_state.lista_servidores))
     if st.button("ATUALIZAR SERVIDORES"):
         st.session_state.lista_servidores = [s.strip().upper() for s in novos_servs.split("\n") if s.strip()]
         st.success("Lista atualizada!"); st.rerun()
-
-    st.markdown("---")
-    st.markdown("### 📥 BACKUP")
-    csv = df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button("BAIXAR PLANILHA (CSV)", csv, "clientes.csv", "text/csv")
