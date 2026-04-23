@@ -49,7 +49,7 @@ def carregar_dados(sheet):
         cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
         df = pd.DataFrame(valores_brutos[1:], columns=cabecalho)
         
-        # Correção crucial para o ID
+        # Garantir que ID seja numérico para evitar TypeError no max()
         if 'id' in df.columns:
             df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
             
@@ -158,7 +158,6 @@ with tab2:
         n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
         if st.form_submit_button("🚀 CADASTRAR"):
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
-            # CORREÇÃO DO ERRO TYPEERROR:
             novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
@@ -193,6 +192,8 @@ with tab3:
         dias = cli['dias_res']
         
         if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
+            
+            # MENSAGENS OFICIAIS COM ASPAS TRIPLAS PARA EVITAR ERROS DE SINTAXE
             if dias < 0:
                 msg = f"""🚨SUA ASSINATURA DE TV VENCEU !
 
