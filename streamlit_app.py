@@ -37,7 +37,7 @@ def conectar_gs():
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
-        # Abre a aba Clientes especificamente
+        # Forçamos a abertura da aba principal
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
@@ -45,23 +45,27 @@ def conectar_gs():
 
 def carregar_dados(sheet):
     if sheet:
-        # Puxa os valores brutos para evitar problemas de nome de coluna
-        valores = sheet.get_all_values()
-        if len(valores) <= 1:
-            return pd.DataFrame(columns=["id", "nome", "usuario", "senha", "servidor", "sistema", "vencimento", "custo", "mensalidade", "whatsapp", "observacao", "logo_blob"])
-        
-        # Cria o DataFrame
-        df = pd.DataFrame(valores[1:], columns=valores[0])
-        
-        # --- LIMPEZA CRÍTICA ---
-        # Converte nomes das colunas para minúsculo para evitar erro de IPTV/iptv
-        df.columns = [c.strip().lower() for c in df.columns]
-        
-        if 'sistema' in df.columns:
-            # Remove espaços, converte pra maiúsculo e trata nulos
-            df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
-            df['sistema'] = df['sistema'].replace({'': 'P2P', 'NONE': 'P2P', 'NAN': 'P2P'})
+        # Puxa os dados brutos como lista de listas (ignora cache de nomes de colunas)
+        valores_brutos = sheet.get_all_values()
+        if not valores_brutos:
+            return pd.DataFrame()
             
+        # Define o cabeçalho e os dados
+        cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
+        corpo = valores_brutos[1:]
+        
+        df = pd.DataFrame(corpo, columns=cabecalho)
+        
+        # --- LIMPEZA FORÇADA DA COLUNA SISTEMA ---
+        if 'sistema' in df.columns:
+            df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
+            # Se estiver vazio ou der erro, assume P2P por segurança
+            df['sistema'] = df['sistema'].apply(lambda x: "IPTV" if "IPTV" in x else "P2P")
+            
+        # Converte custos e mensalidades para números
+        df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
+        df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
+        
         df = df[df['nome'].astype(str).str.strip() != ""]
         return df
     return pd.DataFrame()
@@ -81,10 +85,6 @@ df = carregar_dados(sheet)
 
 if not df.empty:
     hoje = datetime.now().date()
-    # Converte colunas numéricas que podem vir como texto do Sheets
-    df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
-    df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
-    
     df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     df_ativos = df[df['dias_res'] >= 0]
@@ -98,7 +98,7 @@ if not df.empty:
     m4.markdown(f'<div class="metric-container"><div class="metric-label">VENCIDOS</div><div class="val-vermelho">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
     m5.markdown(f'<div class="metric-container"><div class="metric-label">LUCRO ESTIMADO</div><div class="val-lucro">R$ {lucro_total:,.2f}</div></div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
+tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR CLIENTE", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
@@ -109,61 +109,53 @@ with tab1:
             en_nome = st.text_input("NOME", value=str(c_sel.get('nome')).upper())
             en_user = st.text_input("USUÁRIO", value=c_sel.get('usuario'))
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
+            en_serv = st.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c_sel.get('servidor')) if c_sel.get('servidor') in st.session_state.lista_servidores else 0)
             
-            # Servidor
-            idx_serv = st.session_state.lista_servidores.index(c_sel.get('servidor')) if c_sel.get('servidor') in st.session_state.lista_servidores else 0
-            en_serv = st.selectbox("SERVIDOR", st.session_state.lista_servidores, index=idx_serv)
-            
-            # SISTEMA (AQUI É ONDE ESTAVA O ERRO)
+            # SISTEMA COMO SELEÇÃO
             opcoes_sist = ["IPTV", "P2P"]
-            val_sist = str(c_sel.get('sistema', 'P2P')).upper().strip()
-            idx_sist = 0 if val_sist == "IPTV" else 1
-            en_sist = st.selectbox("SISTEMA", opcoes_sist, index=idx_sist)
+            sist_atual = str(c_sel.get('sistema', 'P2P')).upper()
+            en_sist = st.selectbox("SISTEMA", opcoes_sist, index=0 if "IPTV" in sist_atual else 1)
             
             en_venc = st.date_input("VENCIMENTO", value=pd.to_datetime(c_sel.get('vencimento')).date())
             en_custo = st.number_input("CUSTO", value=float(c_sel.get('custo') or 0))
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
             en_whats = st.text_input("WHATSAPP", value=c_sel.get('whatsapp'))
             en_obs = st.text_area("OBSERVAÇÃO", value=c_sel.get('observacao'))
-            en_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
+            en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg', 'jpeg'])
             
-            b_salvar, b_cancelar = st.columns(2)
-            if b_salvar.form_submit_button("💾 SALVAR"):
+            b_salvar, b_fechar = st.columns(2)
+            if b_salvar.form_submit_button("💾 SALVAR ALTERAÇÕES"):
                 l_b = base64.b64encode(en_img.read()).decode() if en_img else c_sel.get('logo_blob', '')
-                # Busca ID na coluna 1 (A)
                 ids = sheet.col_values(1)
-                try:
-                    row_idx = ids.index(str(c_sel['id'])) + 1
-                    # Ordem exata das colunas: id, nome, user, senha, servidor, sistema, venc, custo, mensal, whats, obs, logo
-                    dados = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
-                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados])
-                    st.session_state.cliente_selecionado = None
-                    st.success("ATUALIZADO!")
-                    time.sleep(1)
-                    st.rerun()
-                except:
-                    st.error("Erro ao localizar ID.")
-
-            if b_cancelar.form_submit_button("✖️ CANCELAR"):
+                row_idx = ids.index(str(c_sel['id'])) + 1
+                
+                dados_atualizados = [c_sel['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
+                sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados_atualizados])
+                
+                st.session_state.cliente_selecionado = None
+                st.success("Alterado com sucesso no Sheets!")
+                time.sleep(1)
+                st.rerun()
+            
+            if b_fechar.form_submit_button("✖️ FECHAR"):
                 st.session_state.cliente_selecionado = None
                 st.rerun()
 
     busca = st.text_input("🔎 PESQUISAR...")
-    df_f = df[df['nome'].str.contains(busca, case=False, na=False)] if busca else df
+    df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        # --- INFO DO SISTEMA NO BOTÃO ---
-        s_display = str(r.get('sistema', 'P2P')).upper()
-        if col_btn.button(f"{str(r.get('nome')).upper()} | 📅 {format_data_br(r.get('vencimento'))} | 💻 {s_display}", key=f"btn_{r['id']}"):
+        label_btn = f"{str(r.get('nome')).upper()} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
+        if col_btn.button(label_btn, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
-# --- ABA DE AJUSTES ---
+# --- ABA AJUSTES ---
 with tab4:
-    if st.button("🔄 LIMPAR TUDO E SINCRONIZAR AGORA"):
+    if st.button("🔄 FORÇAR ATUALIZAÇÃO (LIMPAR CACHE)"):
         st.cache_data.clear()
         st.rerun()
