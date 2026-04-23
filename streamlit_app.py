@@ -64,10 +64,8 @@ if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
 def format_data_br(data_str):
-    try: 
-        return pd.to_datetime(data_str).strftime('%d/%m/%Y')
-    except: 
-        return data_str
+    try: return pd.to_datetime(data_str).strftime('%d/%m/%Y')
+    except: return data_str
 
 # --- 4. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
@@ -134,7 +132,6 @@ with tab1:
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         col_img, col_btn = st.columns([1, 10])
         col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        
         txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
         if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
@@ -161,7 +158,7 @@ with tab2:
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# --- TAB 3: COBRANÇA ---
+# --- TAB 3: COBRANÇA (MENSAGENS OFICIAIS) ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
@@ -189,49 +186,41 @@ with tab3:
         nome_c = str(cli.get('nome')).upper()
         whats = str(cli.get('whatsapp')).strip()
         dias = cli['dias_res']
-        if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
-            if dias < 0: msg = f"🚨 *{nome_c}, SUA TV VENCEU!*\n\n💠PIX CNPJ\n{pix_cnpj}"
-            elif dias == 0: msg = f"⏰ *{nome_c}, VENCE HOJE!*\n\n💠PIX CNPJ\n{pix_cnpj}"
-            else: msg = f"⏳ *{nome_c}, VENCE EM {dias} DIAS!*\n\n💠PIX CNPJ\n{pix_cnpj}"
+        
+        if st.checkbox(f"{nome_c} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
+            # LÓGICA DAS MENSAGENS ENVIADAS PELO USUÁRIO
+            if dias < 0:
+                msg = f"🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            elif dias == 0:
+                msg = f"⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            elif dias == 1:
+                msg = f"⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            elif dias == 2:
+                msg = f"⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            elif dias == 3:
+                msg = f"⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            
             st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES (RESTAURADA) ---
+# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
-    
     col_aj1, col_aj2 = st.columns(2)
-    
     with col_aj1:
         st.markdown("### 🔄 DADOS")
         if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
             st.cache_data.clear()
-            st.success("Cache limpo! Sincronizando...")
-            time.sleep(1)
             st.rerun()
-            
         st.markdown("---")
         st.markdown("### 📥 BACKUP")
         if not df.empty:
             csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="📥 BAIXAR PLANILHA DE CLIENTES (CSV)",
-                data=csv_data,
-                file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv",
-                mime="text/csv"
-            )
-            
+            st.download_button(label="📥 BAIXAR PLANILHA (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
     with col_aj2:
-        st.markdown("### 🖥️ GERENCIAR SERVIDORES")
+        st.markdown("### 🖥️ SERVIDORES")
         servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA DE SERVIDORES (UM POR LINHA):", value=servs_formatados, height=200)
-        
-        if st.button("💾 ATUALIZAR LISTA DE SERVIDORES"):
-            if novos_servidores:
-                lista_limpa = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-                st.session_state.lista_servidores = lista_limpa
-                st.success("Lista de servidores atualizada!")
-                time.sleep(1)
-                st.rerun()
-
-    st.markdown("---")
-    st.info("Versão GESTÃO PRO - SUPERTv4k v2.0 - Final")
+        novos_servidores = st.text_area("LISTA (UM POR LINHA):", value=servs_formatados, height=200)
+        if st.button("💾 ATUALIZAR LISTA"):
+            st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+            st.rerun()
+ 
