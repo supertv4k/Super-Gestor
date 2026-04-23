@@ -45,14 +45,10 @@ def conectar_gs():
 def carregar_dados(sheet):
     if sheet:
         valores_brutos = sheet.get_all_values()
-        if not valores_brutos or len(valores_brutos) < 2: return pd.DataFrame()
+        if not valores_brutos: return pd.DataFrame()
         cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
         df = pd.DataFrame(valores_brutos[1:], columns=cabecalho)
         
-        # Conversão forçada de ID para numérico para evitar o erro do máx
-        if 'id' in df.columns:
-            df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
-            
         if 'sistema' in df.columns:
             df['sistema'] = df['sistema'].astype(str).str.strip().str.upper()
             df['sistema'] = df['sistema'].apply(lambda x: "IPTV" if "IPTV" in x else "P2P")
@@ -130,19 +126,18 @@ with tab1:
                 st.rerun()
 
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
-    df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if not df.empty and busca else df
+    df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
-    if not df.empty:
-        for _, r in df_f.sort_values(by='dias_res').iterrows():
-            img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-            col_img, col_btn = st.columns([1, 10])
-            col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-            txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
-            if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
-                st.session_state.cliente_selecionado = r.to_dict()
-                st.rerun()
+    for _, r in df_f.sort_values(by='dias_res').iterrows():
+        img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+        col_img, col_btn = st.columns([1, 10])
+        col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
+        txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
+        if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
+            st.session_state.cliente_selecionado = r.to_dict()
+            st.rerun()
 
-# --- TAB 2: ADICIONAR (CORREÇÃO DO ERRO DE ID) ---
+# --- TAB 2: ADICIONAR ---
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
@@ -157,23 +152,13 @@ with tab2:
         n_whats = st.text_input("WHATSAPP")
         n_obs = st.text_area("OBSERVAÇÃO")
         n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
-        
         if st.form_submit_button("🚀 CADASTRAR"):
             l_b = base64.b64encode(n_img.read()).decode() if n_img else ""
-            
-            # Correção Robusta do ID
-            try:
-                if df.empty or 'id' not in df.columns:
-                    novo_id = 1
-                else:
-                    novo_id = int(df['id'].max()) + 1
-            except:
-                novo_id = 1
-                
+            novo_id = int(df['id'].max() + 1) if not df.empty else 1
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# --- TAB 3: COBRANÇA ---
+# --- TAB 3: COBRANÇA (MENSAGENS CORRIGIDAS) ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
@@ -187,26 +172,94 @@ with tab3:
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
     
-    if df.empty:
-        st.info("Nenhum cliente cadastrado.")
-    else:
-        if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
-        elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
-        elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
-        elif filtro_atual == "2dias": df_c = df[df['dias_res'] == 2]
-        elif filtro_atual == "3dias": df_c = df[df['dias_res'] == 3]
-        else: df_c = df[df['dias_res'] < 0]
+    if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
+    elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
+    elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
+    elif filtro_atual == "2dias": df_c = df[df['dias_res'] == 2]
+    elif filtro_atual == "3dias": df_c = df[df['dias_res'] == 3]
+    else: df_c = df[df['dias_res'] < 0]
 
-        st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
-        sel_todos = st.checkbox("✅ SELECIONAR TODOS OS LISTADOS")
+    st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
+    sel_todos = st.checkbox("✅ SELECIONAR TODOS OS LISTADOS")
+    
+    for _, cli in df_c.iterrows():
+        nome_c = str(cli.get('nome')).upper()
+        whats = str(cli.get('whatsapp')).strip()
+        dias = cli['dias_res']
         
-        for _, cli in df_c.iterrows():
-            nome_c = str(cli.get('nome')).upper()
-            whats = str(cli.get('whatsapp')).strip()
-            dias = cli['dias_res']
+        if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
             
-            if st.checkbox(f"{nome_c} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
-                if dias < 0:
-                    msg = f"🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-                elif dias == 0:
-                    msg = f"⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰
+            # USO DE ASPAS TRIPLAS PARA EVITAR O SYNTAX ERROR EM TEXTO MULTILINHA
+            if dias < 0:
+                msg = f"""🚨SUA ASSINATURA DE TV VENCEU !
+
+NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
+
+💠PIX CNPJ
+{pix_cnpj}
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
+
+            elif dias == 0:
+                msg = f"""⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
+
+NÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+{pix_cnpj}
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
+
+            elif dias == 1:
+                msg = f"""⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
+
+NÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+{pix_cnpj}
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
+
+            elif dias == 2:
+                msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
+
+FAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+{pix_cnpj}
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
+
+            elif dias == 3:
+                msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
+
+FAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+{pix_cnpj}
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
+            
+            st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
+
+# --- TAB 4: AJUSTES ---
+with tab4:
+    st.subheader("⚙️ AJUSTES DO SISTEMA")
+    col_aj1, col_aj2 = st.columns(2)
+    with col_aj1:
+        st.markdown("### 🔄 DADOS")
+        if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
+            st.cache_data.clear()
+            st.rerun()
+        st.markdown("---")
+        st.markdown("### 📥 BACKUP")
+        if not df.empty:
+            csv_data = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(label="📥 BAIXAR PLANILHA (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
+    with col_aj2:
+        st.markdown("### 🖥️ SERVIDORES")
+        servs_formatados = "\n".join(st.session_state.lista_servidores)
+        novos_servidores = st.text_area("LISTA (UM POR LINHA):", value=servs_formatados, height=200)
+        if st.button("💾 ATUALIZAR LISTA"):
+            st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+            st.rerun()
