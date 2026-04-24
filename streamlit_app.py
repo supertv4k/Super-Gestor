@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (RIGIDEZ TOTAL NO ALINHAMENTO) ---
+# --- 2. CSS AVANÇADO (INJEÇÃO DE LOGO DENTRO DO BOTÃO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,47 +18,38 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* TABELA PARA TRAVAR LOGO E BOTÃO LADO A LADO */
-    .tabela-cliente {
+    /* ESTILIZAÇÃO DO BOTÃO "HÍBRIDO" */
+    div.stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        color: white !important;
+        border-radius: 15px !important;
+        padding: 10px 15px 10px 75px !important; /* Espaço de 75px na esquerda para a logo */
         width: 100% !important;
-        border-collapse: collapse !important;
-        margin-bottom: 10px !important;
-    }
-    .td-logo {
-        width: 60px !important;
-        padding: 0px !important;
-        vertical-align: middle !important;
-    }
-    .td-botao {
-        padding-left: 10px !important;
-        vertical-align: middle !important;
-    }
-
-    .img-servidor { 
-        width: 55px !important; 
-        height: 55px !important; 
-        border-radius: 10px; 
-        object-fit: cover; 
-        border: 1px solid #444;
-        display: block;
-    }
-
-    /* BOTÃO DO CLIENTE */
-    div.stButton > button { 
-        text-align: left !important; 
-        background-color: #161b22 !important; 
-        border: 1px solid #30363d !important; 
-        color: white !important; 
-        border-radius: 12px !important; 
-        padding: 12px 10px !important; 
-        width: 100% !important;
+        height: 70px !important;
+        position: relative !important; /* Necessário para posicionar a imagem dentro */
         font-size: 11px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        text-align: left !important;
     }
 
-    /* MÉTRICAS */
+    /* CSS PARA A LOGO DENTRO DO BOTÃO */
+    .logo-overlay {
+        position: absolute !important;
+        left: 10px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 50px !important;
+        height: 50px !important;
+        border-radius: 10px !important;
+        object-fit: cover !important;
+        border: 1px solid #444 !important;
+        z-index: 99 !important;
+        pointer-events: none !important; /* Deixa o clique passar para o botão */
+    }
+
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
@@ -70,7 +61,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO E FUNÇÕES ---
+# --- 3. CONEXÃO E DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -78,7 +69,7 @@ def conectar_gs():
         client = gspread.authorize(creds)
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
-        st.error(f"Erro de conexão: {e}")
+        st.error(f"Erro: {e}")
         return None
 
 def carregar_dados(sheet):
@@ -152,7 +143,7 @@ with tab1:
                 dados = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
                 sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados])
                 st.session_state.cliente_selecionado = None
-                st.success("✅ Atualizado!"); time.sleep(1); st.rerun()
+                st.success("✅ Salvo!"); time.sleep(1); st.rerun()
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
@@ -166,30 +157,21 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
-    # --- LISTAGEM USANDO TABELA HTML (BLINDADA) ---
+    # --- NOVA LISTAGEM (SOLUÇÃO DEFINITIVA) ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        sistema_txt = str(r.get('sistema')).upper() if r.get('sistema') else "S/S"
-        # Texto do botão incluindo SISTEMA
-        txt_botao = f"{sistema_txt} | {str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
+        sist = str(r.get('sistema')).upper() if r.get('sistema') else "P2P"
         
-        # Abrimos a tabela e a célula da logo
-        st.markdown(f"""
-            <table class="tabela-cliente">
-                <tr>
-                    <td class="td-logo">
-                        <img src="{img_tag}" class="img-servidor">
-                    </td>
-                    <td class="td-botao">
-        """, unsafe_allow_html=True)
+        # O texto agora inclui o Sistema
+        txt_display = f"{sist} | {str(r.get('nome'))[:12].upper()}\n🔑 {r.get('usuario')[:10]}\n📅 {format_data_br(r.get('vencimento'))}"
         
-        # O botão do Streamlit fica dentro da segunda célula da tabela
-        if st.button(txt_botao, key=f"btn_{r['id']}"):
+        # 1. Injetamos a imagem via HTML "flutuando"
+        st.markdown(f'<img src="{img_tag}" class="logo-overlay">', unsafe_allow_html=True)
+        
+        # 2. Criamos o botão que já está estilizado no CSS para dar o espaço da imagem
+        if st.button(txt_display, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
-            
-        # Fechamos as tags da tabela
-        st.markdown("</td></tr></table>", unsafe_allow_html=True)
 
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
@@ -212,14 +194,14 @@ with tab2:
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
 with tab3:
-    st.subheader("🚨 CENTRAL DE COBRANÇA")
+    st.subheader("🚨 COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
     col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
-    if col_f1.button("❌ VENCIDOS"): st.session_state.filtro_cob = "vencidos"
+    if col_f1.button("❌ VENC"): st.session_state.filtro_cob = "vencidos"
     if col_f2.button("⏰ HOJE"): st.session_state.filtro_cob = "hoje"
-    if col_f3.button("📅 AMANHÃ"): st.session_state.filtro_cob = "amanha"
-    if col_f4.button("⏳ 2 DIAS"): st.session_state.filtro_cob = "2dias"
-    if col_f5.button("⏳ 3 DIAS"): st.session_state.filtro_cob = "3dias"
+    if col_f3.button("📅 AMN"): st.session_state.filtro_cob = "amanha"
+    if col_f4.button("⏳ 2D"): st.session_state.filtro_cob = "2dias"
+    if col_f5.button("⏳ 3D"): st.session_state.filtro_cob = "3dias"
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
     if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
@@ -229,32 +211,25 @@ with tab3:
     elif filtro_atual == "3dias": df_c = df[df['dias_res'] == 3]
     else: df_c = df[df['dias_res'] < 0]
 
-    st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
-    sel_todos = st.checkbox("✅ SELECIONAR TODOS")
+    st.markdown(f"**{filtro_atual.upper()} ({len(df_c)})**")
+    sel_todos = st.checkbox("SELECIONAR TODOS")
     
     for _, cli in df_c.iterrows():
         nome_c = str(cli.get('nome')).upper()
         whats = str(cli.get('whatsapp')).strip()
         dias = cli['dias_res']
-        if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
-            if dias < 0: msg = f"🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            elif dias == 0: msg = f"⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            else: msg = f"⚠️SUA ASSINATURA DE TV VENCE EM {dias} DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            st.link_button(f"📲 ENVIAR PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
+        if st.checkbox(f"{nome_c} | {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
+            if dias < 0: msg = f"🚨SUA ASSINATURA VENCEU!\n\n💠PIX CNPJ\n{pix_cnpj}"
+            elif dias == 0: msg = f"⚠️VENCE HOJE!\n\n💠PIX CNPJ\n{pix_cnpj}"
+            else: msg = f"⚠️VENCE EM {dias} DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}"
+            st.link_button(f"📲 ENVIAR", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
 with tab4:
     st.subheader("⚙️ AJUSTES")
-    col_aj1, col_aj2 = st.columns(2)
-    with col_aj1:
-        if st.button("🔄 FORÇAR SINCRONIZAÇÃO"):
-            st.cache_data.clear()
-            st.rerun()
-        if not df.empty:
-            csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📥 BAIXAR BACKUP", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
-    with col_aj2:
-        servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA SERVIDORES:", value=servs_formatados, height=200)
-        if st.button("💾 ATUALIZAR LISTA"):
-            st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
-            st.rerun()
+    if st.button("🔄 SINCRONIZAR"):
+        st.cache_data.clear()
+        st.rerun()
+    novos_servidores = st.text_area("SERVIDORES:", value="\n".join(st.session_state.lista_servidores))
+    if st.button("💾 ATUALIZAR"):
+        st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
+        st.rerun()
