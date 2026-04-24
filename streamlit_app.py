@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (BLINDAGEM CONTRA SOBREPOSIÇÃO) ---
+# --- 2. ESTILIZAÇÃO CSS (RIGIDEZ TOTAL NO ALINHAMENTO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,22 +18,20 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* CONTAINER MANUAL PARA LOGO + BOTÃO (IMPEDE SOBREPOSIÇÃO) */
-    .item-cliente-container {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
+    /* TABELA PARA TRAVAR LOGO E BOTÃO LADO A LADO */
+    .tabela-cliente {
         width: 100% !important;
-        margin-bottom: 12px !important;
-        gap: 0px !important;
+        border-collapse: collapse !important;
+        margin-bottom: 10px !important;
     }
-
-    /* Trava o espaço da logo */
-    .box-logo {
+    .td-logo {
         width: 60px !important;
-        min-width: 60px !important;
-        flex-shrink: 0 !important;
+        padding: 0px !important;
+        vertical-align: middle !important;
+    }
+    .td-botao {
+        padding-left: 10px !important;
+        vertical-align: middle !important;
     }
 
     .img-servidor { 
@@ -42,14 +40,10 @@ st.markdown("""
         border-radius: 10px; 
         object-fit: cover; 
         border: 1px solid #444;
+        display: block;
     }
 
-    /* Trava o espaço do botão e dá margem da logo */
-    .box-botao {
-        flex-grow: 1 !important;
-        margin-left: 10px !important;
-    }
-
+    /* BOTÃO DO CLIENTE */
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
@@ -64,6 +58,7 @@ st.markdown("""
         text-overflow: ellipsis !important;
     }
 
+    /* MÉTRICAS */
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
@@ -132,6 +127,7 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
+    # --- EDIÇÃO ---
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
         st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
@@ -170,28 +166,31 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
-    # --- LISTAGEM USANDO ESTRUTURA FLEXBOX MANUAL (IMPECCÁVEL NO MOBILE) ---
+    # --- LISTAGEM USANDO TABELA HTML (BLINDADA) ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        sistema_txt = str(r.get('sistema')).upper()
+        sistema_txt = str(r.get('sistema')).upper() if r.get('sistema') else "S/S"
+        # Texto do botão incluindo SISTEMA
         txt_botao = f"{sistema_txt} | {str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
         
-        # Criamos o container que separa a logo do botão sem deixar um sobrepor o outro
+        # Abrimos a tabela e a célula da logo
         st.markdown(f"""
-            <div class="item-cliente-container">
-                <div class="box-logo">
-                    <img src="{img_tag}" class="img-servidor">
-                </div>
-                <div class="box-botao">
+            <table class="tabela-cliente">
+                <tr>
+                    <td class="td-logo">
+                        <img src="{img_tag}" class="img-servidor">
+                    </td>
+                    <td class="td-botao">
         """, unsafe_allow_html=True)
         
+        # O botão do Streamlit fica dentro da segunda célula da tabela
         if st.button(txt_botao, key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
             
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        # Fechamos as tags da tabela
+        st.markdown("</td></tr></table>", unsafe_allow_html=True)
 
-# As abas Adicionar, Cobrança e Ajustes continuam funcionando perfeitamente
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
