@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (CORREÇÃO DEFINITIVA DE POSICIONAMENTO) ---
+# --- 2. ESTILIZAÇÃO CSS (CORREÇÃO DE ESPAÇAMENTO VAZIO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,26 +18,29 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* Container que impede a sobreposição */
+    /* FORÇA O ALINHAMENTO COLADO */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
         align-items: center !important;
-        justify-content: flex-start !important;
-        gap: 12px !important; /* Espaço real entre logo e botão */
-    }
-
-    /* Força a coluna da imagem a ter um tamanho fixo e não ser esmagada */
-    [data-testid="column"]:nth-of-type(1) {
-        flex: 0 0 55px !important;
-        min-width: 55px !important;
-    }
-
-    /* Força a coluna do botão a ocupar o resto do espaço */
-    [data-testid="column"]:nth-of-type(2) {
-        flex: 1 1 auto !important;
+        justify-content: flex-start !important; /* Tudo para a esquerda */
+        gap: 0px !important; /* Remove o buraco entre colunas */
         width: 100% !important;
+    }
+
+    /* Coluna 1 (Imagem): Largura fixa e pequena */
+    [data-testid="column"]:nth-of-type(1) {
+        flex: 0 0 60px !important;
+        width: 60px !important;
+        min-width: 60px !important;
+        padding: 0px !important;
+    }
+
+    /* Coluna 2 (Botão): Largura flexível mas sem empurrar para o fim */
+    [data-testid="column"]:nth-of-type(2) {
+        flex: 0 1 auto !important;
+        padding: 0px !important;
+        margin-left: 10px !important; /* Único espaço entre logo e botão */
     }
 
     .img-servidor { 
@@ -49,16 +52,16 @@ st.markdown("""
         display: block !important;
     }
 
-    /* Botão do Cliente ajustado para caber o sistema */
+    /* Botão do Cliente - Tamanho fixo para não ocupar a tela toda */
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
         border: 1px solid #30363d !important; 
         color: white !important; 
         border-radius: 12px !important; 
-        padding: 12px 8px !important; 
-        width: 100% !important;
-        font-size: 11px !important; /* Diminuído levemente para caber mais info */
+        padding: 12px 10px !important; 
+        width: 290px !important; /* Trava o tamanho do botão */
+        font-size: 11px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -75,7 +78,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO E FUNÇÕES ---
+# --- 3. FUNÇÕES DE DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -132,7 +135,6 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
-    # --- EDIÇÃO ---
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
         st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
@@ -171,25 +173,22 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
-    # --- LISTAGEM CORRIGIDA ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         
-        # Colunas com tamanhos proporcionais para evitar sobreposição
-        col_img, col_btn = st.columns([0.2, 0.8])
+        # Uso de colunas com proporção mínima para "puxar" o botão
+        c_img, c_btn = st.columns([0.1, 0.9])
         
-        with col_img:
+        with c_img:
             st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        with col_btn:
-            # Reintroduzindo o sistema (P2P/IPTV) no botão
+        with c_btn:
             sistema_txt = str(r.get('sistema')).upper()
             txt_botao = f"{sistema_txt} | {str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
             if st.button(txt_botao, key=f"btn_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
-# As outras abas (Adicionar, Cobrança, Ajustes) seguem a mesma lógica anterior sem alterações
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
