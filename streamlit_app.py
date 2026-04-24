@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (CORREÇÃO DE SOBREPOSIÇÃO E ESPAÇAMENTO) ---
+# --- 2. ESTILIZAÇÃO CSS (ESTRUTURA FIXA) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,35 +18,26 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* ALINHAMENTO LADO A LADO SEM SOBREPOR */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        gap: 0px !important;
-        width: 100% !important;
-        margin-bottom: 12px !important;
+    /* Container para alinhar Logo e Botão sem erro */
+    .row-cliente {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        width: 100%;
+        margin-bottom: 10px;
     }
 
-    [data-testid="column"] {
-        width: auto !important;
-        flex: none !important;
-        padding: 0px !important;
-    }
-
-    /* LOGO DO SERVIDOR COM MARGEM FIXA SEGURA */
     .img-servidor { 
         width: 50px !important; 
         height: 50px !important; 
         border-radius: 8px; 
         object-fit: cover; 
         border: 1px solid #444;
-        display: block !important;
-        margin-right: 12px !important; /* Espaço que impede o botão de tampar a logo */
+        margin-right: 15px !important; /* Espaço obrigatório */
+        flex-shrink: 0; /* Impede a imagem de amassar */
     }
 
-    /* BOTÃO DO CLIENTE AJUSTADO */
+    /* Botão do Cliente - Ajuste de largura para não estourar */
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
@@ -54,14 +45,13 @@ st.markdown("""
         color: white !important; 
         border-radius: 12px !important; 
         padding: 12px 10px !important; 
-        width: 285px !important; /* Tamanho ideal para o celular */
-        font-size: 13px !important;
+        width: 100% !important;
+        font-size: 12px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
 
-    /* MÉTRICAS E PAINÉIS */
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
@@ -129,7 +119,6 @@ if not df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES ---
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
@@ -172,19 +161,19 @@ with tab1:
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         
-        # Colunas com largura automática e sem buracos
-        c_logo, c_btn = st.columns([1, 4])
+        # --- A MUDANÇA REAL ESTÁ AQUI ---
+        # Criamos duas colunas fixas: uma para a imagem e outra para o botão
+        c1, c2 = st.columns([0.15, 0.85]) 
         
-        with c_logo:
+        with c1:
             st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        with c_btn:
-            txt_botao = f"{str(r.get('nome'))[:12].upper()} | 🔑 {r.get('usuario')[:10]} | 📅 {format_data_br(r.get('vencimento'))}"
+        with c2:
+            txt_botao = f"{str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
             if st.button(txt_botao, key=f"btn_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
-# --- AS DEMAIS TABS CONTINUAM IGUAIS ---
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
