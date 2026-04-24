@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (CORRIGIDA PARA CELULAR) ---
+# --- 2. ESTILIZAÇÃO CSS (FOCO EM ELIMINAR ESPAÇOS VAZIOS) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,12 +18,18 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* MANTÉM LADO A LADO NO CELULAR */
+    /* REMOVE O ESPAÇO ENTRE LOGO E BOTÃO */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 0px !important;
+    }
+
+    [data-testid="column"] {
+        width: auto !important;
+        flex: none !important;
+        padding: 0px !important;
     }
 
     .img-servidor { 
@@ -32,9 +38,10 @@ st.markdown("""
         border-radius: 8px; 
         object-fit: cover; 
         border: 1px solid #444;
-        margin-right: -15px; /* Aproxima a logo do botão */
+        margin-right: 10px !important;
     }
 
+    /* Ajuste do botão para ocupar o máximo de largura no celular sem criar buracos */
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
@@ -42,7 +49,7 @@ st.markdown("""
         color: white !important; 
         border-radius: 12px !important; 
         padding: 12px !important; 
-        width: 100%;
+        min-width: 260px !important;
         font-size: 13px !important;
     }
 
@@ -113,7 +120,6 @@ if not df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES ---
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
@@ -156,19 +162,18 @@ with tab1:
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         
-        # AQUI ESTÁ A MUDANÇA: Colunas que não quebram no celular
-        col_img, col_btn = st.columns([1, 6])
+        # Colunas com largura automática para ficarem juntas
+        c_logo, c_btn = st.columns([1, 4])
         
-        with col_img:
+        with c_logo:
             st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
         
-        with col_btn:
-            txt_botao = f"{str(r.get('nome'))[:12].upper()} | 🔑 {r.get('usuario')} | 📅 {format_data_br(r.get('vencimento'))}"
+        with c_btn:
+            txt_botao = f"{str(r.get('nome'))[:12].upper()} | 🔑 {r.get('usuario')[:10]} | 📅 {format_data_br(r.get('vencimento'))}"
             if st.button(txt_botao, key=f"btn_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
-# --- TAB 2: ADICIONAR ---
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
@@ -189,7 +194,6 @@ with tab2:
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# --- TAB 3: COBRANÇA ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
@@ -209,7 +213,7 @@ with tab3:
     else: df_c = df[df['dias_res'] < 0]
 
     st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
-    sel_todos = st.checkbox("✅ SELECIONAR TODOS OS LISTADOS")
+    sel_todos = st.checkbox("✅ SELECIONAR TODOS")
     
     for _, cli in df_c.iterrows():
         nome_c = str(cli.get('nome')).upper()
@@ -219,22 +223,21 @@ with tab3:
             if dias < 0: msg = f"🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
             elif dias == 0: msg = f"⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
             else: msg = f"⚠️SUA ASSINATURA DE TV VENCE EM {dias} DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-            st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
+            st.link_button(f"📲 ENVIAR PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
-# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
     col_aj1, col_aj2 = st.columns(2)
     with col_aj1:
-        if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
+        if st.button("🔄 FORÇAR SINCRONIZAÇÃO"):
             st.cache_data.clear()
             st.rerun()
         if not df.empty:
             csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📥 BAIXAR PLANILHA (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
+            st.download_button(label="📥 BAIXAR BACKUP", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
     with col_aj2:
         servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA (UM POR LINHA):", value=servs_formatados, height=200)
+        novos_servidores = st.text_area("LISTA SERVIDORES:", value=servs_formatados, height=200)
         if st.button("💾 ATUALIZAR LISTA"):
             st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
             st.rerun()
