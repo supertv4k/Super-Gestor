@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (CORREÇÃO DE ESPAÇAMENTO VAZIO) ---
+# --- 2. ESTILIZAÇÃO CSS (BLINDAGEM CONTRA SOBREPOSIÇÃO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,29 +18,22 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* FORÇA O ALINHAMENTO COLADO */
-    [data-testid="stHorizontalBlock"] {
+    /* CONTAINER MANUAL PARA LOGO + BOTÃO (IMPEDE SOBREPOSIÇÃO) */
+    .item-cliente-container {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        justify-content: flex-start !important; /* Tudo para a esquerda */
-        gap: 0px !important; /* Remove o buraco entre colunas */
+        justify-content: flex-start !important;
         width: 100% !important;
+        margin-bottom: 12px !important;
+        gap: 0px !important;
     }
 
-    /* Coluna 1 (Imagem): Largura fixa e pequena */
-    [data-testid="column"]:nth-of-type(1) {
-        flex: 0 0 60px !important;
+    /* Trava o espaço da logo */
+    .box-logo {
         width: 60px !important;
         min-width: 60px !important;
-        padding: 0px !important;
-    }
-
-    /* Coluna 2 (Botão): Largura flexível mas sem empurrar para o fim */
-    [data-testid="column"]:nth-of-type(2) {
-        flex: 0 1 auto !important;
-        padding: 0px !important;
-        margin-left: 10px !important; /* Único espaço entre logo e botão */
+        flex-shrink: 0 !important;
     }
 
     .img-servidor { 
@@ -49,10 +42,14 @@ st.markdown("""
         border-radius: 10px; 
         object-fit: cover; 
         border: 1px solid #444;
-        display: block !important;
     }
 
-    /* Botão do Cliente - Tamanho fixo para não ocupar a tela toda */
+    /* Trava o espaço do botão e dá margem da logo */
+    .box-botao {
+        flex-grow: 1 !important;
+        margin-left: 10px !important;
+    }
+
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
@@ -60,7 +57,7 @@ st.markdown("""
         color: white !important; 
         border-radius: 12px !important; 
         padding: 12px 10px !important; 
-        width: 290px !important; /* Trava o tamanho do botão */
+        width: 100% !important;
         font-size: 11px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -78,7 +75,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS ---
+# --- 3. CONEXÃO E FUNÇÕES ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -173,22 +170,28 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
+    # --- LISTAGEM USANDO ESTRUTURA FLEXBOX MANUAL (IMPECCÁVEL NO MOBILE) ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+        sistema_txt = str(r.get('sistema')).upper()
+        txt_botao = f"{sistema_txt} | {str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
         
-        # Uso de colunas com proporção mínima para "puxar" o botão
-        c_img, c_btn = st.columns([0.1, 0.9])
+        # Criamos o container que separa a logo do botão sem deixar um sobrepor o outro
+        st.markdown(f"""
+            <div class="item-cliente-container">
+                <div class="box-logo">
+                    <img src="{img_tag}" class="img-servidor">
+                </div>
+                <div class="box-botao">
+        """, unsafe_allow_html=True)
         
-        with c_img:
-            st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        
-        with c_btn:
-            sistema_txt = str(r.get('sistema')).upper()
-            txt_botao = f"{sistema_txt} | {str(r.get('nome'))[:10].upper()} | 🔑 {r.get('usuario')[:8]} | 📅 {format_data_br(r.get('vencimento'))}"
-            if st.button(txt_botao, key=f"btn_{r['id']}"):
-                st.session_state.cliente_selecionado = r.to_dict()
-                st.rerun()
+        if st.button(txt_botao, key=f"btn_{r['id']}"):
+            st.session_state.cliente_selecionado = r.to_dict()
+            st.rerun()
+            
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
+# As abas Adicionar, Cobrança e Ajustes continuam funcionando perfeitamente
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
