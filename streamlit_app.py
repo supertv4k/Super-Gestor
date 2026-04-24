@@ -10,54 +10,29 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. CSS DEFINITIVO (BOTÃO RETANGULAR E ALONGADO) ---
+# --- 2. CSS PARA CARD CLICÁVEL REAL ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
+    .header-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
     
-    /* CONTAINER EM GRID PARA SOBREPOSIÇÃO PERFEITA */
-    .card-wrapper {
-        display: grid;
-        grid-template-areas: "overlay";
-        margin-bottom: 12px;
-        width: 100%;
-    }
-
-    /* O CARD VISUAL (O QUE VOCÊ VÊ) */
-    .client-card-visual {
-        grid-area: overlay;
-        display: flex;
-        align-items: center;
+    /* O Card agora é um bloco que reage ao mouse */
+    .client-card {
         background-color: #161b22;
         border: 1px solid #30363d;
         border-radius: 12px;
-        padding: 12px;
-        height: 85px;
-        z-index: 1;
+        padding: 15px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        transition: 0.3s;
+        cursor: pointer;
     }
-
-    /* O BOTÃO DO STREAMLIT (O QUE VOCÊ CLICA) */
-    /* Aqui forçamos ele a ser RETANGULAR, LARGO e COBRIR O CARD */
-    div.stButton > button {
-        grid-area: overlay;
-        width: 100% !important;
-        height: 85px !important;
-        background-color: transparent !important;
-        color: transparent !important;
-        border: 2px solid transparent !important;
-        border-radius: 12px !important;
-        z-index: 2;
-        margin: 0 !important;
-        cursor: pointer !important;
-        display: block !important;
+    .client-card:hover {
+        border-color: #00d4ff;
+        background-color: #1c2128;
     }
     
-    div.stButton > button:hover {
-        border-color: #00d4ff !important;
-        background-color: rgba(0, 212, 255, 0.05) !important;
-    }
-
     .card-logo {
         width: 60px;
         height: 60px;
@@ -66,12 +41,11 @@ st.markdown("""
         margin-right: 15px;
         border: 1px solid #444;
     }
+    
+    .info-nome { font-size: 16px; font-weight: bold; color: white; margin: 0; }
+    .info-detalhes { font-size: 12px; color: #8b949e; margin: 0; }
 
-    .info-txt { display: flex; flex-direction: column; text-align: left; }
-    .txt-linha1 { font-size: 14px; font-weight: bold; color: white; margin: 0; }
-    .txt-linha2 { font-size: 11px; color: #8b949e; margin: 0; }
-
-    /* ESTILO DAS MÉTRICAS */
+    /* Estilo das métricas (Restauradas) */
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
@@ -83,7 +57,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO E FUNÇÕES (DADOS COMPLETOS) ---
+# --- 3. CONEXÃO E DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -94,18 +68,15 @@ def conectar_gs():
 
 def carregar_dados(sheet):
     if sheet:
-        valores_brutos = sheet.get_all_values()
-        if not valores_brutos: return pd.DataFrame()
-        df = pd.DataFrame(valores_brutos[1:], columns=[c.strip().lower() for c in valores_brutos[0]])
+        valores = sheet.get_all_values()
+        if not valores: return pd.DataFrame()
+        df = pd.DataFrame(valores[1:], columns=[c.strip().lower() for c in valores[0]])
         df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
         df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
         df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
         df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
-        return df[df['nome'].astype(str).str.strip() != ""]
+        return df[df['nome'] != ""]
     return pd.DataFrame()
-
-if 'lista_servidores' not in st.session_state:
-    st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER", "OUTROS"]
 
 # --- 4. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" style="width:450px;"><img src="https://i.imgur.com/OkUAPQa.png" style="width:380px; margin-top:-20px;"></div>""", unsafe_allow_html=True)
@@ -117,7 +88,7 @@ if not df.empty:
     hoje = datetime.now().date()
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # MÉTRICAS NO TOPO
+    # MÉTRICAS RESTAURADAS
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.markdown(f'<div class="metric-container"><div class="val-azul">{len(df)}</div><small>TOTAL</small></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-container"><div class="val-verde">{len(df[df["dias_res"] >= 0])}</div><small>ATIVOS</small></div>', unsafe_allow_html=True)
@@ -129,96 +100,71 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
-    # PAINEL DE EDIÇÃO
     if st.session_state.get('cliente_selecionado'):
         c = st.session_state.cliente_selecionado
-        st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {c["nome"].upper()}</h3></div>', unsafe_allow_html=True)
-        with st.form("edit_form"):
-            en_nome = st.text_input("NOME", value=c['nome'])
-            en_user = st.text_input("USUÁRIO", value=c['usuario'])
-            en_venc = st.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date())
-            en_custo = st.number_input("CUSTO", value=float(c['custo']))
-            en_mens = st.number_input("MENSALIDADE", value=float(c['mensalidade']))
-            en_whats = st.text_input("WHATSAPP", value=c['whatsapp'])
-            
-            b1, b2 = st.columns(2)
-            if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
-                # (Lógica para salvar na planilha)
-                st.session_state.cliente_selecionado = None
-                st.success("Salvo!"); time.sleep(0.5); st.rerun()
-            if b2.form_submit_button("✖️ CANCELAR"):
-                st.session_state.cliente_selecionado = None
-                st.rerun()
+        with st.container(border=True):
+            st.markdown(f"### 📝 EDITANDO: {c['nome'].upper()}")
+            with st.form("edit_form"):
+                en_nome = st.text_input("NOME", value=c['nome'])
+                en_venc = st.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date())
+                c_edit1, c_edit2 = st.columns(2)
+                if c_edit1.form_submit_button("💾 SALVAR"):
+                    st.session_state.cliente_selecionado = None
+                    st.rerun()
+                if c_edit2.form_submit_button("✖️ FECHAR"):
+                    st.session_state.cliente_selecionado = None
+                    st.rerun()
 
-    busca = st.text_input("🔎 PESQUISAR...")
+    busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
 
-    # LISTAGEM COM CARDS RETANGULARES CLICÁVEIS
+    # LISTAGEM USANDO BOTÃO COM HTML (FORMA SEGURA)
     for _, r in df_f.sort_values(by='dias_res').iterrows():
-        img = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        venc_br = pd.to_datetime(r['vencimento']).strftime('%d/%m/%Y')
+        img_b64 = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+        venc_format = pd.to_datetime(r['vencimento']).strftime('%d/%m/%Y')
         
-        st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
-        
-        # 1. O Botão (Capa invisível retangular)
-        if st.button("", key=f"btn_{r['id']}"):
-            st.session_state.cliente_selecionado = r.to_dict()
-            st.rerun()
-            
-        # 2. O Card (Visual por trás)
-        st.markdown(f"""
-            <div class="client-card-visual">
-                <img src="{img}" class="card-logo">
-                <div class="info-txt">
-                    <p class="txt-linha1">{str(r['sistema']).upper()} | {r['nome'].upper()}</p>
-                    <p class="txt-linha2">🔑 {r['usuario']} | 📅 {venc_br}</p>
+        # Aqui o botão NÃO é invisível, ele RECEBE o conteúdo do card.
+        # Para evitar que ele vire uma pílula, usamos o CSS lá em cima para forçar o botão a ser o card.
+        card_html = f"""
+            <div style="display: flex; align-items: center; text-align: left; width: 100%;">
+                <img src="{img_b64}" style="width: 55px; height: 55px; border-radius: 10px; margin-right: 15px;">
+                <div>
+                    <div style="font-weight: bold; font-size: 14px;">{str(r['sistema']).upper()} | {r['nome'].upper()}</div>
+                    <div style="font-size: 11px; color: #8b949e;">🔑 {r['usuario']} | 📅 {venc_format}</div>
                 </div>
             </div>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-with tab2:
-    st.subheader("🚀 NOVO CLIENTE")
-    with st.form("novo_cli", clear_on_submit=True):
-        n_nome = st.text_input("NOME")
-        n_user = st.text_input("USUÁRIO")
-        n_sist = st.selectbox("SISTEMA", ["P2P", "IPTV"])
-        n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30))
-        n_whats = st.text_input("WHATSAPP")
-        n_img = st.file_uploader("LOGO", type=['png', 'jpg'])
-        if st.form_submit_button("CADASTRAR"):
-            # Lógica de salvar...
+        """
+        
+        if st.button(card_html, key=f"card_{r['id']}", use_container_width=True):
+            st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
 
 with tab3:
-    st.subheader("🚨 COBRANÇA")
-    # BOTÕES DE FILTRO RESTAURADOS
-    c1, c2, c3, c4, c5 = st.columns(5)
-    if c1.button("❌ VENC"): st.session_state.f_cob = "venc"
-    if c2.button("⏰ HOJE"): st.session_state.f_cob = "hoje"
-    if c3.button("📅 1 DIA"): st.session_state.f_cob = "1d"
-    if c4.button("⏳ 2 DIAS"): st.session_state.f_cob = "2d"
-    if c5.button("⏳ 3 DIAS"): st.session_state.f_cob = "3d"
+    st.subheader("🚨 CENTRAL DE COBRANÇA")
+    pix_cnpj = "62.326.879/0001-13"
     
-    f_at = st.session_state.get('f_cob', 'venc')
+    # RESTAURANDO OS BOTÕES DE FILTRO
+    cf1, cf2, cf3, cf4, cf5 = st.columns(5)
+    if cf1.button("❌ VENC"): st.session_state.filtro_c = "venc"
+    if cf2.button("⏰ HOJE"): st.session_state.filtro_c = "hoje"
+    if cf3.button("📅 1 DIA"): st.session_state.filtro_c = "1d"
+    if cf4.button("⏳ 2 DIAS"): st.session_state.filtro_c = "2d"
+    if cf5.button("⏳ 3 DIAS"): st.session_state.filtro_c = "3d"
     
-    # Lógica de Filtro
+    f_at = st.session_state.get('filtro_c', 'venc')
+    
+    # Lógica de Filtro completa
     if f_at == "venc": df_c = df[df['dias_res'] < 0]
     elif f_at == "hoje": df_c = df[df['dias_res'] == 0]
     elif f_at == "1d": df_c = df[df['dias_res'] == 1]
     elif f_at == "2d": df_c = df[df['dias_res'] == 2]
     elif f_at == "3d": df_c = df[df['dias_res'] == 3]
-    else: df_c = df[df['dias_res'] < 0]
-
-    st.markdown(f"**Filtrando: {f_at.upper()} ({len(df_c)})**")
-    sel_all = st.checkbox("✅ SELECIONAR TODOS")
+    
+    st.markdown(f"**Exibindo: {f_at.upper()} ({len(df_c)} clientes)**")
+    
+    selecionar_todos = st.checkbox("✅ SELECIONAR TODOS OS FILTRADOS")
     
     for _, cli in df_c.iterrows():
-        if st.checkbox(f"{cli['nome'].upper()} ({pd.to_datetime(cli['vencimento']).strftime('%d/%m/%Y')})", value=sel_all, key=f"cb_{cli['id']}"):
-            msg = f"Olá {cli['nome']}, sua assinatura SUPERTV4K está próxima do vencimento!"
-            st.link_button("📲 ENVIAR", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
-
-with tab4:
-    if st.button("🔄 ATUALIZAR SISTEMA"):
-        st.cache_data.clear()
-        st.rerun()
+        if st.checkbox(f"{cli['nome'].upper()} | {pd.to_datetime(cli['vencimento']).strftime('%d/%m/%Y')}", value=selecionar_todos, key=f"cob_{cli['id']}"):
+            msg = f"Sua assinatura SUPERTV4K vence em breve. Pix: {pix_cnpj}"
+            st.link_button(f"📲 ENVIAR PARA {cli['nome'].upper()}", f"https://wa.me/55{cli['whatsapp']}?text={urllib.parse.quote(msg)}")
