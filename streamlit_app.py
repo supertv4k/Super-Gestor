@@ -10,13 +10,15 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS ATUALIZADA ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
+    
+    /* Métricas */
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .metric-label { color: white; font-size: 14px; font-weight: bold; margin-bottom: 5px; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
@@ -24,10 +26,27 @@ st.markdown("""
     .val-laranja { color: #ffa500; font-size: 24px; font-weight: bold; }
     .val-vermelho { color: #ff4b4b; font-size: 24px; font-weight: bold; }
     .val-lucro { color: #00ff88; font-size: 24px; font-weight: bold; }
-    .img-servidor { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
-    div.stButton > button { text-align: left !important; background-color: #161b22 !important; border: 1px solid #30363d !important; color: white !important; border-radius: 12px !important; padding: 12px !important; width: 100%; }
+    
+    /* Ajuste da Lista de Clientes */
+    .img-servidor { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; border: 1px solid #444; margin-top: 5px; }
+    
+    /* Botão de Cliente Compacto */
+    div.stButton > button { 
+        text-align: left !important; 
+        background-color: #161b22 !important; 
+        border: 1px solid #30363d !important; 
+        color: white !important; 
+        border-radius: 10px !important; 
+        padding: 10px 15px !important; 
+        width: 100% !important;
+        margin-bottom: -10px !important;
+    }
+    
     .edit-panel { background-color: #1c2128; padding: 20px; border-radius: 15px; border: 2px solid #00d4ff; margin-bottom: 25px; }
     label { color: white !important; font-weight: bold !important; text-transform: uppercase !important; }
+    
+    /* Remove espaço excessivo entre colunas da lista */
+    [data-testid="column"] { display: flex; align-items: center; justify-content: center; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -49,7 +68,6 @@ def carregar_dados(sheet):
         cabecalho = [str(c).strip().lower() for c in valores_brutos[0]]
         df = pd.DataFrame(valores_brutos[1:], columns=cabecalho)
         
-        # Garantir que ID seja numérico para evitar TypeError no max()
         if 'id' in df.columns:
             df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
             
@@ -92,8 +110,8 @@ if not df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-# --- TAB 1: CLIENTES ---
 with tab1:
+    # --- EDIÇÃO DE CLIENTE ---
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
         st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
@@ -102,7 +120,7 @@ with tab1:
             en_user = st.text_input("USUÁRIO", value=c_sel.get('usuario'))
             en_senha = st.text_input("SENHA", value=c_sel.get('senha'))
             en_serv = st.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c_sel.get('servidor')) if c_sel.get('servidor') in st.session_state.lista_servidores else 0)
-            en_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"], index=0 if c_sel.get('sistema') == "IPTV" else 1)
+            en_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"], index=1 if c_sel.get('sistema') == "P2P" else 0)
             en_venc = st.date_input("VENCIMENTO", value=pd.to_datetime(c_sel.get('vencimento')).date(), format="DD/MM/YYYY")
             en_custo = st.number_input("CUSTO", value=float(c_sel.get('custo') or 0))
             en_mensal = st.number_input("MENSALIDADE", value=float(c_sel.get('mensalidade') or 0))
@@ -132,16 +150,23 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
+    # --- LISTAGEM LADO A LADO ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        col_img, col_btn = st.columns([1, 10])
-        col_img.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
-        txt_botao = f"{str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
-        if col_btn.button(txt_botao, key=f"btn_{r['id']}"):
-            st.session_state.cliente_selecionado = r.to_dict()
-            st.rerun()
+        
+        # Colunas: [Logo, Botão com Dados]
+        col_img, col_btn = st.columns([1, 12]) 
+        
+        with col_img:
+            st.markdown(f'<img src="{img_tag}" class="img-servidor">', unsafe_allow_html=True)
+        
+        with col_btn:
+            txt_botao = f"👤 {str(r.get('nome')).upper()} | 🔑 {r.get('usuario')} | 💻 {r.get('sistema')} | 📅 {format_data_br(r.get('vencimento'))}"
+            if st.button(txt_botao, key=f"btn_{r['id']}"):
+                st.session_state.cliente_selecionado = r.to_dict()
+                st.rerun()
 
-# --- TAB 2: ADICIONAR ---
+# --- TAB 2, 3 e 4 permanecem com a mesma lógica mas respeitando o estilo global ---
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
@@ -149,7 +174,7 @@ with tab2:
         n_user = st.text_input("USUÁRIO")
         n_senha = st.text_input("SENHA")
         n_serv = st.selectbox("SERVIDOR", st.session_state.lista_servidores)
-        n_sist = st.selectbox("SISTEMA", ["IPTV", "P2P"])
+        n_sist = st.selectbox("SISTEMA", ["P2P", "IPTV"]) # P2P como padrão
         n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
         n_custo = st.number_input("CUSTO", value=10.0)
         n_mensal = st.number_input("MENSALIDADE", value=35.0)
@@ -162,11 +187,9 @@ with tab2:
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# --- TAB 3: COBRANÇA ---
 with tab3:
     st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
-    
     col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     if col_f1.button("❌ VENCIDOS"): st.session_state.filtro_cob = "vencidos"
     if col_f2.button("⏰ HOJE"): st.session_state.filtro_cob = "hoje"
@@ -175,7 +198,6 @@ with tab3:
     if col_f5.button("⏳ 3 DIAS"): st.session_state.filtro_cob = "3dias"
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
-    
     if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
     elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
     elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
@@ -184,7 +206,7 @@ with tab3:
     else: df_c = df[df['dias_res'] < 0]
 
     st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)} clientes)**")
-    sel_todos = st.checkbox("✅ SELECIONAR TODOS OS LISTADOS")
+    sel_todos = st.checkbox("✅ SELECIONAR TODOS")
     
     for _, cli in df_c.iterrows():
         nome_c = str(cli.get('nome')).upper()
@@ -192,74 +214,24 @@ with tab3:
         dias = cli['dias_res']
         
         if st.checkbox(f"{nome_c} | 🔑 {cli.get('usuario')} | 📅 {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
-            
-            # MENSAGENS OFICIAIS COM ASPAS TRIPLAS PARA EVITAR ERROS DE SINTAXE
-            if dias < 0:
-                msg = f"""🚨SUA ASSINATURA DE TV VENCEU !
+            if dias < 0: msg = f"🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            elif dias == 0: msg = f"⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            else: msg = f"⚠️SUA ASSINATURA DE TV VENCE EM {dias} DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n{pix_cnpj}\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+            st.link_button(f"📲 ENVIAR PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
-NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
-
-💠PIX CNPJ
-{pix_cnpj}
-
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-            elif dias == 0:
-                msg = f"""⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
-
-NÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!
-
-💠PIX CNPJ
-{pix_cnpj}
-
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-            elif dias == 1:
-                msg = f"""⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
-
-NÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
-
-💠PIX CNPJ
-{pix_cnpj}
-
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-            elif dias == 2:
-                msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
-
-FAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!
-
-💠PIX CNPJ
-{pix_cnpj}
-
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-            elif dias == 3:
-                msg = f"""⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
-
-FAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
-
-💠PIX CNPJ
-{pix_cnpj}
-
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"""
-            
-            st.link_button(f"📲 ENVIAR WHATSAPP PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
-
-# --- TAB 4: AJUSTES ---
 with tab4:
     st.subheader("⚙️ AJUSTES DO SISTEMA")
     col_aj1, col_aj2 = st.columns(2)
     with col_aj1:
-        st.markdown("### 🔄 DADOS")
-        if st.button("🔄 FORÇAR SINCRONIZAÇÃO AGORA"):
+        if st.button("🔄 FORÇAR SINCRONIZAÇÃO"):
             st.cache_data.clear()
             st.rerun()
-        st.markdown("---")
-        st.markdown("### 📥 BACKUP")
         if not df.empty:
             csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📥 BAIXAR PLANILHA (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
+            st.download_button(label="📥 BAIXAR BACKUP (CSV)", data=csv_data, file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.csv", mime="text/csv")
     with col_aj2:
-        st.markdown("### 🖥️ SERVIDORES")
         servs_formatados = "\n".join(st.session_state.lista_servidores)
-        novos_servidores = st.text_area("LISTA (UM POR LINHA):", value=servs_formatados, height=200)
+        novos_servidores = st.text_area("EDITAR SERVIDORES:", value=servs_formatados, height=200)
         if st.button("💾 ATUALIZAR LISTA"):
             st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
             st.rerun()
