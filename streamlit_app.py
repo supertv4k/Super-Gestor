@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (FOCO EM ELIMINAR ESPAÇOS VAZIOS) ---
+# --- 2. ESTILIZAÇÃO CSS (CORREÇÃO DE SOBREPOSIÇÃO E ESPAÇAMENTO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,12 +18,15 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* REMOVE O ESPAÇO ENTRE LOGO E BOTÃO */
+    /* ALINHAMENTO LADO A LADO SEM SOBREPOR */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
+        align-items: center !important;
         justify-content: flex-start !important;
         gap: 0px !important;
+        width: 100% !important;
+        margin-bottom: 12px !important;
     }
 
     [data-testid="column"] {
@@ -32,27 +35,33 @@ st.markdown("""
         padding: 0px !important;
     }
 
+    /* LOGO DO SERVIDOR COM MARGEM FIXA SEGURA */
     .img-servidor { 
-        width: 55px !important; 
-        height: 55px !important; 
+        width: 50px !important; 
+        height: 50px !important; 
         border-radius: 8px; 
         object-fit: cover; 
         border: 1px solid #444;
-        margin-right: 10px !important;
+        display: block !important;
+        margin-right: 12px !important; /* Espaço que impede o botão de tampar a logo */
     }
 
-    /* Ajuste do botão para ocupar o máximo de largura no celular sem criar buracos */
+    /* BOTÃO DO CLIENTE AJUSTADO */
     div.stButton > button { 
         text-align: left !important; 
         background-color: #161b22 !important; 
         border: 1px solid #30363d !important; 
         color: white !important; 
         border-radius: 12px !important; 
-        padding: 12px !important; 
-        min-width: 260px !important;
+        padding: 12px 10px !important; 
+        width: 285px !important; /* Tamanho ideal para o celular */
         font-size: 13px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
 
+    /* MÉTRICAS E PAINÉIS */
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
     .val-azul { color: #00d4ff; font-size: 24px; font-weight: bold; }
     .val-verde { color: #28a745; font-size: 24px; font-weight: bold; }
@@ -120,6 +129,7 @@ if not df.empty:
 
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
+# --- TAB 1: CLIENTES ---
 with tab1:
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
@@ -162,7 +172,7 @@ with tab1:
     for _, r in df_f.sort_values(by='dias_res').iterrows():
         img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
         
-        # Colunas com largura automática para ficarem juntas
+        # Colunas com largura automática e sem buracos
         c_logo, c_btn = st.columns([1, 4])
         
         with c_logo:
@@ -174,6 +184,7 @@ with tab1:
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
+# --- AS DEMAIS TABS CONTINUAM IGUAIS ---
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
     with st.form("add_new", clear_on_submit=True):
@@ -226,7 +237,7 @@ with tab3:
             st.link_button(f"📲 ENVIAR PARA {nome_c}", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ AJUSTES DO SISTEMA")
+    st.subheader("⚙️ AJUSTES")
     col_aj1, col_aj2 = st.columns(2)
     with col_aj1:
         if st.button("🔄 FORÇAR SINCRONIZAÇÃO"):
