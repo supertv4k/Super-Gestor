@@ -10,7 +10,7 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. CSS PARA ALINHAMENTO LADO A LADO (PERFEITO) ---
+# --- 2. CSS PARA DESIGN DE CARDS (CORREÇÃO DE SOBREPOSIÇÃO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -18,50 +18,55 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* CONTAINER QUE SEGURA A LOGO E O BOTÃO JUNTOS */
-    .button-wrapper {
-        position: relative !important;
-        display: block !important;
-        width: 100% !important;
-        margin-bottom: 10px !important;
-        height: 75px !important; /* Altura fixa para o conjunto */
-    }
-
-    /* IMAGEM POSICIONADA EXATAMENTE AO LADO DO TEXTO */
-    .logo-overlay {
-        position: absolute !important;
-        left: 10px !important;
-        top: 50% !important;
-        transform: translateY(-50%) !important; /* Centraliza verticalmente no botão */
-        width: 55px !important;
-        height: 55px !important;
-        border-radius: 12px !important;
-        object-fit: cover !important;
-        border: 1px solid #444 !important;
-        z-index: 10 !important;
-        pointer-events: none !important;
-    }
-
-    /* O BOTÃO QUE "ABRIGA" A LOGO */
-    div.stButton > button {
-        width: 100% !important;
-        height: 75px !important;
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        color: white !important;
-        border-radius: 15px !important;
-        padding-left: 75px !important; /* Espaço para a logo não cobrir o texto */
-        text-align: left !important;
-        font-size: 12px !important;
-        line-height: 1.4 !important;
+    /* ESTILO DO CARD DE CLIENTE (HTML) */
+    .client-card {
         display: flex !important;
         align-items: center !important;
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 15px;
+        padding: 10px;
+        width: 100%;
+        height: 75px;
+    }
+    .card-logo {
+        width: 55px !important;
+        height: 55px !important;
+        border-radius: 10px;
+        object-fit: cover;
+        margin-right: 15px;
+        border: 1px solid #444;
+    }
+    .card-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .info-linha1 { font-size: 13px; font-weight: bold; color: white; }
+    .info-linha2 { font-size: 11px; color: #8b949e; }
+
+    /* BOTÃO INVISÍVEL DO STREAMLIT QUE COBRE O CARD */
+    div.stButton > button {
+        background-color: transparent !important;
+        border: 1px solid #30363d !important;
+        color: transparent !important; /* Esconde o texto original do botão */
+        border-radius: 15px !important;
+        width: 100% !important;
+        height: 75px !important;
+        z-index: 5;
+        position: relative;
+    }
+    div.stButton > button:hover {
+        border-color: #00d4ff !important;
     }
 
-    /* Ajuste para o texto dentro do botão */
-    div.stButton > button p {
-        margin: 0 !important;
-        white-space: pre-line !important;
+    /* POSICIONA O CARD ATRÁS DO BOTÃO MAS VISÍVEL */
+    .card-container {
+        margin-top: -85px; /* Puxa o card para dentro do espaço do botão */
+        margin-bottom: 10px;
+        position: relative;
+        z-index: 1;
+        pointer-events: none; /* Deixa o clique passar para o botão */
     }
 
     .metric-container { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
@@ -75,7 +80,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO E DADOS ---
+# --- 3. CONEXÃO E FUNÇÕES ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -83,7 +88,7 @@ def conectar_gs():
         client = gspread.authorize(creds)
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
     except Exception as e:
-        st.error(f"Erro: {e}")
+        st.error(f"Erro de conexão: {e}")
         return None
 
 def carregar_dados(sheet):
@@ -132,6 +137,7 @@ if not df.empty:
 tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
 with tab1:
+    # --- FORMULÁRIO DE EDIÇÃO ---
     if st.session_state.get('cliente_selecionado') is not None:
         c_sel = st.session_state.cliente_selecionado
         st.markdown(f'<div class="edit-panel"><h3>📝 EDITANDO: {str(c_sel.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
@@ -156,7 +162,7 @@ with tab1:
                 dados = [str(c_sel['id']), en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, l_b]
                 sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados])
                 st.session_state.cliente_selecionado = None
-                st.success("✅ Salvo!"); time.sleep(1); st.rerun()
+                st.success("✅ Atualizado!"); time.sleep(1); st.rerun()
             if b_excluir.form_submit_button("🗑️ EXCLUIR"):
                 ids = sheet.col_values(1)
                 row_idx = ids.index(str(c_sel['id'])) + 1
@@ -170,25 +176,30 @@ with tab1:
     busca = st.text_input("🔎 PESQUISAR CLIENTE...")
     df_f = df[df['nome'].str.contains(busca, case=False, na=False) | df['usuario'].str.contains(busca, case=False, na=False)] if busca else df
     
-    # --- LISTAGEM COM LOGO EMBUTIDA E ALINHADA ---
+    # --- LISTAGEM COM CARDS HTML (BLINDADA) ---
     for _, r in df_f.sort_values(by='dias_res').iterrows():
-        img_tag = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-        sist = str(r.get('sistema')).upper() if r.get('sistema') else "P2P"
+        img_b64 = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+        sist_txt = str(r.get('sistema')).upper() if r.get('sistema') else "P2P"
+        venc_txt = format_data_br(r.get('vencimento'))
+        nome_txt = str(r.get('nome')).upper()
         
-        # Texto com sistema e quebras de linha para melhor visualização
-        txt_display = f"{sist} | {str(r.get('nome'))[:12].upper()}\n🔑 {r.get('usuario')[:10]} | 📅 {format_data_br(r.get('vencimento'))}"
-        
-        # Envelopamos o conjunto para garantir o alinhamento relativo
-        st.markdown(f'<div class="button-wrapper">', unsafe_allow_html=True)
-        
-        # A logo "flutua" dentro do wrapper, centralizada pelo top:50% do CSS
-        st.markdown(f'<img src="{img_tag}" class="logo-overlay">', unsafe_allow_html=True)
-        
-        if st.button(txt_display, key=f"btn_{r['id']}"):
+        # 1. Botão "Invisível" do Streamlit
+        if st.button(" ", key=f"btn_{r['id']}"):
             st.session_state.cliente_selecionado = r.to_dict()
             st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+            
+        # 2. Card HTML por baixo (Visual Perfeito)
+        st.markdown(f"""
+            <div class="card-container">
+                <div class="client-card">
+                    <img src="{img_b64}" class="card-logo">
+                    <div class="card-info">
+                        <div class="info-linha1">{sist_txt} | {nome_txt}</div>
+                        <div class="info-linha2">🔑 {r.get('usuario')} | 📅 {venc_txt}</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
 with tab2:
     st.subheader("🚀 NOVO CLIENTE")
@@ -201,7 +212,7 @@ with tab2:
         n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
         n_custo = st.number_input("CUSTO", value=10.0)
         n_mensal = st.number_input("MENSALIDADE", value=35.0)
-        n_whats = st.text_input("WHATSAPP")
+        n_whats = st.text_input("WHATSAPP (EX: 11999999999)")
         n_obs = st.text_area("OBSERVAÇÃO")
         n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
         if st.form_submit_button("🚀 CADASTRAR"):
@@ -210,23 +221,46 @@ with tab2:
             sheet.append_row([novo_id, n_nome.upper(), n_user, n_senha, n_serv, n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, l_b])
             st.success("✅ Cadastrado!"); time.sleep(1); st.rerun()
 
-# Abas de Cobrança e Ajustes mantidas conforme o padrão
 with tab3:
-    st.subheader("🚨 COBRANÇA")
+    st.subheader("🚨 CENTRAL DE COBRANÇA")
     pix_cnpj = "62.326.879/0001-13"
     col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     if col_f1.button("❌ VENC"): st.session_state.filtro_cob = "vencidos"
     if col_f2.button("⏰ HOJE"): st.session_state.filtro_cob = "hoje"
     if col_f3.button("📅 AMN"): st.session_state.filtro_cob = "amanha"
+    if col_f4.button("⏳ 2D"): st.session_state.filtro_cob = "2dias"
+    if col_f5.button("⏳ 3D"): st.session_state.filtro_cob = "3dias"
     
     filtro_atual = st.session_state.get('filtro_cob', 'vencidos')
-    df_c = df[df['dias_res'] < 0] if filtro_atual == "vencidos" else df[df['dias_res'] == 0]
+    if filtro_atual == "vencidos": df_c = df[df['dias_res'] < 0]
+    elif filtro_atual == "hoje": df_c = df[df['dias_res'] == 0]
+    elif filtro_atual == "amanha": df_c = df[df['dias_res'] == 1]
+    elif filtro_atual == "2dias": df_c = df[df['dias_res'] == 2]
+    elif filtro_atual == "3dias": df_c = df[df['dias_res'] == 3]
+    else: df_c = df[df['dias_res'] < 0]
+
+    st.markdown(f"**Exibindo: {filtro_atual.upper()} ({len(df_c)})**")
+    sel_todos = st.checkbox("✅ SELECIONAR TODOS")
     
     for _, cli in df_c.iterrows():
-        st.link_button(f"📲 {str(cli['nome']).upper()}", f"https://wa.me/55{cli['whatsapp']}?text=Vencimento")
+        whats = str(cli.get('whatsapp')).strip()
+        dias = cli['dias_res']
+        if st.checkbox(f"{str(cli['nome']).upper()} | {format_data_br(cli['vencimento'])}", value=sel_todos, key=f"cob_{cli['id']}"):
+            if dias < 0: msg = f"🚨Sua assinatura SUPERTV4K VENCEU!\n💠PIX CNPJ: {pix_cnpj}"
+            elif dias == 0: msg = f"⚠️Sua assinatura SUPERTV4K VENCE HOJE!\n💠PIX CNPJ: {pix_cnpj}"
+            else: msg = f"⏳Sua assinatura SUPERTV4K vence em {dias} dias!\n💠PIX CNPJ: {pix_cnpj}"
+            st.link_button(f"📲 ENVIAR WHATSAPP", f"https://wa.me/55{whats}?text={urllib.parse.quote(msg)}")
 
 with tab4:
-    st.subheader("⚙️ AJUSTES")
-    if st.button("🔄 SINCRONIZAR"):
+    st.subheader("⚙️ AJUSTES DO SISTEMA")
+    if st.button("🔄 FORÇAR ATUALIZAÇÃO"):
         st.cache_data.clear()
+        st.rerun()
+    if not df.empty:
+        csv = df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 BAIXAR BACKUP (CSV)", csv, "backup_supertv.csv", "text/csv")
+    
+    novos_servidores = st.text_area("LISTA DE SERVIDORES (um por linha):", value="\n".join(st.session_state.lista_servidores), height=200)
+    if st.button("💾 SALVAR LISTA"):
+        st.session_state.lista_servidores = [s.strip().upper() for s in novos_servidores.split("\n") if s.strip()]
         st.rerun()
