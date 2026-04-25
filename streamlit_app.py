@@ -18,15 +18,15 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# ORDEM ATUALIZADA COM P2BRAZ EM TERCEIRO
+# LISTA OFICIAL NA ORDEM DEFINIDA POR VOCÊ
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
-        "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAY TV", 
-        "P2SPEED", "P2CINE", "BLADE TV", "MEGA TV", 
-        "BOB PLAYER", "IBO PLAYER", "IBO PLAYER PRO"
+        "Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", 
+        "P2Cine", "P2Speed", "Blade", "MegaTV", 
+        "Bob Player", "Ibo Player", "Ibo Pro Player"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -90,7 +90,7 @@ sheet = conectar_gs()
 df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
-# --- LÓGICA DE SELEÇÃO DE CLIENTE ---
+# --- LÓGICA DE SELEÇÃO ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     if "id_para_editar" in st.session_state:
@@ -100,6 +100,7 @@ if not df.empty:
             del st.session_state.id_para_editar
 
 # --- 4. INTERFACE ---
+
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -108,6 +109,7 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
+        # Removido sorted() para manter sua ordem
         eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, 
                              index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
@@ -156,7 +158,7 @@ if not df.empty:
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -181,13 +183,13 @@ if not df.empty:
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
-        pix_info = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+        cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         msg_map = {
-            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!" + pix_info,
-            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!" + pix_info,
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix_info,
-            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix_info,
-            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix_info,
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!" + cnpj_pix,
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
             "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
         }
         msg_atual = msg_map.get(st.session_state.filtro_f, msg_map["todos"])
@@ -216,11 +218,11 @@ if not df.empty:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("💾 SALVAR SERVIDOR"):
-            if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
+            if srv_nome and srv_nome not in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.append(srv_nome); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
-            if srv_nome.upper() in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.remove(srv_nome.upper()); st.rerun()
+            if srv_nome in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.remove(srv_nome); st.rerun()
         st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
