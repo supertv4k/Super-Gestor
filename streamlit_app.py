@@ -22,7 +22,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (COM AJUSTE DE MARGEM NOS DIAS) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -45,7 +45,16 @@ st.markdown("""
     
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
     .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
-    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; min-width: 120px; text-align: right; }
+    
+    /* AJUSTE AQUI: Trazendo a caixa de dias mais para a esquerda e reduzindo a margem */
+    .dias-box { 
+        margin-left: 10px; 
+        padding-left: 15px; 
+        border-left: 1px solid #30363d; 
+        min-width: 110px; 
+        text-align: right;
+        padding-right: 5px;
+    }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
@@ -98,7 +107,7 @@ if not df.empty:
             del st.session_state.id_para_editar
             st.query_params.clear()
 
-    # MÉTRICAS TELA INICIAL
+    # MÉTRICAS
     vencidos_count = len(df[df['dias_res'] < 0])
     vencem_hoje_count = len(df[df['dias_res'] == 0])
     ativos_count = len(df[df['dias_res'] >= 0])
@@ -164,8 +173,8 @@ if not df.empty:
                     <div class="cliente-card-html">
                         <img src="{img}" class="img-servidor-card">
                         <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div class="nome-c">{r['nome']}</div>
+                            <div style="overflow: hidden;">
+                                <div class="nome-c" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{r['nome']}</div>
                                 <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
                             </div>
                             <div class="dias-box">
