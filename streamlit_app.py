@@ -29,7 +29,7 @@ if 'indice_disparo' not in st.session_state:
 if 'executando_disparo' not in st.session_state:
     st.session_state.executando_disparo = False
 
-# --- 2. ESTILIZAÇÃO CSS (AJUSTE DE LARGURA E PROPORÇÃO) ---
+# --- 2. ESTILIZAÇÃO CSS (CARD RETANGULAR ESTREITO COM BOTÃO INVISÍVEL) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -41,27 +41,41 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    /* AJUSTE: Centraliza e limita a largura do botão/link */
-    .card-link { 
-        text-decoration: none !important; 
-        color: inherit !important; 
-        display: block; 
-        margin: 0 auto 12px auto; /* Centraliza o card */
-        max-width: 500px; /* Define o tamanho retangular estreito */
+    /* CONTAINER DO CARD COM TAMANHO FIXO E ESTREITO */
+    .card-wrapper {
+        position: relative;
+        width: 450px; /* Largura fixa do retângulo */
+        height: 90px; /* Altura fixa */
+        margin: 0 auto 15px auto; /* Centralizado e com espaçamento inferior */
     }
-    
+
     .cliente-card-html {
-        display: flex; align-items: center; background-color: #161b22;
-        border: 1px solid #30363d; border-radius: 12px; padding: 12px 15px;
-        min-height: 80px; width: 100%; transition: 0.2s;
-        overflow: hidden;
+        display: flex; align-items: center; 
+        background-color: #161b22;
+        border: 1px solid #30363d; border-radius: 12px; 
+        padding: 10px 15px;
+        width: 100%; height: 100%;
+        transition: 0.2s;
+        z-index: 1;
     }
-    .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
-    .img-servidor-card { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
+    .card-wrapper:hover .cliente-card-html { border-color: #00d4ff; background-color: #1c2128; }
+
+    /* BOTÃO INVISÍVEL QUE COBRE EXATAMENTE O CARD */
+    .invisible-btn {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        z-index: 10;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .img-servidor-card { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-    .nome-c { font-weight: 900; font-size: 16px; color: white; text-transform: uppercase; line-height: 1.2; }
-    .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 100px; text-align: right; }
+    .nome-c { font-weight: 900; font-size: 15px; color: white; text-transform: uppercase; margin: 0; }
+    .sub-c { color: #8b949e; font-size: 13px; }
+    .dias-box { flex-shrink: 0; margin-left: 10px; padding-left: 10px; border-left: 1px solid #30363d; width: 90px; text-align: right; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
@@ -70,7 +84,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS (PRESERVADAS) ---
+# --- 3. FUNÇÕES DE DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -103,11 +117,11 @@ hoje = datetime.now().date()
 # --- LÓGICA DE SELEÇÃO ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    if "id_para_editar" in st.session_state:
-        sel = df[df['id'].astype(str) == str(st.session_state.id_para_editar)]
+    if "id_para_editar" in st.query_params:
+        sel_id = st.query_params["editar_id"]
+        sel = df[df['id'].astype(str) == str(sel_id)]
         if not sel.empty:
             st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
-            del st.session_state.id_para_editar
 
 # --- 4. INTERFACE ---
 if st.session_state.get('cliente_selecionado') is not None:
@@ -165,8 +179,23 @@ if not df.empty:
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{data_br}</small></div></div></a>''', unsafe_allow_html=True)
+            # HTML DO CARD COM BOTÃO SOBREPOSTO
+            st.markdown(f'''
+                <div class="card-wrapper">
+                    <a href="/?editar_id={r['id']}" target="_self" class="invisible-btn"></a>
+                    <div class="cliente-card-html">
+                        <img src="{img}" class="img-servidor-card">
+                        <div class="info-container">
+                            <div class="nome-c">{r['nome']}</div>
+                            <div class="sub-c">🖥️ {r['sistema']} | 🔑 {r['usuario']}</div>
+                        </div>
+                        <div class="dias-box">
+                            <span class="{cor}" style="font-size:14px;">{r['dias_res']} DIAS</span><br>
+                            <small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m')}</small>
+                        </div>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -230,21 +259,27 @@ if not df.empty:
                 for _, r in df_c.iterrows():
                     img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                     cor = get_cor_classe(r['dias_res'])
-                    with st.container():
-                        c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
-                        if c1.checkbox("", value=sel_all, key=f"chk_{r['id']}"): clientes_marcados.append(r.to_dict())
-                        c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
-                        url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_map.get(filtro, msg_map['todos']))}"
-                        c3.link_button("📲 COBRAR", url_whats)
+                    st.markdown(f'''
+                        <div class="card-wrapper">
+                            <div class="cliente-card-html">
+                                <img src="{img}" class="img-servidor-card">
+                                <div class="info-container">
+                                    <div class="nome-c">{r["nome"]}</div>
+                                    <span style="color:#8b949e; font-size:12px;">{r["sistema"]}</span>
+                                </div>
+                                <div class="dias-box"><span class="{cor}" style="font-size:13px;">{r["dias_res"]} DIAS</span></div>
+                            </div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+                    # Checkbox e Botão de Cobrar individuais ficam logo abaixo ou ao lado se preferir
+                    c1, c2 = st.columns([0.5, 5.5])
+                    if c1.checkbox("", value=sel_all, key=f"chk_{r['id']}"): clientes_marcados.append(r.to_dict())
+                    url_indiv = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_map.get(filtro, msg_map['todos']))}"
+                    c2.link_button(f"📲 COBRAR {r['nome']}", url_indiv)
+                
                 if col_btn2.button("🚀 ENVIAR EM MASSA", type="primary"):
                     if clientes_marcados: st.session_state.clientes_para_disparo = clientes_marcados; st.session_state.indice_disparo = 0; st.session_state.executando_disparo = True; st.rerun()
 
     with tab4:
         st.subheader("⚙️ AJUSTES")
-        srv_nome = st.text_input("NOME DO SERVIDOR")
-        if st.button("💾 SALVAR"):
-            if srv_nome and srv_nome not in st.session_state.lista_servidores: st.session_state.lista_servidores.append(srv_nome); st.rerun()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: df.drop(columns=['dt_venc_calc', 'dias_res']).to_excel(writer, index=False)
-        st.download_button("📥 BACKUP EXCEL", data=buffer.getvalue(), file_name="backup_supertv.xlsx")
