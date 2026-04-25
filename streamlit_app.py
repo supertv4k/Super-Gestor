@@ -19,7 +19,7 @@ if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
 if 'lista_servidores' not in st.session_state:
-    st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
+    st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGA TV", "BOB PLAYER", "IBO PLAYER", "IBO PLAYER PRO"]
 
 # --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
 st.markdown("""
@@ -199,19 +199,52 @@ if not df.empty:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
-        labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
+        labels = ["❌ VENCIDOS", "📅 HOJE", "1️⃣ AMANHÃ", "⏳ 2️⃣ DIAS", "⏳ 3️⃣ DIAS", "🗓️ TODOS"]
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
         filtro = st.session_state.filtro_f
-        cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
-        msg_map = {
-            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !" + cnpj_pix,
-            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰!" + cnpj_pix,
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!" + cnpj_pix,
-            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!" + cnpj_pix,
-            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!" + cnpj_pix,
-            "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
+        msg_map = {🚨SUA ASSINATURA DE TV VENCEU !
+
+NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
+
+💠PIX CNPJ
+62.326.879/0001-13
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP" ,
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
+
+NÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+62.326.879/0001-13
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
+
+NÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+62.326.879/0001-13
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
+
+FAÇA O PIX  AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+62.326.879/0001-13
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
+
+FAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
+
+💠PIX CNPJ
+62.326.879/0001-13
+
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
+            "todos": " OLÁ TUDO BEM? ME CHAMA QUE TENHO UMA NOTICIA PRA VOCÊ"
         }
         msg_atual = msg_map.get(filtro, msg_map["todos"])
 
