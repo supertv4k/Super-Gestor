@@ -31,7 +31,7 @@ if 'em_disparo' not in st.session_state:
 if 'modo_fila_ativo' not in st.session_state:
     st.session_state.modo_fila_ativo = False
 
-# --- 2. ESTILIZAÇÃO CSS (AJUSTE DE LARGURA E TAMANHO DOS BOTÕES) ---
+# --- 2. ESTILIZAÇÃO CSS CORRIGIDA (DESIGN HORIZONTAL E FINO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -43,33 +43,69 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 8px; }
+    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 10px; }
     
     .cliente-card-html {
-        display: flex; 
-        align-items: center; 
+        display: flex !important; 
+        flex-direction: row !important; /* Força ficar um do lado do outro */
+        align-items: center !important; 
         background-color: #161b22;
         border: 1px solid #30363d; 
         border-radius: 12px; 
-        padding: 10px 15px; /* Reduzi o padding vertical para o botão não ficar largo demais */
-        min-height: 70px; /* Ajustei a altura mínima para ficar mais proporcional */
+        padding: 8px 12px !important; 
+        min-height: 80px !important; /* Altura controlada */
         width: 100%; 
         transition: 0.2s;
         overflow: hidden;
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
-    .img-servidor-card { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
-    .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-    .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.1; margin-bottom: 2px; }
-    .sub-info { color: #8b949e; font-size: 14px; font-weight: 500; }
+    .img-servidor-card { 
+        width: 60px !important; 
+        height: 60px !important; 
+        border-radius: 8px; 
+        object-fit: cover; 
+        margin-right: 15px; 
+        border: 1px solid #444; 
+        flex-shrink: 0; 
+    }
     
-    .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 110px; text-align: right; display: flex; flex-direction: column; justify-content: center; }
+    .info-container { 
+        flex-grow: 1; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        min-width: 0; 
+    }
     
-    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 16px; }
-    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 16px; }
-    .cor-ok { color: #00FF00; font-weight: 900; font-size: 16px; }
-    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 16px; }
+    .nome-c { 
+        font-weight: 900; 
+        font-size: 16px; 
+        color: white; 
+        text-transform: uppercase; 
+        margin: 0;
+        line-height: 1.2;
+    }
+    
+    .sub-info { 
+        color: #8b949e; 
+        font-size: 13px; 
+        margin-top: 2px;
+    }
+    
+    .dias-box { 
+        flex-shrink: 0; 
+        margin-left: 10px; 
+        padding-left: 10px; 
+        border-left: 1px solid #30363d; 
+        width: 100px; 
+        text-align: right; 
+    }
+    
+    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 14px; }
+    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 14px; }
+    .cor-ok { color: #00FF00; font-weight: 900; font-size: 14px; }
+    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -156,7 +192,24 @@ if not df.empty:
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><div class="sub-info">🔑 {r['usuario']} | 🖥️ {r['sistema']}</div></div><div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span></div></div></a>''', unsafe_allow_html=True)
+            data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
+            
+            # HTML ESTRUTURADO PARA FICAR HORIZONTAL (IGUAL A FOTO QUE VOCÊ QUER)
+            st.markdown(f'''
+                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
+                    <div class="cliente-card-html">
+                        <img src="{img}" class="img-servidor-card">
+                        <div class="info-container">
+                            <div class="nome-c">{r['nome']}</div>
+                            <div class="sub-info">🔑 {r['usuario']} | 🖥️ {r['sistema']}</div>
+                        </div>
+                        <div class="dias-box">
+                            <span class="{cor}">{r['dias_res']} DIAS</span><br>
+                            <small style="color:#8b949e; font-size:10px;">{data_br}</small>
+                        </div>
+                    </div>
+                </a>
+            ''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -209,7 +262,7 @@ if not df.empty:
                         c1, c2 = st.columns([0.5, 5.5])
                         if c1.checkbox("", value=sel_all, key=f"chk_{r['id']}"):
                             clientes_marcados.append(r.to_dict())
-                        c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><div class="sub-info">{r["sistema"]}</div></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
+                        c2.markdown(f'''<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><div class="sub-info">{r["sistema"]}</div></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>''', unsafe_allow_html=True)
                 
                 if st.button("🚀 INICIAR FILA DE DISPARO", type="primary"):
                     if clientes_marcados:
