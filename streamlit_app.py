@@ -21,7 +21,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -88,7 +88,6 @@ hoje = datetime.now().date()
 # --- LÓGICA DE SELEÇÃO DE CLIENTE ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    
     if "id_para_editar" in st.session_state:
         sel = df[df['id'].astype(str) == str(st.session_state.id_para_editar)]
         if not sel.empty:
@@ -96,8 +95,6 @@ if not df.empty:
             del st.session_state.id_para_editar
 
 # --- 4. INTERFACE ---
-
-# MODO FOCO: Se clicar em um cliente, o formulário aparece PRIMEIRO que tudo
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -121,22 +118,18 @@ if st.session_state.get('cliente_selecionado') is not None:
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-
         if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-
         if b3.form_submit_button("🗑️ EXCLUIR CLIENTE"):
             sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-        
         if b4.form_submit_button("✖️ FECHAR SEM SALVAR"):
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# CABEÇALHO E MÉTRICAS
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
@@ -153,32 +146,14 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # TABELA DE BUSCA
     with tab1:
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-            
-            st.markdown(f'''
-                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
-                    <div class="cliente-card-html">
-                        <img src="{img}" class="img-servidor-card">
-                        <div class="info-container">
-                            <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                        </div>
-                        <div class="dias-box">
-                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                            <small style="color:#8b949e;">{data_br}</small>
-                        </div>
-                    </div>
-                </a>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
 
-    # CADASTRO NOVO
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -194,9 +169,8 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
-    # COBRANÇA (TRECHO ATUALIZADO)
     with tab3:
-        st.subheader("🚨 COBRANÇAS")
+        st.subheader("🚨 COBRANÇAS EM MASSA")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
         labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
@@ -223,40 +197,39 @@ if not df.empty:
         elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
 
         if not df_c.empty:
-            # --- LOGICA DE SELEÇÃO E DISPARO EM MASSA ---
-            col_sel, col_btn = st.columns([1, 2])
-            with col_sel:
-                sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{filtro}")
+            # Selecionar Todos
+            sel_all = st.checkbox(f"✅ Selecionar todos desta lista ({len(df_c)})", key=f"sel_all_{filtro}")
             
             lista_para_disparo = []
+            st.divider()
 
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
                 with st.container():
                     c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
-                    
                     selecionado = c1.checkbox("", value=sel_all, key=f"chk_{r['id']}_{filtro}")
                     if selecionado:
                         lista_para_disparo.append({"whats": r['whatsapp'], "msg": msg_atual, "nome": r['nome']})
-
                     c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
 
+            # O BOTÃO DE DISPARO QUE VOCÊ PEDIU:
             if lista_para_disparo:
-                st.write("") 
-                if st.button(f"🚀 DISPARAR PARA {len(lista_para_disparo)} SELECIONADOS", use_container_width=True, type="primary"):
-                    prog = st.progress(0)
+                st.write("")
+                if st.button(f"🚀 ENVIAR WHATSAPP PARA TODOS OS {len(lista_para_disparo)} SELECIONADOS", use_container_width=True, type="primary"):
+                    barra = st.progress(0)
+                    status = st.empty()
                     for i, cli in enumerate(lista_para_disparo):
                         link = f"https://wa.me/55{cli['whats']}?text={urllib.parse.quote(cli['msg'])}"
-                        js = f"window.open('{link}', '_blank');"
-                        st.components.v1.html(f"<script>{js}</script>", height=0)
-                        prog.progress((i + 1) / len(lista_para_disparo))
-                        time.sleep(1)
-                    st.success("✅ Disparos concluídos! Verifique as abas do navegador.")
+                        # Abre em nova aba
+                        st.components.v1.html(f"<script>window.open('{link}', '_blank');</script>", height=0)
+                        barra.progress((i + 1) / len(lista_para_disparo))
+                        status.write(f"Enviando para: **{cli['nome']}**...")
+                        time.sleep(1.5) # Delay de segurança
+                    st.success("✅ Disparos concluídos!")
 
-    # AJUSTES
     with tab4:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
