@@ -4,6 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 import urllib.parse
+import unicodedata
 import time
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
@@ -27,7 +28,7 @@ st.markdown("""
         border: 1px solid #30363d; border-radius: 8px; padding: 10px 15px;
         margin-bottom: -72px; position: relative; z-index: 1;
     }
-    .img-padrao { width: 55px; height: 55px; border-radius: 8px; margin-right: 20px; background-color: #00d4ff; display: flex; align-items: center; justify-content: center; font-weight: bold; color: black; }
+    .img-padrao { width: 55px; height: 55px; border-radius: 8px; margin-right: 20px; background-color: #00d4ff; display: flex; align-items: center; justify-content: center; font-weight: bold; color: black; font-size: 20px; }
     .info-text { display: flex; flex-direction: column; width: 100%; }
     .linha-topo { display: flex; justify-content: space-between; align-items: center; margin-right: 15px; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; }
@@ -45,33 +46,31 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS ---
+# --- 3. FUNÇÕES DE SUPORTE ---
+def remover_acentos(texto):
+    return "".join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn').upper().strip()
+
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
-        # Verifique se o ID da planilha está correto
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
-    except Exception as e:
-        st.error(f"Erro na conexão: {e}")
-        return None
+    except: return None
 
 def carregar_dados(sheet):
     if sheet:
         valores = sheet.get_all_values()
         if not valores: return pd.DataFrame()
-        # Normaliza colunas para MAIÚSCULAS e sem espaços
-        df = pd.DataFrame(valores[1:], columns=[str(c).strip().upper() for c in valores[0]])
         
-        # Converte valores numéricos
-        for col in ['CUSTO', 'MENSALIDADE']:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col].str.replace(',', '.'), errors='coerce').fillna(0)
+        # Limpa os nomes das colunas (tira acento, espaço e deixa maiúsculo)
+        colunas_limpas = [remover_acentos(c) for c in valores[0]]
+        df = pd.DataFrame(valores[1:], columns=colunas_limpas)
         
-        # Converte Vencimento para data (Garante padrão BR na leitura)
-        if 'VENCIMENTO' in df.columns:
-            df['DT_VENC_CALC'] = pd.to_datetime(df['VENCIMENTO'], errors='coerce').dt.date
+        # Conversão de valores
+        if 'CUSTO' in df.columns: df['CUSTO'] = pd.to_numeric(df['CUSTO'].str.replace(',', '.'), errors='coerce').fillna(0)
+        if 'MENSALIDADE' in df.columns: df['MENSALIDADE'] = pd.to_numeric(df['MENSALIDADE'].str.replace(',', '.'), errors='coerce').fillna(0)
+        if 'VENCIMENTO' in df.columns: df['DT_VENC_CALC'] = pd.to_datetime(df['VENCIMENTO'], errors='coerce').dt.date
         
         return df[df['NOME'].astype(str).str.strip() != ""]
     return pd.DataFrame()
@@ -84,7 +83,6 @@ df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
 if not df.empty:
-    # Cálculo de dias restantes
     df['DIAS_RES'] = df['DT_VENC_CALC'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
     # --- MÉTRICAS ---
@@ -107,22 +105,20 @@ if not df.empty:
             st.markdown(f'<div class="edit-panel"><h3>📝 EDITAR: {str(c.get("NOME")).upper()}</h3></div>', unsafe_allow_html=True)
             with st.form("edit_form"):
                 col1, col2 = st.columns(2)
-                en_nome = col1.text_input("NOME", value=c.get('NOME'))
-                en_user = col2.text_input("USUÁRIO", value=c.get('USUÁRIO'))
-                en_senha = col1.text_input("SENHA", value=c.get('SENHA'))
-                en_serv = col2.text_input("SERVIDOR", value=c.get('SERVIDOR'))
+                en_nome = col1.text_input("NOME", value=c.get('NOME', ''))
+                en_user = col2.text_input("USUÁRIO", value=c.get('USUARIO', '')) # Sem acento na chave do dicionário
+                en_senha = col1.text_input("SENHA", value=c.get('SENHA', ''))
+                en_serv = col2.text_input("SERVIDOR", value=c.get('SERVIDOR', ''))
                 en_sist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c.get('SISTEMA') == "P2P" else 1)
                 en_venc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c.get('VENCIMENTO')).date(), format="DD/MM/YYYY")
-                en_custo = col1.number_input("CUSTO", value=float(c.get('CUSTO')))
-                en_mensal = col2.number_input("MENSALIDADE", value=float(c.get('MENSALIDADE')))
-                en_whats = col1.text_input("WHATSAPP", value=c.get('WHATSAPP'))
-                en_obs = col2.text_area("OBSERVAÇÃO", value=c.get('OBSERVAÇÃO'))
+                en_custo = col1.number_input("CUSTO", value=float(c.get('CUSTO', 0)))
+                en_mensal = col2.number_input("MENSALIDADE", value=float(c.get('MENSALIDADE', 0)))
+                en_whats = col1.text_input("WHATSAPP", value=c.get('WHATSAPP', ''))
+                en_obs = col2.text_area("OBSERVAÇÃO", value=c.get('OBSERVACAO', ''))
                 
                 b1, b2, b3 = st.columns(3)
                 if b1.form_submit_button("💾 SALVAR"):
-                    # Aqui usamos a busca pelo Nome se não houver coluna ID fixa
-                    lista_nomes = sheet.col_values(1)
-                    row = lista_nomes.index(c['NOME']) + 1
+                    row = sheet.col_values(1).index(c['NOME']) + 1
                     sheet.update(range_name=f'A{row}:J{row}', values=[[en_nome.upper(), en_user, en_senha, en_serv.upper(), en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs]])
                     st.session_state.cliente_selecionado = None
                     st.rerun()
@@ -140,9 +136,6 @@ if not df.empty:
         for _, r in df_f.sort_values(by='DIAS_RES').iterrows():
             dias = r['DIAS_RES']
             txt_dias = f"VENCIDO HÁ {abs(dias)} DIAS" if dias < 0 else ("VENCE HOJE" if dias == 0 else f"FALTAM {dias} DIAS")
-            classe = "vencido" if dias < 0 else ""
-            
-            # Usando uma logo padrão (primeira letra do servidor) para evitar erro de coluna de imagem
             serv_inicial = str(r['SERVIDOR'])[0] if r['SERVIDOR'] else "S"
 
             st.markdown(f'''
@@ -151,9 +144,9 @@ if not df.empty:
                     <div class="info-text">
                         <div class="linha-topo">
                             <span class="nome-c">{str(r["NOME"]).upper()}</span>
-                            <span class="dias-destaque {classe}">{txt_dias}</span>
+                            <span class="dias-destaque {"vencido" if dias < 0 else ""}">{txt_dias}</span>
                         </div>
-                        <span class="detalhe-c">🔑 {r["USUÁRIO"]} | {r["SISTEMA"]} | 📅 {pd.to_datetime(r["VENCIMENTO"]).strftime("%d/%m/%Y")}</span>
+                        <span class="detalhe-c">🔑 {r["USUARIO"]} | {r["SISTEMA"]} | 📅 {pd.to_datetime(r["VENCIMENTO"]).strftime("%d/%m/%Y")}</span>
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
@@ -176,9 +169,9 @@ if not df.empty:
             n_mensal = c_b.number_input("MENSALIDADE", value=35.0)
             n_whats = c_a.text_input("WHATSAPP")
             n_obs = c_b.text_area("OBSERVAÇÃO")
-            if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+            if st.form_submit_button("🚀 CADASTRAR"):
                 sheet.append_row([n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs])
-                st.success("Cadastrado com sucesso!"); time.sleep(1); st.rerun()
+                st.success("Cadastrado!"); time.sleep(1); st.rerun()
 
     # --- TAB 3: COBRANÇA ---
     with tab3:
@@ -189,26 +182,38 @@ if not df.empty:
         if bt3.button("🌅 Amanhã"): st.session_state.fc = 'amanha'
         if bt4.button("⏳ 2 Dias"): st.session_state.fc = '2dias'
         if bt5.button("⏳ 3 Dias"): st.session_state.fc = '3dias'
-        if bt6.button("🗓️ 4 Dias+"): st.session_state.fc = '4dias'
+        if bt6.button("🗓️ Todos"): st.session_state.fc = 'todos'
 
         f = st.session_state.get('fc', 'todos')
         pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         
-        if f == 'venceu': df_c = df[df['DIAS_RES'] < 0]; msg = "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!" + pix
-        elif f == 'hoje': df_c = df[df['DIAS_RES'] == 0]; msg = "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!" + pix
-        elif f == 'amanha': df_c = df[df['DIAS_RES'] == 1]; msg = "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
-        elif f == '2dias': df_c = df[df['DIAS_RES'] == 2]; msg = "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
-        elif f == '3dias': df_c = df[df['DIAS_RES'] == 3]; msg = "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
-        else: df_c = df; msg = "Olá! Passando para lembrar do seu vencimento da SuperTV4K."
+        if f == 'venceu': 
+            df_c = df[df['DIAS_RES'] < 0]
+            msg = "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!" + pix
+        elif f == 'hoje': 
+            df_c = df[df['DIAS_RES'] == 0]
+            msg = "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!" + pix
+        elif f == 'amanha': 
+            df_c = df[df['DIAS_RES'] == 1]
+            msg = "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
+        elif f == '2dias': 
+            df_c = df[df['DIAS_RES'] == 2]
+            msg = "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
+        elif f == '3dias': 
+            df_c = df[df['DIAS_RES'] == 3]
+            msg = "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
+        else: 
+            df_c = df
+            msg = "Olá! Passando para lembrar do seu vencimento da SuperTV4K."
 
         st.divider()
         for _, cli in df_c.iterrows():
             c1, c2 = st.columns([4, 1])
-            venc_br = pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')
-            c1.write(f"👤 **{cli['NOME']}** | Vencimento: {venc_br}")
+            v_data = pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')
+            c1.write(f"👤 **{cli['NOME']}** | Vence em: {v_data}")
             c2.link_button("📲 COBRAR", f"https://wa.me/55{cli['WHATSAPP']}?text={urllib.parse.quote(msg)}")
 
     with tab4:
         st.subheader("⚙️ AJUSTES")
-        if st.button("🔄 SINCRONIZAR"): st.rerun()
-        st.download_button("📥 BACKUP EXCEL", df.to_csv(index=False).encode('utf-8-sig'), "backup.csv")
+        if st.button("🔄 ATUALIZAR"): st.rerun()
+        st.download_button("📥 BACKUP", df.to_csv(index=False).encode('utf-8-sig'), "backup.csv")
