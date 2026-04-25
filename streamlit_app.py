@@ -20,7 +20,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- LÓGICA DE FILA ---
+# --- LÓGICA DE FILA (PRESERVADA 100%) ---
 if 'clientes_selecionados' not in st.session_state:
     st.session_state.clientes_selecionados = []
 if 'indice_fila' not in st.session_state:
@@ -30,36 +30,86 @@ if 'em_disparo' not in st.session_state:
 if 'modo_fila_ativo' not in st.session_state:
     st.session_state.modo_fila_ativo = False
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (SOMENTE AJUSTE DE LARGURA/ALTURA) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
     .logo-gestao { width: 380px; margin-bottom: -15px !important; }
     .logo-supertv { width: 320px; }
+    
     .metric-card { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 20px; }
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
-    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 10px; }
+
+    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 8px; }
+    
+    /* CARD DO CLIENTE: AJUSTADO PARA SER CURTO E RETANGULAR */
     .cliente-card-html {
-        display: flex !important; flex-direction: row !important; align-items: center !important; 
-        background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; 
-        padding: 8px 12px !important; min-height: 80px !important; width: 100%; transition: 0.2s; overflow: hidden;
+        display: flex !important; 
+        flex-direction: row !important; 
+        align-items: center !important; 
+        background-color: #161b22; 
+        border: 1px solid #30363d; 
+        border-radius: 10px; 
+        padding: 5px 12px !important; 
+        height: 62px !important; /* Altura reduzida para formato retangular */
+        width: 100%; 
+        transition: 0.2s; 
+        overflow: hidden;
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
-    .img-servidor-card { width: 60px !important; height: 60px !important; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
-    .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-    .nome-c { font-weight: 900; font-size: 16px; color: white; text-transform: uppercase; margin: 0; line-height: 1.2; }
-    .sub-info { color: #8b949e; font-size: 13px; margin-top: 2px; }
-    .dias-box { flex-shrink: 0; margin-left: 10px; padding-left: 10px; border-left: 1px solid #30363d; width: 100px; text-align: right; }
-    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 14px; }
-    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 14px; }
-    .cor-ok { color: #00FF00; font-weight: 900; font-size: 14px; }
-    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 14px; }
+    
+    .img-servidor-card { 
+        width: 44px !important; 
+        height: 44px !important; 
+        border-radius: 6px; 
+        object-fit: cover; 
+        margin-right: 15px; 
+        border: 1px solid #444; 
+        flex-shrink: 0; 
+    }
+    
+    .info-container { 
+        flex-grow: 1; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        min-width: 0; 
+    }
+    
+    .nome-c { 
+        font-weight: 900; 
+        font-size: 15px !important; 
+        color: white; 
+        text-transform: uppercase; 
+        margin: 0; 
+        line-height: 1.1; 
+    }
+    
+    .sub-info { 
+        color: #8b949e; 
+        font-size: 12px !important; 
+        margin-top: 2px; 
+    }
+    
+    .dias-box { 
+        flex-shrink: 0; 
+        margin-left: 10px; 
+        padding-left: 10px; 
+        border-left: 1px solid #30363d; 
+        width: 90px; 
+        text-align: right; 
+    }
+    
+    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 13px; }
+    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 13px; }
+    .cor-ok { color: #00FF00; font-weight: 900; font-size: 13px; }
+    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 13px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS ---
+# --- 3. FUNÇÕES DE DADOS (PRESERVADAS 100%) ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -159,7 +209,7 @@ if not df.empty:
                         st.session_state.clientes_selecionados = clientes_marcados
                         st.session_state.indice_fila = 0
                         st.session_state.modo_fila_ativo = True
-                        st.session_state.em_disparo = False # Garante que comece pausado
+                        st.session_state.em_disparo = False
                         st.rerun()
         else:
             fila = st.session_state.clientes_selecionados
@@ -181,30 +231,25 @@ if not df.empty:
                 url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                 
                 col1, col2, col3 = st.columns(3)
-                
-                # SÓ ACIONA O CONTADOR SE CLICAR AQUI
                 if col1.link_button("📲 ENVIAR AGORA", url_whats, type="primary"):
                     st.session_state.em_disparo = True
-                
                 if col2.button("⏭️ PULAR"): 
                     st.session_state.indice_fila += 1
                     st.session_state.em_disparo = False
                     st.rerun()
-                
                 if col3.button("✖️ PARAR ENVIO"): 
                     st.session_state.modo_fila_ativo = False
                     st.session_state.em_disparo = False
                     st.rerun()
 
-                # LOGICA DO CONTADOR (SÓ RODA SE EM_DISPARO FOR TRUE)
                 if st.session_state.em_disparo:
-                    st.warning("⏱️ Mensagem disparada! Aguardando 10 segundos para o próximo...")
+                    st.warning("⏱️ Aguardando 10 segundos para o próximo...")
                     barra = st.progress(0)
                     for t in range(10):
                         time.sleep(1)
                         barra.progress((t + 1) * 10)
                     st.session_state.indice_fila += 1
-                    st.session_state.em_disparo = False # Pausa novamente para o próximo cliente
+                    st.session_state.em_disparo = False
                     st.rerun()
             else:
                 st.success("✅ Fila finalizada!"); st.session_state.modo_fila_ativo = False
