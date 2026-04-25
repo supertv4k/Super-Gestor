@@ -18,7 +18,7 @@ st.markdown("""
     .logo-gestao { width: 450px; margin-bottom: -20px !important; }
     .logo-supertv { width: 380px; }
     
-    /* Card Retangular Estilizado */
+    /* Card Retangular */
     .cliente-card {
         display: flex;
         align-items: center;
@@ -35,11 +35,17 @@ st.markdown("""
         border-radius: 8px; object-fit: cover;
         margin-right: 20px; border: 1px solid #444;
     }
-    .info-text { display: flex; flex-direction: column; }
-    .nome-c { font-weight: bold; font-size: 16px; color: white; text-transform: uppercase; }
+    .info-text { display: flex; flex-direction: column; width: 100%; }
+    
+    /* Nome e Dias Restantes em destaque */
+    .linha-topo { display: flex; justify-content: space-between; align-items: center; margin-right: 15px; }
+    .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; }
+    .dias-destaque { font-weight: 900; font-size: 15px; color: #00d4ff; text-transform: uppercase; }
+    .vencido { color: #ff4b4b; }
+    
     .detalhe-c { font-size: 13px; color: #8b949e; }
 
-    /* Botão Invisível sobre o Card */
+    /* Botão Invisível */
     div.stButton > button {
         width: 100% !important; height: 75px !important;
         background-color: transparent !important;
@@ -52,10 +58,7 @@ st.markdown("""
         background-color: rgba(0, 212, 255, 0.05) !important;
     }
 
-    /* Painéis e Inputs */
     .edit-panel { background-color: #1c2128; padding: 20px; border-radius: 15px; border: 2px solid #00d4ff; margin-bottom: 25px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; background-color: #161b22; border-radius: 5px; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -91,8 +94,8 @@ if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # --- TAB 1: CLIENTES (EDIÇÃO) ---
     with tab1:
+        # BLOCO DE EDIÇÃO
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             st.markdown(f'<div class="edit-panel"><h3>📝 EDITAR: {str(c.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
@@ -106,6 +109,7 @@ if not df.empty:
                 en_sist = col2.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c.get('sistema') == "P2P" else 1)
                 en_serv = col1.text_input("SERVIDOR", value=c.get('servidor'))
                 en_mensal = col2.number_input("MENSALIDADE", value=float(c.get('mensalidade')))
+                en_custo = col1.number_input("CUSTO", value=float(c.get('custo')))
                 en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
                 
                 b1, b2, b3 = st.columns(3)
@@ -113,7 +117,7 @@ if not df.empty:
                     ids = sheet.col_values(1)
                     row = ids.index(str(c['id'])) + 1
                     img_blob = base64.b64encode(en_img.read()).decode() if en_img else c.get('logo_blob')
-                    sheet.update(range_name=f'A{row}:L{row}', values=[[c['id'], en_nome.upper(), en_user, en_senha, en_serv, en_sist, en_venc.strftime('%Y-%m-%d'), c.get('custo'), en_mensal, en_whats, "", img_blob]])
+                    sheet.update(range_name=f'A{row}:L{row}', values=[[c['id'], en_nome.upper(), en_user, en_senha, en_serv.upper(), en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, "", img_blob]])
                     st.session_state.cliente_selecionado = None
                     st.rerun()
                 if b2.form_submit_button("🗑️ EXCLUIR"):
@@ -126,14 +130,40 @@ if not df.empty:
 
         busca = st.text_input("🔎 PESQUISAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False, na=False)] if busca else df
+        
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img_src = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
-            st.markdown(f'<div class="cliente-card"><img src="{img_src}" class="img-servidor-card"><div class="info-text"><span class="nome-c">{str(r["nome"]).upper()}</span><span class="detalhe-c">🔑 {r["usuario"]} | {r["sistema"]} | 📅 {pd.to_datetime(r["vencimento"]).strftime("%d/%m/%Y")}</span></div></div>', unsafe_allow_html=True)
+            
+            # Lógica do texto de dias
+            dias = r['dias_res']
+            if dias < 0:
+                txt_dias = f"VENCIDO HÁ {abs(dias)} DIAS"
+                classe_dias = "dias-destaque vencido"
+            elif dias == 0:
+                txt_dias = "VENCE HOJE"
+                classe_dias = "dias-destaque"
+            else:
+                txt_dias = f"FALTAM {dias} DIAS"
+                classe_dias = "dias-destaque"
+
+            st.markdown(f'''
+                <div class="cliente-card">
+                    <img src="{img_src}" class="img-servidor-card">
+                    <div class="info-text">
+                        <div class="linha-topo">
+                            <span class="nome-c">{str(r["nome"]).upper()}</span>
+                            <span class="{classe_dias}">{txt_dias}</span>
+                        </div>
+                        <span class="detalhe-c">🔑 {r["usuario"]} | {r["sistema"]} | 📅 {pd.to_datetime(r["vencimento"]).strftime("%d/%m/%Y")}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+            
             if st.button(f"btn_{r['id']}", key=f"btn_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
-    # --- TAB 2: ADICIONAR (COMPLETO) ---
+    # --- TAB 2: ADICIONAR ---
     with tab2:
         st.subheader("🚀 NOVO CADASTRO SUPERTV4K")
         with st.form("add_full", clear_on_submit=True):
@@ -144,23 +174,20 @@ if not df.empty:
             n_whats = c2.text_input("WHATSAPP (DDD+NÚMERO)")
             n_venc = c1.date_input("VENCIMENTO", value=hoje + timedelta(days=30))
             n_sist = c2.selectbox("SISTEMA", ["P2P", "IPTV"])
-            n_serv = c1.text_input("SERVIDOR (Ex: Uniplay, Mundo GF)")
+            n_serv = c1.text_input("SERVIDOR")
             n_mensal = c2.number_input("VALOR MENSALIDADE", value=35.0)
             n_custo = c1.number_input("VALOR CUSTO", value=10.0)
             n_img = st.file_uploader("LOGO DO SERVIDOR", type=['png', 'jpg'])
-            
             if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
                 blob = base64.b64encode(n_img.read()).decode() if n_img else ""
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
                 sheet.append_row([prox_id, n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, "", blob])
                 st.success("Cadastrado!"); time.sleep(1); st.rerun()
 
-    # --- TAB 3: COBRANÇA (FILTROS POR DIAS) ---
+    # --- TAB 3: COBRANÇA ---
     with tab3:
         st.subheader("🚨 FILTROS DE COBRANÇA")
         col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
-        
-        filtro = st.session_state.get('filtro_venc', 'todos')
         if col_f1.button("❌ Venceu"): st.session_state.filtro_venc = 'venceu'
         if col_f2.button("📅 Hoje"): st.session_state.filtro_venc = 'hoje'
         if col_f3.button("🌅 Amanhã"): st.session_state.filtro_venc = 'amanha'
@@ -168,7 +195,6 @@ if not df.empty:
         if col_f5.button("🗓️ 4 Dias+"): st.session_state.filtro_venc = '4dias'
         if col_f6.button("✅ Todos"): st.session_state.filtro_venc = 'todos'
 
-        # Lógica de Filtro
         f = st.session_state.get('filtro_venc', 'todos')
         if f == 'venceu': df_c = df[df['dias_res'] < 0]
         elif f == 'hoje': df_c = df[df['dias_res'] == 0]
@@ -178,16 +204,12 @@ if not df.empty:
         else: df_c = df
 
         st.divider()
-        st.write(f"Exibindo: **{f.upper()}** ({len(df_c)} clientes)")
-        
-        if not df_c.empty:
-            for _, cli in df_c.iterrows():
-                col_n, col_w = st.columns([3, 1])
-                col_n.write(f"👤 **{cli['nome']}** | Vencimento: {pd.to_datetime(cli['vencimento']).strftime('%d/%m')}")
-                msg = urllib.parse.quote(f"Olá {cli['nome']}, sua assinatura vence em {pd.to_datetime(cli['vencimento']).strftime('%d/%m/%Y')}. Segue o PIX: 62.326.879/0001-13")
-                col_w.link_button("📲 COBRAR", f"https://wa.me/55{cli['whatsapp']}?text={msg}")
+        for _, cli in df_c.iterrows():
+            col_n, col_w = st.columns([3, 1])
+            col_n.write(f"👤 **{cli['nome']}** | Vencimento: {pd.to_datetime(cli['vencimento']).strftime('%d/%m')}")
+            msg = urllib.parse.quote(f"Olá {cli['nome']}, sua assinatura vence em breve. Pix: 62.326.879/0001-13")
+            col_w.link_button("📲 COBRAR", f"https://wa.me/55{cli['whatsapp']}?text={msg}")
 
     with tab4:
-        st.subheader("⚙️ AJUSTES E BACKUP")
+        st.subheader("⚙️ AJUSTES")
         if st.button("🔄 ATUALIZAR LISTA"): st.rerun()
-        st.download_button("📥 EXPORTAR CSV", df.to_csv(index=False).encode('utf-8-sig'), "gestao_supertv4k.csv")
