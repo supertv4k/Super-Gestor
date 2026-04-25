@@ -102,18 +102,17 @@ if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
     with st.form("form_edit_full"):
-        col1, col2 = st.columns(2)
-        # ORDENADO CONFORME GOOGLE SHEETS
-        enome = col1.text_input("NOME", value=c['nome'])
-        euser = col2.text_input("USUÁRIO", value=c['usuario'])
-        esenha = col1.text_input("SENHA", value=c['senha'])
-        eserv = col2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
-        esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
-        evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
-        ecusto = col1.number_input("CUSTO", value=float(c['custo']))
-        emensal = col2.number_input("MENSALIDADE", value=float(c['mensalidade']))
-        ewhats = col1.text_input("WHATSAPP", value=c['whatsapp'])
-        eimg = col2.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
+        # ORDEM EXATA PEDIDA: Nome, Senha, Sistema, Custo, WhatsApp, Usuário, Servidor, Vencimento, Mensalidade, Logo, Observação
+        enome = st.text_input("NOME", value=c['nome'])
+        esenha = st.text_input("SENHA", value=c['senha'])
+        esist = st.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
+        ecusto = st.number_input("CUSTO", value=float(c['custo']))
+        ewhats = st.text_input("WHATSAPP", value=c['whatsapp'])
+        euser = st.text_input("USUÁRIO", value=c['usuario'])
+        eserv = st.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
+        evenc = st.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
+        emensal = st.number_input("MENSALIDADE", value=float(c['mensalidade']))
+        eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
         eobs = st.text_area("OBSERVAÇÃO", value=c['observacao'])
         
         b1, b2, b3, b4 = st.columns(4)
@@ -179,17 +178,22 @@ if not df.empty:
                 </a>
             ''', unsafe_allow_html=True)
 
-    # CADASTRO NOVO (ORDENADO CONFORME GOOGLE SHEETS)
+    # CADASTRO NOVO (ORDEM CORRIGIDA)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
-            ca1, ca2 = st.columns(2)
-            nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
-            nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
-            nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
-            ncusto = ca1.number_input("CUSTO", value=10.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
-            nwhats = ca1.text_input("WHATSAPP"); nimg = ca2.file_uploader("LOGO", type=['png', 'jpg'])
+            nnome = st.text_input("NOME")
+            nsenha = st.text_input("SENHA")
+            nsist = st.selectbox("SISTEMA", ["P2P", "IPTV"], index=0)
+            ncusto = st.number_input("CUSTO", value=10.0)
+            nwhats = st.text_input("WHATSAPP")
+            nuser = st.text_input("USUÁRIO")
+            nserv = st.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
+            nvenc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
+            nmensal = st.number_input("MENSALIDADE", value=35.0)
+            nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
             nobs = st.text_area("OBSERVAÇÃO")
+            
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
                 blob = base64.b64encode(nimg.read()).decode() if nimg else ""
@@ -210,7 +214,7 @@ if not df.empty:
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHã ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
