@@ -18,15 +18,15 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# LISTA OFICIAL NA ORDEM DEFINIDA POR VOCÊ
+# LISTA OFICIAL: MAIÚSCULA E ORDEM SOLICITADA
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
-        "Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", 
-        "P2Cine", "P2Speed", "Blade", "MegaTV", 
-        "Bob Player", "Ibo Player", "Ibo Pro Player"
+        "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", 
+        "P2CINE", "P2SPEED", "BLADE", "MEGATV", 
+        "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -90,7 +90,7 @@ sheet = conectar_gs()
 df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
-# --- LÓGICA DE SELEÇÃO ---
+# --- LÓGICA DE SELEÇÃO PARA EDIÇÃO ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     if "id_para_editar" in st.session_state:
@@ -99,8 +99,7 @@ if not df.empty:
             st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
             del st.session_state.id_para_editar
 
-# --- 4. INTERFACE ---
-
+# --- 4. FORMULÁRIO DE EDIÇÃO (APARECE NO TOPO AO CLICAR) ---
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -109,7 +108,6 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        # Removido sorted() para manter sua ordem
         eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, 
                              index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
@@ -141,6 +139,7 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
+# --- 5. CABEÇALHO E MÉTRICAS ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
@@ -152,14 +151,30 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
+    # TABELA DE BUSCA / LISTAGEM
     with tab1:
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
+            st.markdown(f'''
+                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
+                    <div class="cliente-card-html">
+                        <img src="{img}" class="img-servidor-card">
+                        <div class="info-container">
+                            <div class="nome-c">{r['nome']}</div>
+                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                        </div>
+                        <div class="dias-box">
+                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                            <small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small>
+                        </div>
+                    </div>
+                </a>
+            ''', unsafe_allow_html=True)
 
+    # NOVO CADASTRO
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -167,7 +182,7 @@ if not df.empty:
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", st.session_state.lista_servidores)
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
-            ncusto = ca1.number_input("CUSTO", value=10.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
+            ncusto = ca1.number_input("CUSTO", value=5.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
             nwhats = ca1.text_input("WHATSAPP"); nobs = ca2.text_area("OBSERVAÇÃO"); nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
@@ -175,6 +190,7 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
+    # COBRANÇA
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -185,25 +201,25 @@ if not df.empty:
         
         cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         msg_map = {
-            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!" + cnpj_pix,
-            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
-            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
-            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + cnpj_pix,
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !" + cnpj_pix,
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰!" + cnpj_pix,
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!" + cnpj_pix,
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!" + cnpj_pix,
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!" + cnpj_pix,
             "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
         }
         msg_atual = msg_map.get(st.session_state.filtro_f, msg_map["todos"])
 
         df_c = df
-        f = st.session_state.filtro_f
-        if f == "vencidos": df_c = df[df['dias_res'] < 0]
-        elif f == "hoje": df_c = df[df['dias_res'] == 0]
-        elif f == "1dia": df_c = df[df['dias_res'] == 1]
-        elif f == "2dias": df_c = df[df['dias_res'] == 2]
-        elif f == "3dias": df_c = df[df['dias_res'] == 3]
+        f_selecionado = st.session_state.filtro_f
+        if f_selecionado == "vencidos": df_c = df[df['dias_res'] < 0]
+        elif f_selecionado == "hoje": df_c = df[df['dias_res'] == 0]
+        elif f_selecionado == "1dia": df_c = df[df['dias_res'] == 1]
+        elif f_selecionado == "2dias": df_c = df[df['dias_res'] == 2]
+        elif f_selecionado == "3dias": df_c = df[df['dias_res'] == 3]
 
         if not df_c.empty:
-            sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{f}")
+            sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{f_selecionado}")
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
@@ -214,15 +230,16 @@ if not df.empty:
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
 
+    # AJUSTES
     with tab4:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("💾 SALVAR SERVIDOR"):
-            if srv_nome and srv_nome not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(srv_nome); st.rerun()
+            if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
-            if srv_nome in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.remove(srv_nome); st.rerun()
+            if srv_nome.upper() in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.remove(srv_nome.upper()); st.rerun()
         st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
