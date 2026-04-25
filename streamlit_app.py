@@ -18,13 +18,8 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# LISTA OFICIAL: MAIÚSCULA E ORDEM SOLICITADA
 if 'lista_servidores' not in st.session_state:
-    st.session_state.lista_servidores = [
-        "UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", 
-        "P2CINE", "P2SPEED", "BLADE", "MEGATV", 
-        "BOB PLAYER", "IBO PLAYER", "IBO PRO PLAYER"
-    ]
+    st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
 # --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
 st.markdown("""
@@ -90,16 +85,19 @@ sheet = conectar_gs()
 df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
-# --- LÓGICA DE SELEÇÃO PARA EDIÇÃO ---
+# --- LÓGICA DE SELEÇÃO DE CLIENTE ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
+    
     if "id_para_editar" in st.session_state:
         sel = df[df['id'].astype(str) == str(st.session_state.id_para_editar)]
         if not sel.empty:
             st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
             del st.session_state.id_para_editar
 
-# --- 4. FORMULÁRIO DE EDIÇÃO (APARECE NO TOPO AO CLICAR) ---
+# --- 4. INTERFACE ---
+
+# MODO FOCO: Se clicar em um cliente, o formulário aparece PRIMEIRO que tudo
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -108,8 +106,7 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, 
-                             index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
+        eserv = col2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -139,25 +136,32 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# --- 5. CABEÇALHO E MÉTRICAS ---
+# CABEÇALHO E MÉTRICAS (Aparecem normalmente abaixo da edição ou como topo principal)
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
+    vencidos_count = len(df[df['dias_res'] < 0])
+    vencem_hoje_count = len(df[df['dias_res'] == 0])
+    ativos_count = len(df[df['dias_res'] >= 0])
+    lucro = df["mensalidade"].sum() - df["custo"].sum()
+
     m1, m2, m3, m4 = st.columns(4)
-    m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"] >= 0])}</div></div>', unsafe_allow_html=True)
-    m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{len(df[df["dias_res"] < 0])}</div></div>', unsafe_allow_html=True)
-    m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{len(df[df["dias_res"] == 0])}</div></div>', unsafe_allow_html=True)
-    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro Líquido</div><div class="metric-value" style="color:#00ff88">R$ {(df["mensalidade"].sum() - df["custo"].sum()):,.2f}</div></div>', unsafe_allow_html=True)
+    m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{ativos_count}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{vencidos_count}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{vencem_hoje_count}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro Líquido</div><div class="metric-value" style="color:#00ff88">R$ {lucro:,.2f}</div></div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # TABELA DE BUSCA / LISTAGEM
+    # TABELA DE BUSCA
     with tab1:
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
+            data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
+            
             st.markdown(f'''
                 <a href="/?editar_id={r['id']}" target="_self" class="card-link">
                     <div class="cliente-card-html">
@@ -168,21 +172,21 @@ if not df.empty:
                         </div>
                         <div class="dias-box">
                             <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                            <small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small>
+                            <small style="color:#8b949e;">{data_br}</small>
                         </div>
                     </div>
                 </a>
             ''', unsafe_allow_html=True)
 
-    # NOVO CADASTRO
+    # CADASTRO NOVO
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
             ca1, ca2 = st.columns(2)
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
-            nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", st.session_state.lista_servidores)
+            nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
-            ncusto = ca1.number_input("CUSTO", value=5.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
+            ncusto = ca1.number_input("CUSTO", value=10.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
             nwhats = ca1.text_input("WHATSAPP"); nobs = ca2.text_area("OBSERVAÇÃO"); nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
@@ -190,7 +194,7 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
-    # COBRANÇA
+    # COBRANÇA (TUDO MANTIDO)
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -199,6 +203,7 @@ if not df.empty:
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
+        filtro = st.session_state.filtro_f
         cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !" + cnpj_pix,
@@ -208,18 +213,17 @@ if not df.empty:
             "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!" + cnpj_pix,
             "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
         }
-        msg_atual = msg_map.get(st.session_state.filtro_f, msg_map["todos"])
+        msg_atual = msg_map.get(filtro, msg_map["todos"])
 
         df_c = df
-        f_selecionado = st.session_state.filtro_f
-        if f_selecionado == "vencidos": df_c = df[df['dias_res'] < 0]
-        elif f_selecionado == "hoje": df_c = df[df['dias_res'] == 0]
-        elif f_selecionado == "1dia": df_c = df[df['dias_res'] == 1]
-        elif f_selecionado == "2dias": df_c = df[df['dias_res'] == 2]
-        elif f_selecionado == "3dias": df_c = df[df['dias_res'] == 3]
+        if filtro == "vencidos": df_c = df[df['dias_res'] < 0]
+        elif filtro == "hoje": df_c = df[df['dias_res'] == 0]
+        elif filtro == "1dia": df_c = df[df['dias_res'] == 1]
+        elif filtro == "2dias": df_c = df[df['dias_res'] == 2]
+        elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
 
         if not df_c.empty:
-            sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{f_selecionado}")
+            sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{filtro}")
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
@@ -235,11 +239,11 @@ if not df.empty:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("💾 SALVAR SERVIDOR"):
-            if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
+            if srv_nome and srv_nome not in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.append(srv_nome); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
-            if srv_nome.upper() in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.remove(srv_nome.upper()); st.rerun()
+            if srv_nome in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.remove(srv_nome); st.rerun()
         st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
