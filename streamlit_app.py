@@ -18,8 +18,13 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
+# ATUALIZAÇÃO DA LISTA DE SERVIDORES (SEQUÊNCIA SOLICITADA EM MAIÚSCULAS)
 if 'lista_servidores' not in st.session_state:
-    st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
+    st.session_state.lista_servidores = [
+        "ONE PLAY", "MUNDO GF", "UNI TV", "P2 BRAZ", "PLAY TV", 
+        "P2 CINE", "P2 SPEED", "BLADE", "MEGA TV", "BOB PLAYER", 
+        "IBO PLAYER", "IBO PLAYER PRO"
+    ]
 
 # --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
 st.markdown("""
@@ -105,7 +110,8 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        eserv = col2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
+        # MANTIDA A ORDEM FIXA DA LISTA
+        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -180,7 +186,9 @@ if not df.empty:
         with st.form("add_cli", clear_on_submit=True):
             ca1, ca2 = st.columns(2)
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
-            nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
+            nsenha = ca1.text_input("SENHA")
+            # LISTA DE SERVIDORES NA ORDEM SOLICITADA
+            nserv = ca2.selectbox("SERVIDOR", st.session_state.lista_servidores)
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=5.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
             nwhats = ca1.text_input("WHATSAPP"); nobs = ca2.text_area("OBSERVAÇÃO"); nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
@@ -200,7 +208,6 @@ if not df.empty:
         
         filtro = st.session_state.filtro_f
         
-        # MENSAGENS ATUALIZADAS CONFORME SOLICITADO
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
@@ -234,11 +241,11 @@ if not df.empty:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("💾 SALVAR SERVIDOR"):
-            if srv_nome and srv_nome not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(srv_nome); st.rerun()
+            if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
-            if srv_nome in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.remove(srv_nome); st.rerun()
+            if srv_nome.upper() in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.remove(srv_nome.upper()); st.rerun()
         st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
