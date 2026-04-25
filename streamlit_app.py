@@ -204,7 +204,7 @@ if not df.empty:
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
         filtro = st.session_state.filtro_f
-        msg_map = {🚨SUA ASSINATURA DE TV VENCEU !
+        msg_map = {"🚨SUA ASSINATURA DE TV VENCEU !
 
 NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
 
