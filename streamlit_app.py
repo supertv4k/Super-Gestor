@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import urllib.parse
 import base64
 import io
+import time
 
 # --- 1. CONFIGURAÇÃO ---
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
@@ -44,9 +45,6 @@ st.markdown("""
 
     .cobransa-item-box { background-color: #1c2128; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #00d4ff; }
     div.stButton > button { width: 100% !important; font-weight: bold !important; }
-    
-    /* Estilo do botão de renovação rápida */
-    .btn-renovar { background-color: #00FF00 !important; color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -101,7 +99,6 @@ if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
-        # SEÇÃO DE EDIÇÃO/RENOVAÇÃO
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             with st.form("form_edit_full"):
@@ -119,7 +116,6 @@ if not df.empty:
                 eobs = col2.text_area("OBSERVAÇÃO", value=c['observacao'])
                 eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
                 
-                # BOTÕES DE AÇÃO
                 b1, b2, b3, b4 = st.columns(4)
                 if b1.form_submit_button("💾 SALVAR"):
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
@@ -131,25 +127,20 @@ if not df.empty:
                 if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
-                    sheet.update_cell(idx, 7, nova_data) # Coluna G (7) é Vencimento
-                    st.success("Renovado por +30 dias!")
-                    st.session_state.cliente_selecionado = None
-                    time.sleep(1)
-                    st.rerun()
+                    sheet.update_cell(idx, 7, nova_data)
+                    st.success("Renovado por +30 dias!"); st.session_state.cliente_selecionado = None
+                    time.sleep(1); st.rerun()
 
                 if b3.form_submit_button("🗑️ EXCLUIR"):
                     sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
-                    st.session_state.cliente_selecionado = None
-                    st.rerun()
+                    st.session_state.cliente_selecionado = None; st.rerun()
                 
                 if b4.form_submit_button("✖️ FECHAR"):
-                    st.session_state.cliente_selecionado = None
-                    st.rerun()
+                    st.session_state.cliente_selecionado = None; st.rerun()
             st.divider()
 
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
-        
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
@@ -157,7 +148,6 @@ if not df.empty:
             
             with st.container():
                 col_card, col_btn = st.columns([5, 1])
-                
                 col_card.markdown(f'''
                     <div class="cliente-card">
                         <img src="{img}" class="img-servidor-card">
@@ -173,10 +163,8 @@ if not df.empty:
                         </div>
                     </div>
                 ''', unsafe_allow_html=True)
-                
-                if col_btn.button("⚙️ ABRIR", key=f"btn_{r['id']}", help="Editar ou Renovar"):
-                    st.session_state.cliente_selecionado = r.to_dict()
-                    st.rerun()
+                if col_btn.button("⚙️ ABRIR", key=f"btn_{r['id']}"):
+                    st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -186,7 +174,7 @@ if not df.empty:
             nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA")
             nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
-            nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0) # Começa com P2P
+            nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0)
             nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=10.0)
             nmensal = ca2.number_input("MENSALIDADE", value=35.0)
@@ -199,16 +187,14 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.success("Salvo!"); st.rerun()
 
-    # --- ABA 3: COBRANÇA ---
+    # --- ABA 3: COBRANÇA (CORRIGIDA) ---
     with tab3:
         st.subheader("🚨 COBRANÇAS")
-        c_f1, c_f2, c_f3, c_f4, c_f5, c_f6 = st.columns(6)
-        if c_f1.button("❌ Vencidos"): st.session_state.filtro_f = "vencidos"
-        if c_f2.button("📅 Hoje"): st.session_state.filtro_f = "hoje"
-        if c_f3.button("🌅 Amanhã"): st.session_state.filtro_f = "1dia"
-        if c_f4.button("⏳ 2 Dias"): st.session_state.filtro_f = "2dias"
-        if c_f5.button("⏳ 3 Dias"): st.session_state.filtro_f = "3dias"
-        if c_f6.button("🗓️ Todos"): st.session_state.filtro_f = "todos"
+        c_cols = st.columns(6)
+        filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
+        labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
+        for i, f in enumerate(filtros):
+            if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
 
         filtro = st.session_state.filtro_f
         mensagens = {
@@ -219,6 +205,7 @@ if not df.empty:
             "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         }
 
+        # Aplicar Filtro ANTES do Selecionar Todos
         if filtro == "vencidos": df_c = df[df['dias_res'] < 0]; msg_atual = mensagens["vencidos"]
         elif filtro == "hoje": df_c = df[df['dias_res'] == 0]; msg_atual = mensagens["hoje"]
         elif filtro == "1dia": df_c = df[df['dias_res'] == 1]; msg_atual = mensagens["1dia"]
@@ -227,12 +214,13 @@ if not df.empty:
         else: df_c = df; msg_atual = "Lembrete SUPERTV4K"
 
         if not df_c.empty:
-            sel_all = st.checkbox("✅ Selecionar Todos")
+            # O Selecionar Todos agora só afeta os IDs da lista 'df_c' (a filtrada)
+            sel_all = st.checkbox(f"✅ Selecionar apenas os {len(df_c)} clientes desta lista", key=f"sel_all_{filtro}")
             for _, r in df_c.iterrows():
                 with st.container():
                     col_ch, col_inf, col_z = st.columns([0.4, 4, 1.6])
-                    col_ch.checkbox("", value=sel_all, key=f"cobr_chk_{r['id']}")
-                    col_inf.markdown(f'<div class="cobransa-item-box"><strong>{r["nome"]}</strong> | {r["sistema"]}<br><small>Vencimento: {r["vencimento"]}</small></div>', unsafe_allow_html=True)
+                    col_ch.checkbox("", value=sel_all, key=f"chk_{r['id']}")
+                    col_inf.markdown(f'<div class="cobransa-item-box"><strong>{r["nome"]}</strong> | {r["sistema"]}<br><small>Venc: {r["dt_venc_calc"].strftime("%d/%m/%Y")}</small></div>', unsafe_allow_html=True)
                     col_z.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
 
     # --- ABA 4: AJUSTES ---
@@ -246,11 +234,9 @@ if not df.empty:
         if col_s2.button("🗑️ EXCLUIR SERVIDOR"):
             if srv_nome in st.session_state.lista_servidores:
                 st.session_state.lista_servidores.remove(srv_nome); st.rerun()
-        
         st.divider()
         if st.button("🔄 SINCRONIZAR GOOGLE SHEETS"): st.rerun()
-        
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False)
+            df.drop(columns=['dt_venc_calc', 'dias_res']).to_excel(writer, index=False)
         st.download_button(label="📥 BACKUP EXCEL", data=buffer.getvalue(), file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx")
