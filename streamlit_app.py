@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import urllib.parse
 import base64
 import io
-import time
 
 # --- 1. CONFIGURAÇÃO ---
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
@@ -21,7 +20,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -86,29 +85,29 @@ if not df.empty:
 
 # --- 4. INTERFACE ---
 
-# FORMULÁRIO DE EDIÇÃO (SEQUÊNCIA TRAVADA)
+# 📝 FORMULÁRIO DE EDIÇÃO (ORDEM ABSOLUTA)
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
     with st.form("form_edit_full"):
-        # ORDEM SOLICITADA POR VOCÊ:
+        # SEQUÊNCIA LINEAR (SEM COLUNAS PARA NÃO INVERTER)
         enome = st.text_input("NOME", value=c['nome'])
         esenha = st.text_input("SENHA", value=c['senha'])
         esist = st.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
-        ecusto = st.number_input("CUSTO", value=float(c['custo']))
+        ecusto = st.number_input("CUSTO", value=float(c['custo']) if float(c['custo']) != 0 else 5.0)
         ewhats = st.text_input("WHATSAPP", value=c['whatsapp'])
         euser = st.text_input("USUÁRIO", value=c['usuario'])
         eserv = st.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
         evenc = st.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         emensal = st.number_input("MENSALIDADE", value=float(c['mensalidade']))
-        eimg = st.file_uploader("LOGO (CLIQUE PARA ALTERAR)", type=['png', 'jpg'])
+        eimg = st.file_uploader("LOGO (BLOB)", type=['png', 'jpg'])
         eobs = st.text_area("OBSERVAÇÃO", value=c['observacao'])
         
+        # Botões de ação
         b1, b2, b3, b4 = st.columns(4)
         if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
-            # O salvamento na planilha continua na ordem das colunas (A-L)
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
@@ -118,7 +117,7 @@ if st.session_state.get('cliente_selecionado') is not None:
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
-        if b3.form_submit_button("🗑️ EXCLUIR CLIENTE"):
+        if b3.form_submit_button("🗑️ EXCLUIR"):
             sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         
@@ -126,7 +125,7 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# HEADER E MÉTRICAS
+# CABEÇALHO
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
@@ -144,21 +143,21 @@ if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
-        busca = st.text_input("🔎 BUSCAR CLIENTE...")
+        busca = st.text_input("🔎 BUSCAR...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             st.markdown(f'<a href="/?editar_id={r["id"]}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">🔑 {r["usuario"]} | 🖥️ {r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span><br><small style="color:#8b949e;">{pd.to_datetime(r["vencimento"]).strftime("%d/%m/%Y")}</small></div></div></a>', unsafe_allow_html=True)
 
+    # ➕ ADICIONAR NOVO (ORDEM EXATA)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
-            # ORDEM EXATA PEDIDA TAMBÉM NO CADASTRO:
             nnome = st.text_input("NOME")
             nsenha = st.text_input("SENHA")
             nsist = st.selectbox("SISTEMA", ["P2P", "IPTV"], index=0)
-            ncusto = st.number_input("CUSTO", value=10.0)
+            ncusto = st.number_input("CUSTO", value=5.0) # VALOR PADRÃO AJUSTADO PARA 5.0
             nwhats = st.text_input("WHATSAPP")
             nuser = st.text_input("USUÁRIO")
             nserv = st.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
