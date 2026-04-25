@@ -17,7 +17,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player"]
 
-# --- 2. ESTILIZAÇÃO CSS (PREMIUM) ---
+# --- 2. ESTILIZAÇÃO CSS (PREMIUM & INVISÍVEL) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -29,12 +29,37 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    /* Estilo Único do Card para Clientes e Cobrança */
+    /* Container do Card para permitir sobreposição */
+    .card-container {
+        position: relative;
+        margin-bottom: 15px;
+    }
+
     .cliente-card {
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        margin-bottom: 10px; position: relative; height: 100px; width: 100%;
+        height: 100px; width: 100%;
+        position: relative; z-index: 1;
     }
+    
+    /* Botão Invisível que cobre o card inteiro */
+    .stButton > button {
+        position: absolute;
+        width: 100%;
+        height: 100px;
+        top: 0;
+        left: 0;
+        background-color: transparent !important;
+        color: transparent !important;
+        border: none !important;
+        z-index: 2; /* Fica por cima do card visual */
+        cursor: pointer;
+    }
+    
+    .stButton > button:hover {
+        background-color: rgba(255, 255, 255, 0.05) !important; /* Efeito leve ao passar o mouse */
+    }
+
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
     .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
     .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; min-width: 120px; }
@@ -44,7 +69,11 @@ st.markdown("""
     .cor-ok { color: #00FF00; font-weight: 900; }
     .cor-tranquilo { color: #00D4FF; font-weight: 900; }
 
-    div.stButton > button { width: 100% !important; font-weight: bold !important; height: 45px; }
+    /* Botão de cobrança precisa estar acima do botão invisível */
+    .btn-cobrar-container {
+        position: relative;
+        z-index: 3;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -98,7 +127,7 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # --- ABA 1: CLIENTES ---
+    # --- ABA 1: CLIENTES (CARD INTEIRO CLICÁVEL) ---
     with tab1:
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
@@ -129,8 +158,8 @@ if not df.empty:
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
                     sheet.update_cell(idx, 7, nova_data)
-                    st.success("Renovado por +30 dias!"); st.session_state.cliente_selecionado = None
-                    time.sleep(1); st.rerun()
+                    st.success("Renovado!"); st.session_state.cliente_selecionado = None
+                    time.sleep(0.5); st.rerun()
 
                 if b3.form_submit_button("🗑️ EXCLUIR"):
                     sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
@@ -138,18 +167,18 @@ if not df.empty:
                 
                 if b4.form_submit_button("✖️ FECHAR"):
                     st.session_state.cliente_selecionado = None; st.rerun()
-            st.divider()
 
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
+        
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
             
-            with st.container():
-                col_card, col_btn = st.columns([5, 1])
-                col_card.markdown(f'''
+            # Estrutura com Botão Invisível cobrindo o Card Visual
+            st.markdown(f'''
+                <div class="card-container">
                     <div class="cliente-card">
                         <img src="{img}" class="img-servidor-card">
                         <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
@@ -163,9 +192,14 @@ if not df.empty:
                             </div>
                         </div>
                     </div>
-                ''', unsafe_allow_html=True)
-                if col_btn.button("⚙️ ABRIR", key=f"btn_{r['id']}"):
-                    st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
+            ''', unsafe_allow_html=True)
+            
+            # O botão invisível fica aqui
+            if st.button("", key=f"inv_{r['id']}"):
+                st.session_state.cliente_selecionado = r.to_dict()
+                st.rerun()
+                
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # --- ABA 2: ADICIONAR ---
     with tab2:
@@ -189,7 +223,7 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.success("Salvo!"); st.rerun()
 
-    # --- ABA 3: COBRANÇA (CARDS PADRONIZADOS) ---
+    # --- ABA 3: COBRANÇA ---
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -215,37 +249,38 @@ if not df.empty:
         else: df_c = df; msg_atual = "Lembrete SUPERTV4K"
 
         if not df_c.empty:
-            sel_all = st.checkbox(f"✅ Selecionar os {len(df_c)} clientes desta lista", key=f"sel_all_{filtro}")
+            sel_all = st.checkbox(f"✅ Selecionar os {len(df_c)} clientes", key=f"sel_all_{filtro}")
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
                 data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
                 
                 with st.container():
-                    col_ch, col_card, col_wa = st.columns([0.4, 4.4, 1.2])
+                    c_ch, c_card, c_wa = st.columns([0.4, 4.4, 1.2])
+                    c_ch.checkbox("", value=sel_all, key=f"chk_cob_{r['id']}")
                     
-                    # Checkbox lateral
-                    col_ch.checkbox("", value=sel_all, key=f"chk_cob_{r['id']}")
-                    
-                    # Card IDÊNTICO à tela inicial
-                    col_card.markdown(f'''
-                        <div class="cliente-card">
-                            <img src="{img}" class="img-servidor-card">
-                            <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <div class="nome-c">{r['nome']}</div>
-                                    <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                                </div>
-                                <div class="dias-box">
-                                    <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                                    <small style="color:#8b949e;">{data_br}</small>
+                    # Card Visual em Cobrança (Também clicável para abrir info se quiser)
+                    c_card.markdown(f'''
+                        <div class="card-container">
+                            <div class="cliente-card">
+                                <img src="{img}" class="img-servidor-card">
+                                <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div class="nome-c">{r['nome']}</div>
+                                        <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                                    </div>
+                                    <div class="dias-box">
+                                        <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                                        <small style="color:#8b949e;">{data_br}</small>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                     ''', unsafe_allow_html=True)
-                    
-                    # Botão de Cobrança
-                    col_wa.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
+                    if c_card.button("", key=f"inv_cob_{r['id']}"):
+                        st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
+                    c_card.markdown('</div>', unsafe_allow_html=True)
+
+                    c_wa.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
 
     # --- ABA 4: AJUSTES ---
     with tab4:
