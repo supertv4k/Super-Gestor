@@ -20,7 +20,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- LÓGICA DE FILA (PRESERVADA 100%) ---
+# --- LÓGICA DE FILA E DISPARO EM MASSA ---
 if 'clientes_selecionados' not in st.session_state:
     st.session_state.clientes_selecionados = []
 if 'indice_fila' not in st.session_state:
@@ -30,92 +30,31 @@ if 'em_disparo' not in st.session_state:
 if 'modo_fila_ativo' not in st.session_state:
     st.session_state.modo_fila_ativo = False
 
-# --- 2. ESTILIZAÇÃO CSS (PROTEÇÃO DA ESTRUTURA DO BOTÃO) ---
+# --- 2. ESTILIZAÇÃO CSS (PRESERVADA) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
     .logo-gestao { width: 380px; margin-bottom: -15px !important; }
     .logo-supertv { width: 320px; }
-    
     .metric-card { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 20px; }
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
-
-    /* O Link/Botão que envolve o card */
-    .card-link { 
-        text-decoration: none !important; 
-        color: inherit !important; 
-        display: block; 
-        margin-bottom: 8px; 
-    }
-    
-    /* CARD DO CLIENTE: Estrutura travada para não deformar */
-    .cliente-card-html {
-        display: flex !important; 
-        flex-direction: row !important; 
-        align-items: center !important; /* Centraliza verticalmente logo e texto */
-        background-color: #161b22; 
-        border: 1px solid #30363d; 
-        border-radius: 10px; 
-        padding: 0px 15px !important; /* Padding vertical zero para o min-height mandar */
-        min-height: 70px !important;    /* Altura ideal para ser curto mas comportar a logo */
-        width: 100%; 
-        transition: 0.2s;
-        overflow: hidden;
-    }
-    .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
-    
-    .img-servidor-card { 
-        width: 50px !important; 
-        height: 50px !important; 
-        border-radius: 8px; 
-        object-fit: cover; 
-        margin-right: 15px; 
-        border: 1px solid #444;
-        flex-shrink: 0; 
-    }
-    
-    .info-container { 
-        flex-grow: 1; 
-        display: flex; 
-        flex-direction: column; 
-        justify-content: center; 
-        min-width: 0; 
-    }
-    
-    .nome-c { 
-        font-weight: 900; 
-        font-size: 16px !important; 
-        color: white; 
-        text-transform: uppercase; 
-        margin: 0; 
-        line-height: 1.1; 
-    }
-    
-    .sub-info { 
-        color: #8b949e; 
-        font-size: 13px !important; 
-        margin-top: 2px; 
-    }
-    
-    .dias-box { 
-        flex-shrink: 0; 
-        margin-left: 10px; 
-        padding-left: 15px; 
-        border-left: 1px solid #30363d; 
-        width: 95px; 
-        text-align: right; 
-    }
-    
-    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 14px; }
-    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 14px; }
-    .cor-ok { color: #00FF00; font-weight: 900; font-size: 14px; }
-    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 14px; }
+    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 8px; }
+    .cliente-card-html { display: flex; flex-direction: row; align-items: center; background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px 15px; width: 100%; transition: 0.2s; }
+    .img-servidor-card { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
+    .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+    .nome-c { font-weight: 900; font-size: 16px; color: white; text-transform: uppercase; margin: 0; }
+    .sub-info { color: #8b949e; font-size: 13px; margin-top: 2px; }
+    .dias-box { flex-shrink: 0; margin-left: 10px; padding-left: 15px; border-left: 1px solid #30363d; width: 95px; text-align: right; }
+    .cor-vencido { color: #FF4B4B; font-weight: 900; }
+    .cor-alerta { color: #FFD700; font-weight: 900; }
+    .cor-ok { color: #00FF00; font-weight: 900; }
+    .cor-tranquilo { color: #00D4FF; font-weight: 900; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS (PRESERVADAS 100%) ---
+# --- 3. FUNÇÕES DE DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -150,12 +89,7 @@ st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9B
 
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    m1, m2, m3, m4 = st.columns(4)
-    m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
-    m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{len(df[df["dias_res"]<0])}</div></div>', unsafe_allow_html=True)
-    m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{len(df[df["dias_res"]==0])}</div></div>', unsafe_allow_html=True)
-    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro</div><div class="metric-value" style="color:#00ff88">R$ {(df["mensalidade"].sum()-df["custo"].sum()):,.2f}</div></div>', unsafe_allow_html=True)
-
+    
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
@@ -166,7 +100,6 @@ if not df.empty:
             cor = get_cor_classe(r['dias_res'])
             st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><div class="sub-info">🔑 {r['usuario']} | 🖥️ {r['sistema']}</div></div><div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span></div></div></a>''', unsafe_allow_html=True)
 
-    # ... (O restante das abas permanece idêntico ao original)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -184,7 +117,7 @@ if not df.empty:
 
     with tab3:
         if not st.session_state.modo_fila_ativo:
-            st.subheader("🚨 COBRANÇAS")
+            st.subheader("🚨 COBRANÇAS EM MASSA")
             c_cols = st.columns(6)
             filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
             labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
@@ -211,20 +144,20 @@ if not df.empty:
                             clientes_marcados.append(r.to_dict())
                         c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><div class="sub-info">{r["sistema"]}</div></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                 
-                if st.button("🚀 INICIAR FILA DE DISPARO", type="primary"):
+                if st.button("🚀 INICIAR DISPARO EM MASSA", type="primary"):
                     if clientes_marcados:
                         st.session_state.clientes_selecionados = clientes_marcados
                         st.session_state.indice_fila = 0
                         st.session_state.modo_fila_ativo = True
-                        st.session_state.em_disparo = False
                         st.rerun()
         else:
+            # --- LÓGICA DO TEMPORIZADOR DE 10 SEGUNDOS ---
             fila = st.session_state.clientes_selecionados
             idx = st.session_state.indice_fila
             if idx < len(fila):
                 r = fila[idx]
-                st.info(f"Fila: {idx + 1} de {len(fila)}")
-                st.markdown(f"### Enviando para: **{r['nome']}**")
+                st.info(f"Enviando: {idx + 1} de {len(fila)}")
+                st.markdown(f"### Cliente Atual: **{r['nome']}**")
                 
                 msg_map = {
                     "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
@@ -238,38 +171,30 @@ if not df.empty:
                 url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                 
                 col1, col2, col3 = st.columns(3)
-                if col1.link_button("📲 ENVIAR AGORA", url_whats, type="primary"):
+                if col1.link_button("📲 ABRIR WHATSAPP", url_whats, type="primary"):
                     st.session_state.em_disparo = True
                 if col2.button("⏭️ PULAR"): 
                     st.session_state.indice_fila += 1
-                    st.session_state.em_disparo = False
                     st.rerun()
-                if col3.button("✖️ PARAR ENVIO"): 
+                if col3.button("✖️ PARAR TUDO"): 
                     st.session_state.modo_fila_ativo = False
-                    st.session_state.em_disparo = False
                     st.rerun()
 
                 if st.session_state.em_disparo:
-                    st.warning("⏱️ Aguardando 10 segundos...")
-                    barra = st.progress(0)
-                    for t in range(10):
+                    st.warning("⏱️ Aguardando 10 segundos para o próximo da fila...")
+                    progresso = st.progress(0)
+                    for i in range(10):
                         time.sleep(1)
-                        barra.progress((t + 1) * 10)
+                        progresso.progress((i + 1) * 10)
                     st.session_state.indice_fila += 1
                     st.session_state.em_disparo = False
                     st.rerun()
             else:
-                st.success("✅ Fila finalizada!"); st.session_state.modo_fila_ativo = False
+                st.success("✅ Todos os disparos foram processados!"); st.session_state.modo_fila_ativo = False
                 if st.button("VOLTAR"): st.rerun()
 
     with tab4:
         st.subheader("⚙️ AJUSTES")
-        novo_servidor = st.text_input("Nome do novo servidor:")
-        if st.button("➕ Adicionar Servidor"):
-            if novo_servidor and novo_servidor not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(novo_servidor); st.rerun()
-        st.write("Lista atual:", ", ".join(st.session_state.lista_servidores))
-        st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
