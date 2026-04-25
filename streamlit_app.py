@@ -30,7 +30,7 @@ if 'em_disparo' not in st.session_state:
 if 'modo_fila_ativo' not in st.session_state:
     st.session_state.modo_fila_ativo = False
 
-# --- 2. ESTILIZAÇÃO CSS (SOMENTE AJUSTE DE LARGURA/ALTURA) ---
+# --- 2. ESTILIZAÇÃO CSS (PROTEÇÃO DA ESTRUTURA DO BOTÃO) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -42,31 +42,37 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    .card-link { text-decoration: none !important; color: inherit !important; display: block; margin-bottom: 8px; }
+    /* O Link/Botão que envolve o card */
+    .card-link { 
+        text-decoration: none !important; 
+        color: inherit !important; 
+        display: block; 
+        margin-bottom: 8px; 
+    }
     
-    /* CARD DO CLIENTE: AJUSTADO PARA SER CURTO E RETANGULAR */
+    /* CARD DO CLIENTE: Estrutura travada para não deformar */
     .cliente-card-html {
         display: flex !important; 
         flex-direction: row !important; 
-        align-items: center !important; 
+        align-items: center !important; /* Centraliza verticalmente logo e texto */
         background-color: #161b22; 
         border: 1px solid #30363d; 
         border-radius: 10px; 
-        padding: 5px 12px !important; 
-        height: 62px !important; /* Altura reduzida para formato retangular */
+        padding: 0px 15px !important; /* Padding vertical zero para o min-height mandar */
+        min-height: 70px !important;    /* Altura ideal para ser curto mas comportar a logo */
         width: 100%; 
-        transition: 0.2s; 
+        transition: 0.2s;
         overflow: hidden;
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
     .img-servidor-card { 
-        width: 44px !important; 
-        height: 44px !important; 
-        border-radius: 6px; 
+        width: 50px !important; 
+        height: 50px !important; 
+        border-radius: 8px; 
         object-fit: cover; 
         margin-right: 15px; 
-        border: 1px solid #444; 
+        border: 1px solid #444;
         flex-shrink: 0; 
     }
     
@@ -80,7 +86,7 @@ st.markdown("""
     
     .nome-c { 
         font-weight: 900; 
-        font-size: 15px !important; 
+        font-size: 16px !important; 
         color: white; 
         text-transform: uppercase; 
         margin: 0; 
@@ -89,23 +95,23 @@ st.markdown("""
     
     .sub-info { 
         color: #8b949e; 
-        font-size: 12px !important; 
+        font-size: 13px !important; 
         margin-top: 2px; 
     }
     
     .dias-box { 
         flex-shrink: 0; 
         margin-left: 10px; 
-        padding-left: 10px; 
+        padding-left: 15px; 
         border-left: 1px solid #30363d; 
-        width: 90px; 
+        width: 95px; 
         text-align: right; 
     }
     
-    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 13px; }
-    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 13px; }
-    .cor-ok { color: #00FF00; font-weight: 900; font-size: 13px; }
-    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 13px; }
+    .cor-vencido { color: #FF4B4B; font-weight: 900; font-size: 14px; }
+    .cor-alerta { color: #FFD700; font-weight: 900; font-size: 14px; }
+    .cor-ok { color: #00FF00; font-weight: 900; font-size: 14px; }
+    .cor-tranquilo { color: #00D4FF; font-weight: 900; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -160,6 +166,7 @@ if not df.empty:
             cor = get_cor_classe(r['dias_res'])
             st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><div class="sub-info">🔑 {r['usuario']} | 🖥️ {r['sistema']}</div></div><div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span></div></div></a>''', unsafe_allow_html=True)
 
+    # ... (O restante das abas permanece idêntico ao original)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -243,7 +250,7 @@ if not df.empty:
                     st.rerun()
 
                 if st.session_state.em_disparo:
-                    st.warning("⏱️ Aguardando 10 segundos para o próximo...")
+                    st.warning("⏱️ Aguardando 10 segundos...")
                     barra = st.progress(0)
                     for t in range(10):
                         time.sleep(1)
