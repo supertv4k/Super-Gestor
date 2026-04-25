@@ -17,7 +17,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player"]
 
-# --- 2. ESTILIZAÇÃO CSS (PREMIUM & INVISÍVEL) ---
+# --- 2. ESTILIZAÇÃO CSS (FOCO NA INTERATIVIDADE) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -29,51 +29,34 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    /* Container do Card para permitir sobreposição */
-    .card-container {
-        position: relative;
-        margin-bottom: 15px;
-    }
-
-    .cliente-card {
+    /* Estilo do Card Visual */
+    .cliente-card-visual {
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        height: 100px; width: 100%;
-        position: relative; z-index: 1;
+        height: 100px; width: 100%; pointer-events: none; /* Deixa o clique passar para o botão de baixo */
     }
     
-    /* Botão Invisível que cobre o card inteiro */
-    .stButton > button {
-        position: absolute;
-        width: 100%;
-        height: 100px;
-        top: 0;
-        left: 0;
-        background-color: transparent !important;
-        color: transparent !important;
-        border: none !important;
-        z-index: 2; /* Fica por cima do card visual */
-        cursor: pointer;
-    }
-    
-    .stButton > button:hover {
-        background-color: rgba(255, 255, 255, 0.05) !important; /* Efeito leve ao passar o mouse */
-    }
-
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
     .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
-    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; min-width: 120px; }
+    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; min-width: 120px; text-align: right; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
     .cor-ok { color: #00FF00; font-weight: 900; }
     .cor-tranquilo { color: #00D4FF; font-weight: 900; }
 
-    /* Botão de cobrança precisa estar acima do botão invisível */
-    .btn-cobrar-container {
-        position: relative;
-        z-index: 3;
+    /* Botão que cobre o card */
+    div[data-testid="stVerticalBlock"] > div.stButton > button {
+        height: 100px !important;
+        background-color: transparent !important;
+        border: 1px solid #30363d !important;
+        border-radius: 12px !important;
+        margin-bottom: -115px !important; /* Puxa o card visual para cima do botão */
+        z-index: 10;
+        width: 100% !important;
     }
+    
+    div.stButton > button:hover { border-color: #00d4ff !important; background-color: rgba(0, 212, 255, 0.05) !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -113,7 +96,6 @@ hoje = datetime.now().date()
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # --- MÉTRICAS ---
     vencidos_count = len(df[df['dias_res'] < 0])
     vencem_hoje_count = len(df[df['dias_res'] == 0])
     ativos_count = len(df[df['dias_res'] >= 0])
@@ -127,12 +109,12 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # --- ABA 1: CLIENTES (CARD INTEIRO CLICÁVEL) ---
     with tab1:
+        # TELA DE EDIÇÃO (ABRE AO CLICAR NO CARD)
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             with st.form("form_edit_full"):
-                st.subheader(f"📝 GERENCIAR: {c['nome']}")
+                st.subheader(f"📝 EDITAR: {c['nome']}")
                 col1, col2 = st.columns(2)
                 enome = col1.text_input("NOME", value=c['nome'])
                 euser = col2.text_input("USUÁRIO", value=c['usuario'])
@@ -151,8 +133,7 @@ if not df.empty:
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
                     sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
-                    st.session_state.cliente_selecionado = None
-                    st.rerun()
+                    st.session_state.cliente_selecionado = None; st.rerun()
 
                 if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
@@ -167,6 +148,7 @@ if not df.empty:
                 
                 if b4.form_submit_button("✖️ FECHAR"):
                     st.session_state.cliente_selecionado = None; st.rerun()
+            st.divider()
 
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
@@ -176,32 +158,29 @@ if not df.empty:
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
             
-            # Estrutura com Botão Invisível cobrindo o Card Visual
-            st.markdown(f'''
-                <div class="card-container">
-                    <div class="cliente-card">
-                        <img src="{img}" class="img-servidor-card">
-                        <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div class="nome-c">{r['nome']}</div>
-                                <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                            </div>
-                            <div class="dias-box">
-                                <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                                <small style="color:#8b949e;">{data_br}</small>
-                            </div>
-                        </div>
-                    </div>
-            ''', unsafe_allow_html=True)
-            
-            # O botão invisível fica aqui
-            if st.button("", key=f"inv_{r['id']}"):
+            # Botão invisível PRIMEIRO (para capturar o clique)
+            if st.button("", key=f"btn_card_{r['id']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
-                
-            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Card Visual SEGUNDO (fica desenhado por baixo do botão)
+            st.markdown(f'''
+                <div class="cliente-card-visual">
+                    <img src="{img}" class="img-servidor-card">
+                    <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div class="nome-c">{r['nome']}</div>
+                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                        </div>
+                        <div class="dias-box">
+                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                            <small style="color:#8b949e;">{data_br}</small>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-bottom:15px;"></div>
+            ''', unsafe_allow_html=True)
 
-    # --- ABA 2: ADICIONAR ---
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -223,7 +202,6 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.success("Salvo!"); st.rerun()
 
-    # --- ABA 3: COBRANÇA ---
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -253,39 +231,23 @@ if not df.empty:
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
-                data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-                
                 with st.container():
                     c_ch, c_card, c_wa = st.columns([0.4, 4.4, 1.2])
                     c_ch.checkbox("", value=sel_all, key=f"chk_cob_{r['id']}")
-                    
-                    # Card Visual em Cobrança (Também clicável para abrir info se quiser)
                     c_card.markdown(f'''
-                        <div class="card-container">
-                            <div class="cliente-card">
-                                <img src="{img}" class="img-servidor-card">
-                                <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <div class="nome-c">{r['nome']}</div>
-                                        <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                                    </div>
-                                    <div class="dias-box">
-                                        <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                                        <small style="color:#8b949e;">{data_br}</small>
-                                    </div>
-                                </div>
+                        <div class="cliente-card-visual">
+                            <img src="{img}" class="img-servidor-card">
+                            <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                                <div><div class="nome-c">{r['nome']}</div><span style="color:#8b949e;">🖥️ {r['sistema']}</span></div>
+                                <div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span></div>
                             </div>
+                        </div>
                     ''', unsafe_allow_html=True)
-                    if c_card.button("", key=f"inv_cob_{r['id']}"):
-                        st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
-                    c_card.markdown('</div>', unsafe_allow_html=True)
-
                     c_wa.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
 
-    # --- ABA 4: AJUSTES ---
     with tab4:
-        st.subheader("⚙️ AJUSTES")
-        srv_nome = st.text_input("Nome do Servidor")
+        st.subheader("⚙️ AJUSTES DO SISTEMA")
+        srv_nome = st.text_input("NOME DO NOVO SERVIDOR")
         col_s1, col_s2 = st.columns(2)
         if col_s1.button("💾 SALVAR SERVIDOR"):
             if srv_nome and srv_nome not in st.session_state.lista_servidores:
@@ -293,9 +255,11 @@ if not df.empty:
         if col_s2.button("🗑️ EXCLUIR SERVIDOR"):
             if srv_nome in st.session_state.lista_servidores:
                 st.session_state.lista_servidores.remove(srv_nome); st.rerun()
+        
         st.divider()
         if st.button("🔄 SINCRONIZAR GOOGLE SHEETS"): st.rerun()
+        
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.drop(columns=['dt_venc_calc', 'dias_res']).to_excel(writer, index=False)
-        st.download_button(label="📥 BACKUP EXCEL", data=buffer.getvalue(), file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx")
+        st.download_button(label="📥 GERAR BACKUP EXCEL", data=buffer.getvalue(), file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx")
