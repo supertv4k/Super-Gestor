@@ -24,28 +24,18 @@ st.markdown("""
     .logo-gestao { width: 380px; margin-bottom: -15px !important; }
     .logo-supertv { width: 320px; }
     
-    /* Métricas */
     .metric-card { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 20px; }
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
-    /* Card de Cliente */
     .cliente-card {
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        margin-bottom: -95px; position: relative; z-index: 1; height: 90px;
+        margin-bottom: 10px; position: relative; height: 100px;
     }
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
-    .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; margin-right: 15px; }
-    
-    /* Afastamento dos Dias Restantes */
-    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; }
-    
-    .card-full-btn > div > div > button {
-        height: 90px !important; background-color: transparent !important; 
-        border: 1px solid transparent !important; color: transparent !important;
-        width: 100% !important; cursor: pointer;
-    }
+    .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
+    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; min-width: 120px; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
@@ -54,6 +44,9 @@ st.markdown("""
 
     .cobransa-item-box { background-color: #1c2128; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #00d4ff; }
     div.stButton > button { width: 100% !important; font-weight: bold !important; }
+    
+    /* Estilo do botão de renovação rápida */
+    .btn-renovar { background-color: #00FF00 !important; color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -93,7 +86,7 @@ hoje = datetime.now().date()
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # --- MÉTRICAS (VOLTARAM!) ---
+    # --- MÉTRICAS ---
     vencidos_count = len(df[df['dias_res'] < 0])
     vencem_hoje_count = len(df[df['dias_res'] == 0])
     ativos_count = len(df[df['dias_res'] >= 0])
@@ -108,16 +101,16 @@ if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
+        # SEÇÃO DE EDIÇÃO/RENOVAÇÃO
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             with st.form("form_edit_full"):
-                st.subheader(f"📝 EDITAR: {c['nome']}")
+                st.subheader(f"📝 GERENCIAR: {c['nome']}")
                 col1, col2 = st.columns(2)
-                # SEQUÊNCIA CORRETA DAS 12 COLUNAS
                 enome = col1.text_input("NOME", value=c['nome'])
                 euser = col2.text_input("USUÁRIO", value=c['usuario'])
                 esenha = col1.text_input("SENHA", value=c['senha'])
-                eserv = col2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
+                eserv = col2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores), index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
                 esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
                 evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
                 ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -126,61 +119,74 @@ if not df.empty:
                 eobs = col2.text_area("OBSERVAÇÃO", value=c['observacao'])
                 eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
                 
-                b_cols = st.columns(3)
-                if b_cols[0].form_submit_button("💾 SALVAR"):
+                # BOTÕES DE AÇÃO
+                b1, b2, b3, b4 = st.columns(4)
+                if b1.form_submit_button("💾 SALVAR"):
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
                     sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
                     st.session_state.cliente_selecionado = None
                     st.rerun()
-                if b_cols[1].form_submit_button("🗑️ EXCLUIR"):
+
+                if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
+                    idx = sheet.col_values(1).index(str(c['id'])) + 1
+                    nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
+                    sheet.update_cell(idx, 7, nova_data) # Coluna G (7) é Vencimento
+                    st.success("Renovado por +30 dias!")
+                    st.session_state.cliente_selecionado = None
+                    time.sleep(1)
+                    st.rerun()
+
+                if b3.form_submit_button("🗑️ EXCLUIR"):
                     sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
                     st.session_state.cliente_selecionado = None
                     st.rerun()
-                if b_cols[2].form_submit_button("✖️ FECHAR"):
+                
+                if b4.form_submit_button("✖️ FECHAR"):
                     st.session_state.cliente_selecionado = None
                     st.rerun()
+            st.divider()
 
-        busca = st.text_input("🔎 BUSCAR...")
+        busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
+        
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
             
-            # Card com espaçamento corrigido entre Nome e Dias
-            st.markdown(f'''
-                <div class="cliente-card">
-                    <img src="{img}" class="img-servidor-card">
-                    <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                        </div>
-                        <div class="dias-box">
-                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                            <small style="color:#8b949e;">{data_br}</small>
+            with st.container():
+                col_card, col_btn = st.columns([5, 1])
+                
+                col_card.markdown(f'''
+                    <div class="cliente-card">
+                        <img src="{img}" class="img-servidor-card">
+                        <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="nome-c">{r['nome']}</div>
+                                <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                            </div>
+                            <div class="dias-box">
+                                <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                                <small style="color:#8b949e;">{data_br}</small>
+                            </div>
                         </div>
                     </div>
-                </div>
-            ''', unsafe_allow_html=True)
-            
-            st.markdown('<div class="card-full-btn">', unsafe_allow_html=True)
-            if st.button(f"EDIT {r['id']}", key=f"btn_card_{r['id']}"):
-                st.session_state.cliente_selecionado = r.to_dict()
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+                ''', unsafe_allow_html=True)
+                
+                if col_btn.button("⚙️ ABRIR", key=f"btn_{r['id']}", help="Editar ou Renovar"):
+                    st.session_state.cliente_selecionado = r.to_dict()
+                    st.rerun()
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
             ca1, ca2 = st.columns(2)
-            # SEQUÊNCIA CORRETA DAS 12 COLUNAS
             nnome = ca1.text_input("NOME")
             nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA")
             nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
-            nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"])
+            nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0) # Começa com P2P
             nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=10.0)
             nmensal = ca2.number_input("MENSALIDADE", value=35.0)
@@ -205,7 +211,6 @@ if not df.empty:
         if c_f6.button("🗓️ Todos"): st.session_state.filtro_f = "todos"
 
         filtro = st.session_state.filtro_f
-        # Suas 5 mensagens oficiais integradas
         mensagens = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
