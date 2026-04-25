@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import urllib.parse
 import base64
 import io
-import time
 
 # --- 1. CONFIGURAÇÃO ---
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
@@ -17,7 +16,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player"]
 
-# --- 2. ESTILIZAÇÃO CSS (PREMIUM) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -25,29 +24,35 @@ st.markdown("""
     .logo-gestao { width: 380px; margin-bottom: -15px !important; }
     .logo-supertv { width: 320px; }
     
-    /* Card Clicável */
+    /* Métricas */
+    .metric-card { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; margin-bottom: 20px; }
+    .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
+    .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
+
+    /* Card de Cliente */
     .cliente-card {
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        margin-bottom: -78px; position: relative; z-index: 1;
+        margin-bottom: -95px; position: relative; z-index: 1; height: 90px;
     }
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
-    .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
+    .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; margin-right: 15px; }
+    
+    /* Afastamento dos Dias Restantes */
+    .dias-box { margin-left: 20px; padding-left: 20px; border-left: 1px solid #30363d; }
     
     .card-full-btn > div > div > button {
         height: 90px !important; background-color: transparent !important; 
         border: 1px solid transparent !important; color: transparent !important;
-        width: 100% !important;
+        width: 100% !important; cursor: pointer;
     }
     
-    /* Cores solicitadas pelo Gilmar */
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
     .cor-ok { color: #00FF00; font-weight: 900; }
     .cor-tranquilo { color: #00D4FF; font-weight: 900; }
 
     .cobransa-item-box { background-color: #1c2128; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #00d4ff; }
-    .vencido-border { border-left: 5px solid #ff4b4b !important; }
     div.stButton > button { width: 100% !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -78,7 +83,7 @@ def get_cor_classe(dias):
     elif dias == 3: return "cor-ok"
     else: return "cor-tranquilo"
 
-# --- 4. INTERFACE PRINCIPAL ---
+# --- 4. EXECUÇÃO ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
@@ -87,15 +92,28 @@ hoje = datetime.now().date()
 
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
+    
+    # --- MÉTRICAS (VOLTARAM!) ---
+    vencidos_count = len(df[df['dias_res'] < 0])
+    vencem_hoje_count = len(df[df['dias_res'] == 0])
+    ativos_count = len(df[df['dias_res'] >= 0])
+    lucro = df["mensalidade"].sum() - df["custo"].sum()
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{ativos_count}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{vencidos_count}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{vencem_hoje_count}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro Líquido</div><div class="metric-value" style="color:#00ff88">R$ {lucro:,.2f}</div></div>', unsafe_allow_html=True)
+
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # --- ABA 1: CLIENTES (CARD CLICÁVEL E DATA BR) ---
     with tab1:
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             with st.form("form_edit_full"):
                 st.subheader(f"📝 EDITAR: {c['nome']}")
                 col1, col2 = st.columns(2)
+                # SEQUÊNCIA CORRETA DAS 12 COLUNAS
                 enome = col1.text_input("NOME", value=c['nome'])
                 euser = col2.text_input("USUÁRIO", value=c['usuario'])
                 esenha = col1.text_input("SENHA", value=c['senha'])
@@ -130,15 +148,19 @@ if not df.empty:
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
             
+            # Card com espaçamento corrigido entre Nome e Dias
             st.markdown(f'''
                 <div class="cliente-card">
                     <img src="{img}" class="img-servidor-card">
-                    <div style="flex-grow: 1;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span class="nome-c">{r['nome']}</span>
-                            <span class="{cor}">{r['dias_res']} DIAS ({data_br})</span>
+                    <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div class="nome-c">{r['nome']}</div>
+                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
                         </div>
-                        <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                        <div class="dias-box">
+                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                            <small style="color:#8b949e;">{data_br}</small>
+                        </div>
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
@@ -149,11 +171,11 @@ if not df.empty:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- ABA 2: ADICIONAR ---
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
             ca1, ca2 = st.columns(2)
+            # SEQUÊNCIA CORRETA DAS 12 COLUNAS
             nnome = ca1.text_input("NOME")
             nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA")
@@ -171,9 +193,9 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.success("Salvo!"); st.rerun()
 
-    # --- ABA 3: COBRANÇA (MANTIDA INTEGRALMENTE) ---
+    # --- ABA 3: COBRANÇA ---
     with tab3:
-        st.subheader("🚨 GESTÃO DE COBRANÇAS")
+        st.subheader("🚨 COBRANÇAS")
         c_f1, c_f2, c_f3, c_f4, c_f5, c_f6 = st.columns(6)
         if c_f1.button("❌ Vencidos"): st.session_state.filtro_f = "vencidos"
         if c_f2.button("📅 Hoje"): st.session_state.filtro_f = "hoje"
@@ -183,6 +205,7 @@ if not df.empty:
         if c_f6.button("🗓️ Todos"): st.session_state.filtro_f = "todos"
 
         filtro = st.session_state.filtro_f
+        # Suas 5 mensagens oficiais integradas
         mensagens = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
@@ -199,20 +222,17 @@ if not df.empty:
         else: df_c = df; msg_atual = "Lembrete SUPERTV4K"
 
         if not df_c.empty:
-            sel_all = st.checkbox("✅ Selecionar Todos da Lista")
-            clientes_sel = []
+            sel_all = st.checkbox("✅ Selecionar Todos")
             for _, r in df_c.iterrows():
                 with st.container():
                     col_ch, col_inf, col_z = st.columns([0.4, 4, 1.6])
-                    if col_ch.checkbox("", value=sel_all, key=f"cobr_chk_{r['id']}"): clientes_sel.append(r)
-                    border = "vencido-border" if r['dias_res'] < 0 else ""
-                    col_inf.markdown(f'<div class="cobransa-item-box {border}"><strong>{r["nome"]}</strong> | {r["servidor"]}<br><small>Vencimento: {r["vencimento"]}</small></div>', unsafe_allow_html=True)
+                    col_ch.checkbox("", value=sel_all, key=f"cobr_chk_{r['id']}")
+                    col_inf.markdown(f'<div class="cobransa-item-box"><strong>{r["nome"]}</strong> | {r["sistema"]}<br><small>Vencimento: {r["vencimento"]}</small></div>', unsafe_allow_html=True)
                     col_z.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
 
-    # --- ABA 4: AJUSTES (MANTIDA INTEGRALMENTE COM BACKUP) ---
+    # --- ABA 4: AJUSTES ---
     with tab4:
-        st.subheader("⚙️ AJUSTES DO SISTEMA")
-        st.markdown("### 🖥️ Gerenciar Servidores")
+        st.subheader("⚙️ AJUSTES")
         srv_nome = st.text_input("Nome do Servidor")
         col_s1, col_s2 = st.columns(2)
         if col_s1.button("💾 SALVAR SERVIDOR"):
@@ -223,10 +243,9 @@ if not df.empty:
                 st.session_state.lista_servidores.remove(srv_nome); st.rerun()
         
         st.divider()
-        st.markdown("### 🛠️ Ferramentas e Dados")
-        if st.button("🔄 SINCRONIZAR SHEETS"): st.rerun()
+        if st.button("🔄 SINCRONIZAR GOOGLE SHEETS"): st.rerun()
         
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Clientes')
+            df.to_excel(writer, index=False)
         st.download_button(label="📥 BACKUP EXCEL", data=buffer.getvalue(), file_name=f"backup_supertv_{datetime.now().strftime('%d_%m_%Y')}.xlsx")
