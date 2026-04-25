@@ -37,16 +37,16 @@ st.markdown("""
     
     .cliente-card-html {
         display: flex; align-items: center; background-color: #161b22;
-        border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        min-height: 100px; width: 100%; transition: 0.2s;
+        border: 1px solid #30363d; border-radius: 12px; padding: 12px;
+        min-height: 80px; width: 100%; transition: 0.2s;
         overflow: hidden;
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
-    .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
+    .img-servidor-card { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 12px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-    .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
-    .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
+    .nome-c { font-weight: 900; font-size: 15px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.1; margin-bottom: 2px; }
+    .dias-box { flex-shrink: 0; margin-left: 10px; padding-left: 10px; border-left: 1px solid #30363d; width: 100px; text-align: right; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
@@ -85,7 +85,7 @@ sheet = conectar_gs()
 df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
-# --- LÓGICA DE SELEÇÃO DE CLIENTE ---
+# --- LÓGICA DE SELEÇÃO ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     if "id_para_editar" in st.session_state:
@@ -113,20 +113,20 @@ if st.session_state.get('cliente_selecionado') is not None:
         eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
         
         b1, b2, b3, b4 = st.columns(4)
-        if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+        if b1.form_submit_button("💾 SALVAR"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-        if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
+        if b2.form_submit_button("⚡ RENOVAR +30"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-        if b3.form_submit_button("🗑️ EXCLUIR CLIENTE"):
+        if b3.form_submit_button("🗑️ EXCLUIR"):
             sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
-        if b4.form_submit_button("✖️ FECHAR SEM SALVAR"):
+        if b4.form_submit_button("✖️ FECHAR"):
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
@@ -147,12 +147,12 @@ if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
-        busca = st.text_input("🔎 BUSCAR CLIENTE...")
+        busca = st.text_input("🔎 BUSCAR...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:13px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:15px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -170,7 +170,7 @@ if not df.empty:
                 st.rerun()
 
     with tab3:
-        st.subheader("🚨 COBRANÇAS")
+        st.subheader("🚨 COBRANÇA EM MASSA")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
         labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
@@ -180,12 +180,9 @@ if not df.empty:
         filtro = st.session_state.filtro_f
         cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         msg_map = {
-            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !" + cnpj_pix,
-            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰!" + cnpj_pix,
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!" + cnpj_pix,
-            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!" + cnpj_pix,
-            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!" + cnpj_pix,
-            "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !" + cnpj_pix, "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰!" + cnpj_pix,
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰!" + cnpj_pix, "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰!" + cnpj_pix,
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰!" + cnpj_pix, "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
         }
         msg_atual = msg_map.get(filtro, msg_map["todos"])
 
@@ -198,42 +195,39 @@ if not df.empty:
 
         if not df_c.empty:
             sel_all = st.checkbox(f"✅ Selecionar todos desta lista ({len(df_c)})", key=f"sel_all_{filtro}")
-            
             lista_para_disparo = []
             
-            # Percorre os clientes para exibir e capturar quem está selecionado
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
+                
+                # Container do Card com colunas ajustadas para não esticar
                 with st.container():
-                    c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
-                    # Verifica se o checkbox individual está marcado ou se o "Selecionar Todos" está ativo
+                    c1, c2, c3 = st.columns([0.4, 4.0, 1.4])
                     selecionado = c1.checkbox("", value=sel_all, key=f"chk_{r['id']}_{filtro}")
-                    
                     if selecionado:
                         lista_para_disparo.append({"whats": r['whatsapp'], "msg": msg_atual, "nome": r['nome']})
                     
-                    c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
+                    c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e; font-size:12px;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}" style="font-size:14px;">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
-                    c3.link_button("📲 COBRAR", url_whats)
+                    c3.link_button("📲 COBRAR", url_whats, use_container_width=True)
 
-            # LÓGICA DO BOTÃO: Aparece apenas se houver 2 ou mais selecionados
             if len(lista_para_disparo) >= 2:
                 st.divider()
-                if st.button(f"🚀 DISPARAR PARA {len(lista_para_disparo)} CLIENTES SELECIONADOS", use_container_width=True, type="primary"):
+                if st.button(f"🚀 ENVIAR WHATSAPP PARA OS {len(lista_para_disparo)} SELECIONADOS", use_container_width=True, type="primary"):
                     barra = st.progress(0)
                     status = st.empty()
                     for i, cli in enumerate(lista_para_disparo):
                         link = f"https://wa.me/55{cli['whats']}?text={urllib.parse.quote(cli['msg'])}"
                         st.components.v1.html(f"<script>window.open('{link}', '_blank');</script>", height=0)
                         barra.progress((i + 1) / len(lista_para_disparo))
-                        status.write(f"Preparando envio para: **{cli['nome']}**...")
-                        time.sleep(1.8) # Delay levemente maior para segurança
-                    st.success(f"✅ Processo finalizado para {len(lista_para_disparo)} clientes!")
+                        status.markdown(f"⏳ Aguardando intervalo de segurança... Enviando para: **{cli['nome']}**")
+                        time.sleep(12) # INTERVALO DE SEGURANÇA (12 seg)
+                    st.success(f"✅ Disparos concluídos com segurança!")
                     status.empty()
 
     with tab4:
-        st.subheader("⚙️ AJUSTES DO SISTEMA")
+        st.subheader("⚙️ AJUSTES")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("💾 SALVAR SERVIDOR"):
             if srv_nome and srv_nome not in st.session_state.lista_servidores:
