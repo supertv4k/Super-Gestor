@@ -4,7 +4,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 import urllib.parse
-import base64
 import time
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
@@ -28,7 +27,7 @@ st.markdown("""
         border: 1px solid #30363d; border-radius: 8px; padding: 10px 15px;
         margin-bottom: -72px; position: relative; z-index: 1;
     }
-    .img-servidor-card { width: 55px; height: 55px; border-radius: 8px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
+    .img-padrao { width: 55px; height: 55px; border-radius: 8px; margin-right: 20px; background-color: #00d4ff; display: flex; align-items: center; justify-content: center; font-weight: bold; color: black; }
     .info-text { display: flex; flex-direction: column; width: 100%; }
     .linha-topo { display: flex; justify-content: space-between; align-items: center; margin-right: 15px; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; }
@@ -46,25 +45,34 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS (COLUNAS GOOGLE SHEETS) ---
+# --- 3. FUNÇÕES DE DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
+        # Verifique se o ID da planilha está correto
         return client.open_by_key("1ntE8RpofySu5IFupuvOZxZnrnmHKzaYbyqAQ-Mzc8so").sheet1
-    except: return None
+    except Exception as e:
+        st.error(f"Erro na conexão: {e}")
+        return None
 
 def carregar_dados(sheet):
     if sheet:
         valores = sheet.get_all_values()
         if not valores: return pd.DataFrame()
-        # Normaliza colunas para evitar erros de espaço ou maiúsculas
+        # Normaliza colunas para MAIÚSCULAS e sem espaços
         df = pd.DataFrame(valores[1:], columns=[str(c).strip().upper() for c in valores[0]])
-        if 'ID' in df.columns: df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
-        df['CUSTO'] = pd.to_numeric(df['CUSTO'], errors='coerce').fillna(0)
-        df['MENSALIDADE'] = pd.to_numeric(df['MENSALIDADE'], errors='coerce').fillna(0)
-        df['DT_VENC_CALC'] = pd.to_datetime(df['VENCIMENTO'], errors='coerce').dt.date
+        
+        # Converte valores numéricos
+        for col in ['CUSTO', 'MENSALIDADE']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col].str.replace(',', '.'), errors='coerce').fillna(0)
+        
+        # Converte Vencimento para data (Garante padrão BR na leitura)
+        if 'VENCIMENTO' in df.columns:
+            df['DT_VENC_CALC'] = pd.to_datetime(df['VENCIMENTO'], errors='coerce').dt.date
+        
         return df[df['NOME'].astype(str).str.strip() != ""]
     return pd.DataFrame()
 
@@ -76,6 +84,7 @@ df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
 if not df.empty:
+    # Cálculo de dias restantes
     df['DIAS_RES'] = df['DT_VENC_CALC'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
     # --- MÉTRICAS ---
@@ -83,11 +92,11 @@ if not df.empty:
     vencidos = len(df[df['DIAS_RES'] < 0])
     lucro = df['MENSALIDADE'].sum() - df['CUSTO'].sum()
 
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 ATIVOS</div><div class="metric-value">{ativos}</div></div>', unsafe_allow_html=True)
-    col_m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ VENCIDOS</div><div class="metric-value" style="color:#ff4b4b">{vencidos}</div></div>', unsafe_allow_html=True)
-    col_m3.markdown(f'<div class="metric-card"><div class="metric-label">📅 HOJE</div><div class="metric-value">{len(df[df["DIAS_RES"] == 0])}</div></div>', unsafe_allow_html=True)
-    col_m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 LUCRO LÍQUIDO</div><div class="metric-value lucro">R$ {lucro:,.2f}</div></div>', unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 ATIVOS</div><div class="metric-value">{ativos}</div></div>', unsafe_allow_html=True)
+    m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ VENCIDOS</div><div class="metric-value" style="color:#ff4b4b">{vencidos}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-card"><div class="metric-label">📅 HOJE</div><div class="metric-value">{len(df[df["DIAS_RES"] == 0])}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 LUCRO LÍQUIDO</div><div class="metric-value lucro">R$ {lucro:,.2f}</div></div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
@@ -108,18 +117,17 @@ if not df.empty:
                 en_mensal = col2.number_input("MENSALIDADE", value=float(c.get('MENSALIDADE')))
                 en_whats = col1.text_input("WHATSAPP", value=c.get('WHATSAPP'))
                 en_obs = col2.text_area("OBSERVAÇÃO", value=c.get('OBSERVAÇÃO'))
-                en_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
                 
                 b1, b2, b3 = st.columns(3)
                 if b1.form_submit_button("💾 SALVAR"):
-                    ids = sheet.col_values(1)
-                    row = ids.index(str(int(c['ID']))) + 1
-                    blob = base64.b64encode(en_img.read()).decode() if en_img else c.get('LOGO_BLOB', '')
-                    sheet.update(range_name=f'A{row}:L{row}', values=[[c['ID'], en_nome.upper(), en_user, en_senha, en_serv.upper(), en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs, blob]])
+                    # Aqui usamos a busca pelo Nome se não houver coluna ID fixa
+                    lista_nomes = sheet.col_values(1)
+                    row = lista_nomes.index(c['NOME']) + 1
+                    sheet.update(range_name=f'A{row}:J{row}', values=[[en_nome.upper(), en_user, en_senha, en_serv.upper(), en_sist, en_venc.strftime('%Y-%m-%d'), en_custo, en_mensal, en_whats, en_obs]])
                     st.session_state.cliente_selecionado = None
                     st.rerun()
                 if b2.form_submit_button("🗑️ EXCLUIR"):
-                    sheet.delete_rows(sheet.col_values(1).index(str(int(c['ID']))) + 1)
+                    sheet.delete_rows(sheet.col_values(1).index(c['NOME']) + 1)
                     st.session_state.cliente_selecionado = None
                     st.rerun()
                 if b3.form_submit_button("✖️ FECHAR"):
@@ -128,12 +136,28 @@ if not df.empty:
 
         busca = st.text_input("🔎 PESQUISAR CLIENTE...")
         df_f = df[df['NOME'].str.contains(busca, case=False, na=False)] if busca else df
+        
         for _, r in df_f.sort_values(by='DIAS_RES').iterrows():
-            img_src = f"data:image/png;base64,{r['LOGO_BLOB']}" if r.get('LOGO_BLOB') else "https://i.imgur.com/vH9XvI0.png"
             dias = r['DIAS_RES']
             txt_dias = f"VENCIDO HÁ {abs(dias)} DIAS" if dias < 0 else ("VENCE HOJE" if dias == 0 else f"FALTAM {dias} DIAS")
-            st.markdown(f'<div class="cliente-card"><img src="{img_src}" class="img-servidor-card"><div class="info-text"><div class="linha-topo"><span class="nome-c">{str(r["NOME"]).upper()}</span><span class="dias-destaque {"vencido" if dias < 0 else ""}">{txt_dias}</span></div><span class="detalhe-c">🔑 {r["USUÁRIO"]} | {r["SISTEMA"]} | 📅 {pd.to_datetime(r["VENCIMENTO"]).strftime("%d/%m/%Y")}</span></div></div>', unsafe_allow_html=True)
-            if st.button(f"btn_{r['ID']}", key=f"btn_{r['ID']}"):
+            classe = "vencido" if dias < 0 else ""
+            
+            # Usando uma logo padrão (primeira letra do servidor) para evitar erro de coluna de imagem
+            serv_inicial = str(r['SERVIDOR'])[0] if r['SERVIDOR'] else "S"
+
+            st.markdown(f'''
+                <div class="cliente-card">
+                    <div class="img-padrao">{serv_inicial}</div>
+                    <div class="info-text">
+                        <div class="linha-topo">
+                            <span class="nome-c">{str(r["NOME"]).upper()}</span>
+                            <span class="dias-destaque {classe}">{txt_dias}</span>
+                        </div>
+                        <span class="detalhe-c">🔑 {r["USUÁRIO"]} | {r["SISTEMA"]} | 📅 {pd.to_datetime(r["VENCIMENTO"]).strftime("%d/%m/%Y")}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+            if st.button(f"btn_{r['NOME']}", key=f"btn_{r['NOME']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
@@ -152,12 +176,9 @@ if not df.empty:
             n_mensal = c_b.number_input("MENSALIDADE", value=35.0)
             n_whats = c_a.text_input("WHATSAPP")
             n_obs = c_b.text_area("OBSERVAÇÃO")
-            n_img = st.file_uploader("LOGO", type=['png', 'jpg'])
             if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
-                blob = base64.b64encode(n_img.read()).decode() if n_img else ""
-                prox_id = int(df['ID'].max() + 1) if not df.empty else 1
-                sheet.append_row([prox_id, n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, blob])
-                st.success("Cadastrado!"); time.sleep(1); st.rerun()
+                sheet.append_row([n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs])
+                st.success("Cadastrado com sucesso!"); time.sleep(1); st.rerun()
 
     # --- TAB 3: COBRANÇA ---
     with tab3:
@@ -181,11 +202,10 @@ if not df.empty:
         else: df_c = df; msg = "Olá! Passando para lembrar do seu vencimento da SuperTV4K."
 
         st.divider()
-        if st.button("✅ SELECIONAR TODOS"): st.info("Filtro aplicado. Clique nos botões de cobrança abaixo.")
-
         for _, cli in df_c.iterrows():
             c1, c2 = st.columns([4, 1])
-            c1.write(f"👤 **{cli['NOME']}** | Vencimento: {pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')}")
+            venc_br = pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')
+            c1.write(f"👤 **{cli['NOME']}** | Vencimento: {venc_br}")
             c2.link_button("📲 COBRAR", f"https://wa.me/55{cli['WHATSAPP']}?text={urllib.parse.quote(msg)}")
 
     with tab4:
