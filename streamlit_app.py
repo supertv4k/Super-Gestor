@@ -17,7 +17,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player"]
 
-# --- 2. ESTILIZAÇÃO CSS ---
+# --- 2. ESTILIZAÇÃO CSS (PREMIUM) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -29,10 +29,11 @@ st.markdown("""
     .metric-label { font-size: 12px; color: #8b949e; font-weight: bold; text-transform: uppercase; }
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
+    /* Estilo Único do Card para Clientes e Cobrança */
     .cliente-card {
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 15px;
-        margin-bottom: 10px; position: relative; height: 100px;
+        margin-bottom: 10px; position: relative; height: 100px; width: 100%;
     }
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 20px; border: 1px solid #444; }
     .nome-c { font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
@@ -43,8 +44,7 @@ st.markdown("""
     .cor-ok { color: #00FF00; font-weight: 900; }
     .cor-tranquilo { color: #00D4FF; font-weight: 900; }
 
-    .cobransa-item-box { background-color: #1c2128; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #00d4ff; }
-    div.stButton > button { width: 100% !important; font-weight: bold !important; }
+    div.stButton > button { width: 100% !important; font-weight: bold !important; height: 45px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -98,6 +98,7 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
+    # --- ABA 1: CLIENTES ---
     with tab1:
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
@@ -166,6 +167,7 @@ if not df.empty:
                 if col_btn.button("⚙️ ABRIR", key=f"btn_{r['id']}"):
                     st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
 
+    # --- ABA 2: ADICIONAR ---
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -187,7 +189,7 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.success("Salvo!"); st.rerun()
 
-    # --- ABA 3: COBRANÇA (CORRIGIDA) ---
+    # --- ABA 3: COBRANÇA (CARDS PADRONIZADOS) ---
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -205,7 +207,6 @@ if not df.empty:
             "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
         }
 
-        # Aplicar Filtro ANTES do Selecionar Todos
         if filtro == "vencidos": df_c = df[df['dias_res'] < 0]; msg_atual = mensagens["vencidos"]
         elif filtro == "hoje": df_c = df[df['dias_res'] == 0]; msg_atual = mensagens["hoje"]
         elif filtro == "1dia": df_c = df[df['dias_res'] == 1]; msg_atual = mensagens["1dia"]
@@ -214,14 +215,37 @@ if not df.empty:
         else: df_c = df; msg_atual = "Lembrete SUPERTV4K"
 
         if not df_c.empty:
-            # O Selecionar Todos agora só afeta os IDs da lista 'df_c' (a filtrada)
-            sel_all = st.checkbox(f"✅ Selecionar apenas os {len(df_c)} clientes desta lista", key=f"sel_all_{filtro}")
+            sel_all = st.checkbox(f"✅ Selecionar os {len(df_c)} clientes desta lista", key=f"sel_all_{filtro}")
             for _, r in df_c.iterrows():
+                img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
+                cor = get_cor_classe(r['dias_res'])
+                data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
+                
                 with st.container():
-                    col_ch, col_inf, col_z = st.columns([0.4, 4, 1.6])
-                    col_ch.checkbox("", value=sel_all, key=f"chk_{r['id']}")
-                    col_inf.markdown(f'<div class="cobransa-item-box"><strong>{r["nome"]}</strong> | {r["sistema"]}<br><small>Venc: {r["dt_venc_calc"].strftime("%d/%m/%Y")}</small></div>', unsafe_allow_html=True)
-                    col_z.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
+                    col_ch, col_card, col_wa = st.columns([0.4, 4.4, 1.2])
+                    
+                    # Checkbox lateral
+                    col_ch.checkbox("", value=sel_all, key=f"chk_cob_{r['id']}")
+                    
+                    # Card IDÊNTICO à tela inicial
+                    col_card.markdown(f'''
+                        <div class="cliente-card">
+                            <img src="{img}" class="img-servidor-card">
+                            <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div class="nome-c">{r['nome']}</div>
+                                    <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                                </div>
+                                <div class="dias-box">
+                                    <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
+                                    <small style="color:#8b949e;">{data_br}</small>
+                                </div>
+                            </div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+                    
+                    # Botão de Cobrança
+                    col_wa.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}")
 
     # --- ABA 4: AJUSTES ---
     with tab4:
