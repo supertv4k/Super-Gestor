@@ -97,12 +97,13 @@ if not df.empty:
 
 # --- 4. INTERFACE ---
 
-# MODO FOCO: Se clicar em um cliente, o formulário aparece PRIMEIRO que tudo
+# MODO FOCO: Se clicar em um cliente, o formulário aparece PRIMEIRO
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
     with st.form("form_edit_full"):
         col1, col2 = st.columns(2)
+        # ORDENADO CONFORME GOOGLE SHEETS
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
@@ -112,8 +113,8 @@ if st.session_state.get('cliente_selecionado') is not None:
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
         emensal = col2.number_input("MENSALIDADE", value=float(c['mensalidade']))
         ewhats = col1.text_input("WHATSAPP", value=c['whatsapp'])
-        eobs = col2.text_area("OBSERVAÇÃO", value=c['observacao'])
-        eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
+        eimg = col2.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
+        eobs = st.text_area("OBSERVAÇÃO", value=c['observacao'])
         
         b1, b2, b3, b4 = st.columns(4)
         if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
@@ -136,7 +137,7 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# CABEÇALHO E MÉTRICAS (Aparecem normalmente abaixo da edição ou como topo principal)
+# CABEÇALHO E MÉTRICAS
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
@@ -178,7 +179,7 @@ if not df.empty:
                 </a>
             ''', unsafe_allow_html=True)
 
-    # CADASTRO NOVO
+    # CADASTRO NOVO (ORDENADO CONFORME GOOGLE SHEETS)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -187,14 +188,15 @@ if not df.empty:
             nsenha = ca1.text_input("SENHA"); nserv = ca2.selectbox("SERVIDOR", sorted(st.session_state.lista_servidores))
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=10.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
-            nwhats = ca1.text_input("WHATSAPP"); nobs = ca2.text_area("OBSERVAÇÃO"); nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
+            nwhats = ca1.text_input("WHATSAPP"); nimg = ca2.file_uploader("LOGO", type=['png', 'jpg'])
+            nobs = st.text_area("OBSERVAÇÃO")
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
                 blob = base64.b64encode(nimg.read()).decode() if nimg else ""
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
-    # COBRANÇA (TEXTOS SUBSTITUÍDOS)
+    # COBRANÇA (MENSAGENS ATUALIZADAS)
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
