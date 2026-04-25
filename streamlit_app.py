@@ -10,49 +10,64 @@ import time
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
 
-# --- 2. ESTILIZAÇÃO CSS (ESTÁVEL E LIMPA) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
     .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 30px; }
-    .logo-gestao { width: 400px; margin-bottom: -15px !important; }
-    .logo-supertv { width: 350px; }
+    .logo-gestao { width: 450px; margin-bottom: -20px !important; }
+    .logo-supertv { width: 380px; }
     
-    /* Estilo da Imagem do Servidor na Lateral */
-    .img-servidor-lista {
-        width: 60px !important;
-        height: 60px !important;
+    /* Card Retangular */
+    .cliente-card {
+        display: flex;
+        align-items: center;
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 10px 15px;
+        margin-bottom: -72px; 
+        position: relative;
+        z-index: 1;
+    }
+
+    .img-servidor-card {
+        width: 55px;
+        height: 55px;
         border-radius: 8px;
         object-fit: cover;
-        border: 1px solid #30363d;
+        margin-right: 20px;
+        border: 1px solid #444;
     }
 
-    /* BOTÃO RETANGULAR ALONGADO */
+    .info-text { display: flex; flex-direction: column; }
+    .nome-c { font-weight: bold; font-size: 16px; color: white; text-transform: uppercase; }
+    .detalhe-c { font-size: 13px; color: #8b949e; }
+
+    /* Botão Invisível que Cobre o Card */
     div.stButton > button {
         width: 100% !important;
-        height: 60px !important;
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        color: white !important;
-        border-radius: 8px !important;
-        text-align: left !important;
-        padding-left: 20px !important;
-        font-size: 15px !important;
-        transition: 0.3s;
+        height: 75px !important;
+        background-color: transparent !important;
+        border: 1px solid transparent !important;
+        color: transparent !important;
+        position: relative;
+        z-index: 10;
+        cursor: pointer;
     }
-
+    
     div.stButton > button:hover {
-        border-color: #00d4ff !important;
-        background-color: #1c2128 !important;
+        border: 1px solid #00d4ff !important;
+        background-color: rgba(0, 212, 255, 0.05) !important;
     }
 
+    /* Painel de Edição Azul */
     .edit-panel { background-color: #1c2128; padding: 20px; border-radius: 15px; border: 2px solid #00d4ff; margin-bottom: 25px; }
-    .metric-card { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; text-align: center; }
-    .val-azul { color: #00d4ff; font-size: 22px; font-weight: bold; }
+    label { color: white !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO E DADOS ---
+# --- 3. FUNÇÕES DE DADOS ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -68,12 +83,14 @@ def carregar_dados(sheet):
         df = pd.DataFrame(valores[1:], columns=[str(c).strip().lower() for c in valores[0]])
         if 'id' in df.columns: df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(0).astype(int)
         df['dt_venc_calc'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
-        df['custo'] = pd.to_numeric(df['custo'], errors='coerce').fillna(0)
-        df['mensalidade'] = pd.to_numeric(df['mensalidade'], errors='coerce').fillna(0)
         return df[df['nome'].astype(str).str.strip() != ""]
     return pd.DataFrame()
 
-# --- INTERFACE PRINCIPAL ---
+def format_data_br(data_str):
+    try: return pd.to_datetime(data_str).strftime('%d/%m/%Y')
+    except: return data_str
+
+# --- 4. INTERFACE ---
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 sheet = conectar_gs()
@@ -82,79 +99,98 @@ df = carregar_dados(sheet)
 if not df.empty:
     hoje = datetime.now().date()
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
-        # PAINEL DE EDIÇÃO
+        # --- BLOCO DE EDIÇÃO (RESTURADO COM TODOS OS BOTÕES) ---
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             st.markdown(f'<div class="edit-panel"><h3>📝 EDITAR: {str(c.get("nome")).upper()}</h3></div>', unsafe_allow_html=True)
-            with st.form("form_edit"):
-                col_e1, col_e2 = st.columns(2)
-                novo_nome = col_e1.text_input("NOME", value=str(c.get('nome')).upper())
-                novo_user = col_e2.text_input("USUÁRIO", value=c.get('usuario'))
-                novo_senha = col_e1.text_input("SENHA", value=c.get('senha'))
-                novo_venc = col_e2.date_input("VENCIMENTO", value=pd.to_datetime(c.get('vencimento')).date())
-                novo_whats = col_e1.text_input("WHATSAPP", value=c.get('whatsapp'))
-                novo_mensal = col_e2.number_input("MENSALIDADE", value=float(c.get('mensalidade') or 0))
+            
+            with st.form("edit_form"):
+                col1, col2 = st.columns(2)
+                en_nome = col1.text_input("NOME", value=str(c.get('nome')).upper())
+                en_user = col2.text_input("USUÁRIO", value=c.get('usuario'))
+                en_senha = col1.text_input("SENHA", value=c.get('senha'))
+                en_venc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c.get('vencimento')).date())
+                en_whats = col1.text_input("WHATSAPP", value=c.get('whatsapp'))
+                en_img = col2.file_uploader("TROCAR LOGO DO SERVIDOR", type=['png', 'jpg', 'jpeg'])
                 
-                b1, b2 = st.columns(2)
-                if b1.form_submit_button("💾 SALVAR"):
+                # LINHA DE BOTÕES: SALVAR, EXCLUIR, FECHAR
+                b_salvar, b_excluir, b_fechar = st.columns(3)
+                
+                if b_salvar.form_submit_button("💾 SALVAR"):
                     ids = sheet.col_values(1)
-                    idx = ids.index(str(c['id'])) + 1
-                    sheet.update(range_name=f'B{idx}:C{idx}', values=[[novo_nome.upper(), novo_user]])
-                    sheet.update_cell(idx, 4, novo_senha)
-                    sheet.update_cell(idx, 7, novo_venc.strftime('%Y-%m-%d'))
-                    sheet.update_cell(idx, 9, novo_mensal)
-                    sheet.update_cell(idx, 10, novo_whats)
+                    row_idx = ids.index(str(c['id'])) + 1
+                    
+                    # Se subiu imagem nova, converte; se não, mantém a velha
+                    if en_img:
+                        img_blob = base64.b64encode(en_img.read()).decode()
+                    else:
+                        img_blob = c.get('logo_blob', '')
+                    
+                    # Atualiza os dados na planilha (Colunas: ID, Nome, User, Senha, Serv, Sist, Venc, Custo, Mensal, Whats, Obs, Logo)
+                    dados_atualizados = [str(c['id']), en_nome.upper(), en_user, en_senha, c.get('servidor'), c.get('sistema'), en_venc.strftime('%Y-%m-%d'), c.get('custo'), c.get('mensalidade'), en_whats, c.get('observacao'), img_blob]
+                    sheet.update(range_name=f'A{row_idx}:L{row_idx}', values=[dados_atualizados])
+                    
                     st.session_state.cliente_selecionado = None
-                    st.success("Atualizado!"); time.sleep(1); st.rerun()
-                if b2.form_submit_button("✖️ CANCELAR"):
+                    st.success("✅ Alterações salvas!"); time.sleep(1); st.rerun()
+                
+                if b_excluir.form_submit_button("🗑️ EXCLUIR"):
+                    ids = sheet.col_values(1)
+                    row_idx = ids.index(str(c['id'])) + 1
+                    sheet.delete_rows(row_idx)
+                    st.session_state.cliente_selecionado = None
+                    st.warning("❌ Cliente excluído."); time.sleep(1); st.rerun()
+
+                if b_fechar.form_submit_button("✖️ FECHAR"):
                     st.session_state.cliente_selecionado = None
                     st.rerun()
 
-        busca = st.text_input("🔎 BUSCAR CLIENTE...")
+        # --- LISTAGEM DE CLIENTES ---
+        busca = st.text_input("🔎 PESQUISAR...")
         df_f = df[df['nome'].str.contains(busca, case=False, na=False)] if busca else df
         
         for _, r in df_f.sort_values(by='dias_res').iterrows():
-            img_b64 = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+            img_src = f"data:image/png;base64,{r['logo_blob']}" if r.get('logo_blob') else "https://i.imgur.com/vH9XvI0.png"
+            venc_br = format_data_br(r.get('vencimento'))
             
-            # Layout de linha estável: Imagem | Botão
-            c_img, c_btn = st.columns([1, 7])
-            with c_img:
-                st.markdown(f'<img src="{img_b64}" class="img-servidor-lista">', unsafe_allow_html=True)
-            with c_btn:
-                info = f"{str(r['nome']).upper()} | 🔑 {r['usuario']} | 📅 {pd.to_datetime(r['vencimento']).strftime('%d/%m/%Y')}"
-                if st.button(info, key=f"btn_{r['id']}"):
-                    st.session_state.cliente_selecionado = r.to_dict()
-                    st.rerun()
+            st.markdown(f'''
+                <div class="cliente-card">
+                    <img src="{img_src}" class="img-servidor-card">
+                    <div class="info-text">
+                        <span class="nome-c">{str(r.get('nome')).upper()}</span>
+                        <span class="detalhe-c">🔑 {r.get('usuario')} | {r.get('sistema')} | 📅 {venc_br}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+            
+            if st.button(f"edit_{r['id']}", key=f"btn_{r['id']}"):
+                st.session_state.cliente_selecionado = r.to_dict()
+                st.rerun()
 
+    # --- TABS ADICIONAIS (COBRANÇA E AJUSTES) ---
     with tab2:
-        st.subheader("🚀 NOVO CADASTRO")
-        with st.form("form_add", clear_on_submit=True):
-            n_nome = st.text_input("NOME COMPLETO")
-            n_user = st.text_input("LOGIN / USUÁRIO")
+        st.subheader("🚀 NOVO CLIENTE")
+        with st.form("novo_form", clear_on_submit=True):
+            n_nome = st.text_input("NOME")
+            n_user = st.text_input("USUÁRIO")
             n_senha = st.text_input("SENHA")
-            n_whats = st.text_input("WHATSAPP (DDD+NÚMERO)")
-            n_venc = st.date_input("PRIMEIRO VENCIMENTO", value=hoje + timedelta(days=30))
-            n_mensal = st.number_input("MENSALIDADE", value=35.0)
-            n_img = st.file_uploader("LOGO", type=['png', 'jpg', 'jpeg'])
-            if st.form_submit_button("🚀 CADASTRAR CLIENTE"):
+            n_venc = st.date_input("VENCIMENTO", value=hoje + timedelta(days=30))
+            n_whats = st.text_input("WHATSAPP")
+            n_img = st.file_uploader("LOGO", type=['png', 'jpg'])
+            if st.form_submit_button("🚀 CADASTRAR"):
                 blob = base64.b64encode(n_img.read()).decode() if n_img else ""
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
-                sheet.append_row([prox_id, n_nome.upper(), n_user, n_senha, "SERV", "IPTV", n_venc.strftime('%Y-%m-%d'), 10, n_mensal, n_whats, "", blob])
-                st.success("Cadastrado!"); time.sleep(1); st.rerun()
+                sheet.append_row([prox_id, n_nome.upper(), n_user, n_senha, "SERV", "IPTV", n_venc.strftime('%Y-%m-%d'), 10, 35, n_whats, "", blob])
+                st.success("Cadastrado!"); st.rerun()
 
     with tab3:
         st.subheader("🚨 COBRANÇA")
-        df_v = df[df['dias_res'] <= 3].sort_values('dias_res')
-        for _, cli in df_v.iterrows():
-            st.write(f"⚠️ {cli['nome']} - Vence em {cli['dias_res']} dias")
-            link = f"https://wa.me/55{cli['whatsapp']}?text=Olá, sua assinatura SuperTV4K vence em breve!"
-            st.link_button(f"Enviar WhatsApp para {cli['nome']}", link)
+        for _, cli in df[df['dias_res'] <= 0].iterrows():
+            st.write(f"Vencido: {cli['nome']}")
+            st.link_button(f"Enviar WhatsApp para {cli['nome']}", f"https://wa.me/55{cli['whatsapp']}?text=Venceu!")
 
     with tab4:
         st.subheader("⚙️ AJUSTES")
-        if st.button("🔄 SINCRONIZAR PLANILHA"): st.rerun()
-        st.download_button("📥 BAIXAR BACKUP (CSV)", df.to_csv(index=False).encode('utf-8-sig'), "backup_clientes.csv")
+        if st.button("🔄 SINCRONIZAR"): st.rerun()
