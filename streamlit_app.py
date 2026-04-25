@@ -21,7 +21,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["UNIPLAY", "MUNDO GF", "P2BRAZ", "UNITV", "PLAYTV", "P2CINE", "P2SPEED", "BLADE", "MEGA TV", "BOB PLAYER", "IBO PLAYER", "IBO PLAYER PRO"]
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -85,10 +85,8 @@ sheet = conectar_gs()
 df = carregar_dados(sheet)
 hoje = datetime.now().date()
 
-# --- LÓGICA DE SELEÇÃO DE CLIENTE ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    
     if "id_para_editar" in st.session_state:
         sel = df[df['id'].astype(str) == str(st.session_state.id_para_editar)]
         if not sel.empty:
@@ -96,8 +94,6 @@ if not df.empty:
             del st.session_state.id_para_editar
 
 # --- 4. INTERFACE ---
-
-# MODO FOCO: Se clicar em um cliente, o formulário aparece PRIMEIRO que tudo
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -116,27 +112,26 @@ if st.session_state.get('cliente_selecionado') is not None:
         eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
         
         b1, b2, b3, b4 = st.columns(4)
-        if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
+        if b1.form_submit_button("💾 SALVAR"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
-        if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
+        if b2.form_submit_button("⚡ RENOVAR +30"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
-        if b3.form_submit_button("🗑️ EXCLUIR CLIENTE"):
+        if b3.form_submit_button("🗑️ EXCLUIR"):
             sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         
-        if b4.form_submit_button("✖️ FECHAR SEM SALVAR"):
+        if b4.form_submit_button("✖️ FECHAR"):
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# CABEÇALHO E MÉTRICAS (Aparecem normalmente abaixo da edição ou como topo principal)
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
@@ -153,32 +148,14 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # TABELA DE BUSCA
     with tab1:
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-            
-            st.markdown(f'''
-                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
-                    <div class="cliente-card-html">
-                        <img src="{img}" class="img-servidor-card">
-                        <div class="info-container">
-                            <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
-                        </div>
-                        <div class="dias-box">
-                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                            <small style="color:#8b949e;">{data_br}</small>
-                        </div>
-                    </div>
-                </a>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{r['dt_venc_calc'].strftime('%d/%m/%Y')}</small></div></div></a>''', unsafe_allow_html=True)
 
-    # CADASTRO NOVO
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -194,7 +171,6 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
-    # COBRANÇA (TUDO MANTIDO)
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -203,49 +179,52 @@ if not df.empty:
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
-        filtro = st.session_state.filtro_f
-        msg_map = {"🚨SUA ASSINATURA DE TV VENCEU !
+        # --- BLOCO CORRIGIDO COM ASPAS TRIPLAS ---
+        msg_map = {
+            "vencidos": """🚨SUA ASSINATURA DE TV VENCEU !
 
 NÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!
 
 💠PIX CNPJ
 62.326.879/0001-13
 
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP" ,
-            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP""",
+            "hoje": """⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! 
 
 NÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!
 
 💠PIX CNPJ
 62.326.879/0001-13
 
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!""",
+            "1dia": """⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! 
 
 NÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
 
 💠PIX CNPJ
 62.326.879/0001-13
 
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
-            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!""",
+            "2dias": """⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! 
 
 FAÇA O PIX  AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!
 
 💠PIX CNPJ
 62.326.879/0001-13
 
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
-            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!""",
+            "3dias": """⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! 
 
 FAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
 
 💠PIX CNPJ
 62.326.879/0001-13
 
-⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!" ,
-            "todos": " OLÁ TUDO BEM? ME CHAMA QUE TENHO UMA NOTICIA PRA VOCÊ"
+⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!""",
+            "todos": "OLÁ TUDO BEM? ME CHAMA QUE TENHO UMA NOTICIA PRA VOCÊ"
         }
+        
+        filtro = st.session_state.filtro_f
         msg_atual = msg_map.get(filtro, msg_map["todos"])
 
         df_c = df
@@ -267,7 +246,6 @@ FAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
 
-    # AJUSTES
     with tab4:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
