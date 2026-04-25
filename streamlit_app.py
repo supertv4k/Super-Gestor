@@ -21,7 +21,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = ["Uniplay", "Mundo GF", "P2Braz", "Unitv", "Playtv", "P2Cine", "P2Speed", "Blade", "MegaTV", "Bob Player", "Ibo Player", "Ibo Pro Player"]
 
-# --- 2. ESTILIZAÇÃO CSS (CORRIGINDO EMPURRAMENTO) ---
+# --- 2. ESTILIZAÇÃO CSS (PROTEÇÃO DO LAYOUT) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -45,32 +45,11 @@ st.markdown("""
     
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     
-    /* Container do Nome: Permite quebra de linha */
-    .info-container {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-width: 0; /* Essencial para o wrap funcionar */
-    }
-
-    .nome-c { 
-        font-weight: 900; font-size: 17px; color: white; 
-        text-transform: uppercase; 
-        word-wrap: break-word; /* Quebra o nome se for muito longo */
-        line-height: 1.2;
-        margin-bottom: 4px;
-    }
+    .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+    .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
     
-    /* Caixa de Dias: Fixa à direita sem ser empurrada */
-    .dias-box { 
-        flex-shrink: 0; /* NÃO deixa ser empurrado para fora */
-        margin-left: 15px; 
-        padding-left: 15px; 
-        border-left: 1px solid #30363d; 
-        width: 115px; 
-        text-align: right;
-    }
+    /* BLOQUEIO PARA NÃO SAIR DO CARD */
+    .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
     .cor-alerta { color: #FFD700; font-weight: 900; }
@@ -120,7 +99,6 @@ if not df.empty:
         if not sel.empty:
             st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
             del st.session_state.id_para_editar
-            st.query_params.clear()
 
     # MÉTRICAS
     vencidos_count = len(df[df['dias_res'] < 0])
@@ -136,9 +114,11 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
+    # --- ABA 1: CLIENTES ---
     with tab1:
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
+            st.markdown('<div id="form_edit"></div>', unsafe_allow_html=True) # Âncora de foco
             with st.form("form_edit_full"):
                 st.subheader(f"📝 GERENCIAR: {c['nome']}")
                 col1, col2 = st.columns(2)
@@ -159,20 +139,20 @@ if not df.empty:
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
                     sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
-                    st.session_state.cliente_selecionado = None; st.rerun()
+                    st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
                 if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
                     idx = sheet.col_values(1).index(str(c['id'])) + 1
                     nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
                     sheet.update_cell(idx, 7, nova_data)
-                    st.session_state.cliente_selecionado = None; time.sleep(0.5); st.rerun()
+                    st.session_state.cliente_selecionado = None; st.query_params.clear(); time.sleep(0.5); st.rerun()
 
                 if b3.form_submit_button("🗑️ EXCLUIR"):
                     sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
-                    st.session_state.cliente_selecionado = None; st.rerun()
+                    st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
                 
                 if b4.form_submit_button("✖️ FECHAR"):
-                    st.session_state.cliente_selecionado = None; st.rerun()
+                    st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
             st.divider()
 
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
@@ -182,8 +162,9 @@ if not df.empty:
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
             
+            # BOTÃO CLICÁVEL PRESERVADO
             st.markdown(f'''
-                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
+                <a href="/?editar_id={r['id']}#form_edit" target="_self" class="card-link">
                     <div class="cliente-card-html">
                         <img src="{img}" class="img-servidor-card">
                         <div class="info-container">
@@ -198,6 +179,7 @@ if not df.empty:
                 </a>
             ''', unsafe_allow_html=True)
 
+    # --- ABA 2: ADICIONAR ---
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -219,6 +201,7 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
+    # --- ABA 3: COBRANÇA ---
     with tab3:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
@@ -228,12 +211,20 @@ if not df.empty:
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
 
         filtro = st.session_state.filtro_f
-        if filtro == "vencidos": df_c = df[df['dias_res'] < 0]
-        elif filtro == "hoje": df_c = df[df['dias_res'] == 0]
-        elif filtro == "1dia": df_c = df[df['dias_res'] == 1]
-        elif filtro == "2dias": df_c = df[df['dias_res'] == 2]
-        elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
-        else: df_c = df
+        mensagens = {
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX  AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX  AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+        }
+
+        if filtro == "vencidos": df_c = df[df['dias_res'] < 0]; msg_atual = mensagens["vencidos"]
+        elif filtro == "hoje": df_c = df[df['dias_res'] == 0]; msg_atual = mensagens["hoje"]
+        elif filtro == "1dia": df_c = df[df['dias_res'] == 1]; msg_atual = mensagens["1dia"]
+        elif filtro == "2dias": df_c = df[df['dias_res'] == 2]; msg_atual = mensagens["2dias"]
+        elif filtro == "3dias": df_c = df[df['dias_res'] == 3]; msg_atual = mensagens["3dias"]
+        else: df_c = df; msg_atual = "Olá! Segue seu lembrete de renovação SUPERTV4K."
 
         if not df_c.empty:
             sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{filtro}")
@@ -253,8 +244,10 @@ if not df.empty:
                             <div class="dias-box"><span class="{cor}">{r['dias_res']} DIAS</span></div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    c3.link_button("📲 COBRAR", f"https://wa.me/55{r['whatsapp']}")
+                    url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
+                    c3.link_button("📲 COBRAR", url_whats)
 
+    # --- ABA 4: AJUSTES ---
     with tab4:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
