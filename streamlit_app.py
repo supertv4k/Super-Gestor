@@ -25,7 +25,7 @@ if 'indice_disparo' not in st.session_state:
 if 'executando_disparo' not in st.session_state:
     st.session_state.executando_disparo = False
 
-# --- 2. ESTILIZAÇÃO CSS (FOCO NA ALTURA E LARGURA DO CARD) ---
+# --- 2. ESTILIZAÇÃO CSS (MANTIDA CORREÇÃO DOS BOTÕES) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -33,13 +33,12 @@ st.markdown("""
     .logo-gestao { width: 380px; margin-bottom: -15px !important; }
     .logo-supertv { width: 320px; }
     
-    /* CARD RETANGULAR ESTREITO (ALTURA REDUZIDA) */
     .card-link-custom {
         text-decoration: none !important;
         display: block;
         width: 100%;
-        max-width: 450px; /* Largura controlada */
-        margin: 8px auto; /* Espaçamento entre cards */
+        max-width: 450px;
+        margin: 8px auto;
     }
 
     .cliente-card-html {
@@ -48,8 +47,8 @@ st.markdown("""
         background-color: #161b22;
         border: 1px solid #30363d; 
         border-radius: 10px; 
-        padding: 8px 12px; /* Reduzi o padding para diminuir a altura total */
-        height: 70px; /* ALTURA FIXA E ESTREITA */
+        padding: 8px 12px;
+        height: 70px;
         transition: 0.2s;
     }
     
@@ -72,7 +71,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÕES DE DADOS (MANTIDAS 100% ORIGINAIS) ---
+# --- 3. FUNÇÕES DE DADOS (ORIGINAIS) ---
 def conectar_gs():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -105,7 +104,6 @@ hoje = datetime.now().date()
 # --- LÓGICA DE EDIÇÃO ---
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
-    # Pegar ID da URL para editar
     params = st.query_params
     if "editar_id" in params:
         sel = df[df['id'].astype(str) == str(params["editar_id"])]
@@ -114,7 +112,6 @@ if not df.empty:
 
 # --- 4. INTERFACE ---
 
-# FORMULÁRIO DE EDIÇÃO (MANTIDO)
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 EDITAR CLIENTE")
@@ -150,13 +147,11 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
-# CABEÇALHO
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
 if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # ABA CLIENTES: CARD ESTREITO COM CLIQUE
     with tab1:
         busca = st.text_input("🔎 BUSCAR...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
@@ -179,7 +174,6 @@ if not df.empty:
                 </a>
             ''', unsafe_allow_html=True)
 
-    # ABA ADICIONAR (MANTIDA)
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
         with st.form("add_cli", clear_on_submit=True):
@@ -195,38 +189,54 @@ if not df.empty:
                 sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
-    # ABA COBRANÇA (MANTIDA COM ENVIO EM MASSA)
+    # --- ABA COBRANÇA (MENSAGENS ATUALIZADAS) ---
     with tab3:
+        # DEFINIÇÃO DAS NOVAS MENSAGENS
+        msg_map = {
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
+        }
+
         if st.session_state.executando_disparo:
             fila = st.session_state.clientes_para_disparo
             idx = st.session_state.indice_disparo
             if idx < len(fila):
                 cliente = fila[idx]
-                st.warning(f"🚀 ENVIANDO: {idx + 1} de {len(fila)}")
+                st.warning(f"🚀 ENVIANDO EM MASSA: {idx + 1} de {len(fila)}")
                 st.write(f"**Cliente:** {cliente['nome']}")
-                cnpj_pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA O COMPROVANTE!"
-                msg = "Lembrete de renovação SUPERTV4K." + cnpj_pix
-                url = f"https://wa.me/55{cliente['whatsapp']}?text={urllib.parse.quote(msg)}"
+                
+                # Pega a mensagem baseada no filtro selecionado
+                txt_base = msg_map.get(st.session_state.filtro_f, "Olá! Segue lembrete de renovação.")
+                url = f"https://wa.me/55{cliente['whatsapp']}?text={urllib.parse.quote(txt_base)}"
+                
                 col1, col2 = st.columns(2)
                 if col1.link_button("📲 ENVIAR AGORA", url, type="primary"): st.session_state.aguardando_proximo = True
                 if col2.button("✖️ PARAR"): st.session_state.executando_disparo = False; st.rerun()
+                
                 if st.session_state.get('aguardando_proximo'):
                     time.sleep(10)
                     st.session_state.indice_disparo += 1; st.session_state.aguardando_proximo = False; st.rerun()
             else:
                 st.success("✅ Fim da fila!"); st.session_state.executando_disparo = False
         else:
-            filtros = ["vencidos", "hoje", "todos"]
-            c_cols = st.columns(3)
+            filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias"]
+            labels = ["❌ VENCIDOS", "📅 HOJE", "🌅 AMANHÃ", "⏳ 2 DIAS", "⏳ 3 DIAS"]
+            c_cols = st.columns(5)
             for i, f in enumerate(filtros):
-                if c_cols[i].button(f.upper()): st.session_state.filtro_f = f
+                if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
             
-            df_c = df
-            if st.session_state.filtro_f == "vencidos": df_c = df[df['dias_res'] < 0]
-            elif st.session_state.filtro_f == "hoje": df_c = df[df['dias_res'] == 0]
+            filtro = st.session_state.filtro_f
+            if filtro == "vencidos": df_c = df[df['dias_res'] < 0]
+            elif filtro == "hoje": df_c = df[df['dias_res'] == 0]
+            elif filtro == "1dia": df_c = df[df['dias_res'] == 1]
+            elif filtro == "2dias": df_c = df[df['dias_res'] == 2]
+            elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
+            else: df_c = pd.DataFrame()
 
             if not df_c.empty:
-                st.write(f"Filtrados: {len(df_c)}")
                 clientes_marcados = []
                 for _, r in df_c.iterrows():
                     if st.checkbox(f"Selecionar {r['nome']}", key=f"c_{r['id']}"):
@@ -235,7 +245,6 @@ if not df.empty:
                     st.session_state.clientes_para_disparo = clientes_marcados
                     st.session_state.indice_disparo = 0; st.session_state.executando_disparo = True; st.rerun()
 
-    # ABA AJUSTES (MANTIDA)
     with tab4:
         if st.button("🔄 ATUALIZAR DADOS"): st.rerun()
         buffer = io.BytesIO()
