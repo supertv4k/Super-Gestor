@@ -9,7 +9,7 @@ import base64
 import time
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="SUPERTv4k GESTÃO PRO", layout="wide")
+st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
 # --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -61,12 +61,11 @@ def carregar_dados(sheet):
     if sheet:
         valores = sheet.get_all_values()
         if not valores: return pd.DataFrame()
-        # Mapeamento dinâmico ignorando acentos nas colunas
-        colunas_originais = valores[0]
-        colunas_limpas = [remover_acentos(c) for c in colunas_originais]
+        colunas_limpas = [remover_acentos(c) for c in valores[0]]
         df = pd.DataFrame(valores[1:], columns=colunas_limpas)
         
-        # Conversões seguras
+        # Conversões
+        if 'ID' in df.columns: df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         if 'CUSTO' in df.columns: df['CUSTO'] = pd.to_numeric(df['CUSTO'].str.replace(',', '.'), errors='coerce').fillna(0)
         if 'MENSALIDADE' in df.columns: df['MENSALIDADE'] = pd.to_numeric(df['MENSALIDADE'].str.replace(',', '.'), errors='coerce').fillna(0)
         if 'VENCIMENTO' in df.columns: df['DT_VENC_CALC'] = pd.to_datetime(df['VENCIMENTO'], errors='coerce').dt.date
@@ -84,7 +83,7 @@ hoje = datetime.now().date()
 if not df.empty:
     df['DIAS_RES'] = df['DT_VENC_CALC'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
     
-    # --- MÉTRICAS ---
+    # MÉTRICAS
     ativos = len(df[df['DIAS_RES'] >= 0])
     vencidos = len(df[df['DIAS_RES'] < 0])
     lucro = df['MENSALIDADE'].sum() - df['CUSTO'].sum()
@@ -97,100 +96,92 @@ if not df.empty:
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
-    # --- TAB 1: CLIENTES (LISTAGEM COM LOGO) ---
     with tab1:
-        # Lógica de Edição (Ordem dos campos corrigida)
+        # EDIÇÃO DE CLIENTE
         if st.session_state.get('cliente_selecionado') is not None:
             c = st.session_state.cliente_selecionado
             st.markdown(f"### 📝 EDITAR: {str(c.get('NOME')).upper()}")
             with st.form("edit_form"):
                 col1, col2 = st.columns(2)
-                e_nome = col1.text_input("NOME", value=c.get('NOME', ''))
-                e_user = col2.text_input("USUÁRIO", value=c.get('USUARIO', ''))
-                e_senha = col1.text_input("SENHA", value=c.get('SENHA', ''))
-                e_serv = col2.text_input("SERVIDOR", value=c.get('SERVIDOR', ''))
+                e_nome = col1.text_input("NOME", value=c.get('NOME'))
+                e_user = col2.text_input("USUÁRIO", value=c.get('USUARIO'))
+                e_senha = col1.text_input("SENHA", value=c.get('SENHA'))
+                e_serv = col2.text_input("SERVIDOR", value=c.get('SERVIDOR'))
                 e_sist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c.get('SISTEMA') == "P2P" else 1)
                 e_venc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c.get('VENCIMENTO')).date(), format="DD/MM/YYYY")
-                e_custo = col1.number_input("CUSTO", value=float(c.get('CUSTO', 0)))
-                e_mensal = col2.number_input("VALOR COBRADO", value=float(c.get('MENSALIDADE', 0)))
-                # Campo Início (Se existir na planilha)
-                e_ini = col1.text_input("INICIOU DIA", value=c.get('INICIOU DIA', ''))
-                e_whats = col2.text_input("WHATSAPP", value=c.get('WHATSAPP', ''))
-                e_obs = st.text_area("OBSERVAÇÃO", value=c.get('OBSERVACAO', ''))
-                e_img = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
+                e_custo = col1.number_input("CUSTO", value=float(c.get('CUSTO')))
+                e_mensal = col2.number_input("MENSALIDADE", value=float(c.get('MENSALIDADE')))
+                e_whats = col1.text_input("WHATSAPP", value=c.get('WHATSAPP'))
+                e_obs = col2.text_area("OBSERVAÇÃO", value=c.get('OBSERVACAO'))
+                e_img = st.file_uploader("ALTERAR LOGO", type=['png', 'jpg'])
                 
                 b1, b2, b3 = st.columns(3)
                 if b1.form_submit_button("💾 SALVAR"):
-                    row = sheet.col_values(1).index(c['NOME']) + 1
-                    blob = base64.b64encode(e_img.read()).decode() if e_img else c.get('LOGO_BLOB', '')
-                    sheet.update(range_name=f'A{row}:L{row}', values=[[e_nome.upper(), e_user, e_senha, e_serv.upper(), e_sist, e_venc.strftime('%Y-%m-%d'), e_custo, e_mensal, e_whats, e_obs, e_ini, blob]])
+                    row = sheet.col_values(1).index(str(c['ID'])) + 1
+                    blob = base64.b64encode(e_img.read()).decode() if e_img else c.get('LOG_OBLOB', '')
+                    sheet.update(range_name=f'A{row}:L{row}', values=[[c['ID'], e_nome.upper(), e_user, e_senha, e_serv.upper(), e_sist, e_venc.strftime('%Y-%m-%d'), e_custo, e_mensal, e_whats, e_obs, blob]])
                     st.session_state.cliente_selecionado = None
                     st.rerun()
                 if b2.form_submit_button("🗑️ EXCLUIR"):
-                    sheet.delete_rows(sheet.col_values(1).index(c['NOME']) + 1)
+                    sheet.delete_rows(sheet.col_values(1).index(str(c['ID'])) + 1)
                     st.session_state.cliente_selecionado = None
                     st.rerun()
                 if b3.form_submit_button("✖️ FECHAR"):
                     st.session_state.cliente_selecionado = None
                     st.rerun()
 
-        busca = st.text_input("🔎 PESQUISAR...")
+        busca = st.text_input("🔎 PESQUISAR CLIENTE...")
         df_f = df[df['NOME'].str.contains(busca, case=False, na=False)] if busca else df
         for _, r in df_f.sort_values(by='DIAS_RES').iterrows():
-            # Recupera a imagem do LOGO_BLOB
-            img_data = f"data:image/png;base64,{r['LOGO_BLOB']}" if 'LOGO_BLOB' in r and r['LOGO_BLOB'] else "https://i.imgur.com/vH9XvI0.png"
+            img_data = f"data:image/png;base64,{r['LOG_OBLOB']}" if 'LOG_OBLOB' in r and r['LOG_OBLOB'] else "https://i.imgur.com/vH9XvI0.png"
             dias = r['DIAS_RES']
             txt_dias = f"VENCIDO HÁ {abs(dias)} DIAS" if dias < 0 else ("VENCE HOJE" if dias == 0 else f"FALTAM {dias} DIAS")
-            
             st.markdown(f'''
                 <div class="cliente-card">
                     <img src="{img_data}" class="img-servidor-card">
                     <div class="info-text">
-                        <div class="linha-topo">
-                            <span class="nome-c">{str(r["NOME"]).upper()}</span>
-                            <span class="dias-destaque {"vencido" if dias < 0 else ""}">{txt_dias}</span>
-                        </div>
+                        <div class="linha-topo"><span class="nome-c">{str(r["NOME"]).upper()}</span><span class="dias-destaque {"vencido" if dias < 0 else ""}">{txt_dias}</span></div>
                         <span class="detalhe-c">🔑 {r["USUARIO"]} | {r["SISTEMA"]} | 📅 {pd.to_datetime(r["VENCIMENTO"]).strftime("%d/%m/%Y")}</span>
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
-            if st.button(f"btn_{r['NOME']}", key=f"btn_{r['NOME']}"):
+            if st.button(f"btn_{r['ID']}", key=f"btn_{r['ID']}"):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
 
-    # --- TAB 2: ADICIONAR (ORDEM EXATA SOLICITADA) ---
     with tab2:
+        # CADASTRO (ORDEM CORRETA)
         st.subheader("🚀 NOVO CADASTRO")
-        with st.form("add_full", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            n_nome = c1.text_input("CLIENTE")
-            n_user = c2.text_input("USUÁRIO")
-            n_senha = c1.text_input("SENHA")
-            n_serv = c2.text_input("SERVIDOR")
-            n_sist = c1.selectbox("SISTEMA", ["P2P", "IPTV"])
-            n_venc = c2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
-            n_custo = c1.number_input("CUSTO", value=10.0)
-            n_mensal = c2.number_input("VALOR COBRADO", value=35.0)
-            n_ini = c1.text_input("INÍCIOU DIA")
-            n_whats = c2.text_input("WHATSAPP")
-            n_obs = st.text_area("OBSERVAÇÃO")
-            n_img = st.file_uploader("LOGO DO SERVIDOR", type=['png', 'jpg'])
+        with st.form("add_form", clear_on_submit=True):
+            ca, cb = st.columns(2)
+            n_nome = ca.text_input("NOME")
+            n_user = cb.text_input("USUÁRIO")
+            n_senha = ca.text_input("SENHA")
+            n_serv = cb.text_input("SERVIDOR")
+            n_sist = ca.selectbox("SISTEMA", ["P2P", "IPTV"])
+            n_venc = cb.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
+            n_custo = ca.number_input("CUSTO", value=10.0)
+            n_mensal = cb.number_input("MENSALIDADE", value=35.0)
+            n_whats = ca.text_input("WHATSAPP")
+            n_obs = cb.text_area("OBSERVAÇÃO")
+            n_img = st.file_uploader("LOGO SERVIDOR", type=['png', 'jpg'])
             
             if st.form_submit_button("🚀 CADASTRAR"):
+                prox_id = int(df['ID'].max() + 1) if not df.empty else 1
                 blob = base64.b64encode(n_img.read()).decode() if n_img else ""
-                sheet.append_row([n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, n_ini, blob])
-                st.success("Cadastrado!"); time.sleep(1); st.rerun()
+                sheet.append_row([prox_id, n_nome.upper(), n_user, n_senha, n_serv.upper(), n_sist, n_venc.strftime('%Y-%m-%d'), n_custo, n_mensal, n_whats, n_obs, blob])
+                st.success("Salvo!"); time.sleep(1); st.rerun()
 
-    # --- TAB 3: COBRANÇA (BOTÕES DE FILTRO) ---
     with tab3:
+        # COBRANÇA
         st.subheader("🚨 FILTROS DE COBRANÇA")
-        bt1, bt2, bt3, bt4, bt5, bt6 = st.columns(6)
-        if bt1.button("❌ Venceu"): st.session_state.fc = 'venceu'
-        if bt2.button("📅 Hoje"): st.session_state.fc = 'hoje'
-        if bt3.button("🌅 Amanhã"): st.session_state.fc = 'amanha'
-        if bt4.button("⏳ 2 Dias"): st.session_state.fc = '2dias'
-        if bt5.button("⏳ 3 Dias"): st.session_state.fc = '3dias'
-        if bt6.button("🗓️ 4 Dias+"): st.session_state.fc = '4dias'
+        cf1, cf2, cf3, cf4, cf5, cf6 = st.columns(6)
+        if cf1.button("❌ Venceu"): st.session_state.fc = 'venceu'
+        if cf2.button("📅 Hoje"): st.session_state.fc = 'hoje'
+        if cf3.button("🌅 Amanhã"): st.session_state.fc = 'amanha'
+        if cf4.button("⏳ 2 Dias"): st.session_state.fc = '2dias'
+        if cf5.button("⏳ 3 Dias"): st.session_state.fc = '3dias'
+        if cf6.button("🗓️ 4 Dias+"): st.session_state.fc = '4dias'
 
         f = st.session_state.get('fc', 'todos')
         pix = "\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!"
@@ -200,13 +191,15 @@ if not df.empty:
         elif f == 'amanha': df_c = df[df['DIAS_RES'] == 1]; msg = "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
         elif f == '2dias': df_c = df[df['DIAS_RES'] == 2]; msg = "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
         elif f == '3dias': df_c = df[df['DIAS_RES'] == 3]; msg = "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!" + pix
-        else: df_c = df; msg = "Olá! Passando para lembrar do seu vencimento da SuperTV4K."
+        else: df_c = df; msg = "Olá! Passando para lembrar do seu vencimento da SUPERTV4K."
 
         st.divider()
+        if st.button("✅ SELECIONAR TODOS NESTA CATEGORIA"): st.info("Filtro aplicado. Use os botões abaixo para enviar.")
         for _, cli in df_c.iterrows():
-            c_c1, c_c2 = st.columns([4, 1])
-            c_c1.write(f"👤 **{cli['NOME']}** | Vence: {pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')}")
-            c_c2.link_button("📲 COBRAR", f"https://wa.me/55{cli['WHATSAPP']}?text={urllib.parse.quote(msg)}")
+            c1, c2 = st.columns([4, 1])
+            v_data = pd.to_datetime(cli['VENCIMENTO']).strftime('%d/%m/%Y')
+            c1.write(f"👤 **{cli['NOME']}** | Vencimento: {v_data}")
+            c2.link_button("📲 COBRAR", f"https://wa.me/55{cli['WHATSAPP']}?text={urllib.parse.quote(msg)}")
 
     with tab4:
         st.subheader("⚙️ AJUSTES")
