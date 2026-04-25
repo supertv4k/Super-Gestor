@@ -170,7 +170,7 @@ if not df.empty:
                 st.rerun()
 
     with tab3:
-        st.subheader("🚨 COBRANÇAS EM MASSA")
+        st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
         labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
@@ -197,38 +197,40 @@ if not df.empty:
         elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
 
         if not df_c.empty:
-            # Selecionar Todos
             sel_all = st.checkbox(f"✅ Selecionar todos desta lista ({len(df_c)})", key=f"sel_all_{filtro}")
             
             lista_para_disparo = []
-            st.divider()
-
+            
+            # Percorre os clientes para exibir e capturar quem está selecionado
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
                 with st.container():
                     c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
+                    # Verifica se o checkbox individual está marcado ou se o "Selecionar Todos" está ativo
                     selecionado = c1.checkbox("", value=sel_all, key=f"chk_{r['id']}_{filtro}")
+                    
                     if selecionado:
                         lista_para_disparo.append({"whats": r['whatsapp'], "msg": msg_atual, "nome": r['nome']})
+                    
                     c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
 
-            # O BOTÃO DE DISPARO QUE VOCÊ PEDIU:
-            if lista_para_disparo:
-                st.write("")
-                if st.button(f"🚀 ENVIAR WHATSAPP PARA TODOS OS {len(lista_para_disparo)} SELECIONADOS", use_container_width=True, type="primary"):
+            # LÓGICA DO BOTÃO: Aparece apenas se houver 2 ou mais selecionados
+            if len(lista_para_disparo) >= 2:
+                st.divider()
+                if st.button(f"🚀 DISPARAR PARA {len(lista_para_disparo)} CLIENTES SELECIONADOS", use_container_width=True, type="primary"):
                     barra = st.progress(0)
                     status = st.empty()
                     for i, cli in enumerate(lista_para_disparo):
                         link = f"https://wa.me/55{cli['whats']}?text={urllib.parse.quote(cli['msg'])}"
-                        # Abre em nova aba
                         st.components.v1.html(f"<script>window.open('{link}', '_blank');</script>", height=0)
                         barra.progress((i + 1) / len(lista_para_disparo))
-                        status.write(f"Enviando para: **{cli['nome']}**...")
-                        time.sleep(1.5) # Delay de segurança
-                    st.success("✅ Disparos concluídos!")
+                        status.write(f"Preparando envio para: **{cli['nome']}**...")
+                        time.sleep(1.8) # Delay levemente maior para segurança
+                    st.success(f"✅ Processo finalizado para {len(lista_para_disparo)} clientes!")
+                    status.empty()
 
     with tab4:
         st.subheader("⚙️ AJUSTES DO SISTEMA")
