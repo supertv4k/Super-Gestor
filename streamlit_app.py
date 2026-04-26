@@ -7,7 +7,7 @@ import urllib.parse
 import base64
 import io
 import time
-import pytz  # IMPORTANTE: Ter 'pytz' no seu requirements.txt
+import pytz  # IMPORTANTE: Adicione 'pytz' no seu requirements.txt
 
 # --- 1. CONFIGURAÇÃO DE FUSO HORÁRIO BRASIL ---
 fuso_br = pytz.timezone('America/Sao_Paulo')
@@ -22,7 +22,7 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# LISTA DE SERVIDORES NA ORDEM CORRETA
+# LISTA DE SERVIDORES (ORDEM SOLICITADA)
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
         "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
@@ -55,7 +55,7 @@ st.markdown("""
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
-    .servidor-info { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
+    .servidor-destaque { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
     
     .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
     
@@ -106,7 +106,6 @@ if not df.empty:
             del st.session_state.id_para_editar
 
 # --- 4. INTERFACE ---
-
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 GERENCIANDO CLIENTE SELECIONADO")
@@ -115,8 +114,7 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, 
-                               index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
+        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -169,7 +167,7 @@ if not df.empty:
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-info">{r['servidor'].upper()}</span> | {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{data_br}</small></div></div></a>''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-destaque">{r['servidor'].upper()}</span> | {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{data_br}</small></div></div></a>''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -206,28 +204,27 @@ if not df.empty:
         }
         msg_atual = msg_map.get(filtro, msg_map["todos"])
 
-        # --- CORREÇÃO DOS FILTROS AQUI ---
         df_c = df
         if filtro == "vencidos": df_c = df[df['dias_res'] < 0]
         elif filtro == "hoje": df_c = df[df['dias_res'] == 0]
         elif filtro == "1dia": df_c = df[df['dias_res'] == 1]
         elif filtro == "2dias": df_c = df[df['dias_res'] == 2]
         elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
-        elif filtro == "todos": df_c = df
 
         if not df_c.empty:
             sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{filtro}")
             for _, r in df_c.iterrows():
                 img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
                 cor = get_cor_classe(r['dias_res'])
-                with st.container():
-                    c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
-                    c1.checkbox("", value=sel_all, key=f"chk_{r['id']}")
-                    c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e; font-weight:900;">{r["servidor"].upper()} - {r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
+                
+                # --- MUDANÇA CIRÚRGICA: COLUNAS PARA COMPACTAR O CARD ---
+                col_card, col_btn = st.columns([4, 1.2]) 
+                with col_card:
+                    st.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e; font-weight:900;">{r["servidor"].upper()} - {r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
+                with col_btn:
+                    st.write("") # Espaçador visual
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
-                    c3.link_button("📲 COBRAR", url_whats)
-        else:
-            st.info(f"Nenhum cliente encontrado para o filtro: {filtro.upper()}")
+                    st.link_button("📲 COBRAR", url_whats, use_container_width=True)
 
     with tab4:
         st.subheader("🛠️ AJUSTES DO SISTEMA")
