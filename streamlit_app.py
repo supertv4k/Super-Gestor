@@ -22,15 +22,15 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# ATUALIZAÇÃO DA LISTA DE SERVIDORES (ORDEM SOLICITADA EM CAIXA ALTA)
+# ATUALIZAÇÃO DA LISTA DE SERVIDORES (SEQUÊNCIA SOLICITADA EM NEGRITO)
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
-        "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
-        "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", 
-        "IBO PLAYER", "IBO PRO PLAYER"
+        "**MUNDO GF**", "**UNIPLAY**", "**P2BRAZ**", "**UNITV**", "**PLAYTV**", 
+        "**P2CINE**", "**P2SPEED**", "**BLADE**", "**MEGATV**", "**BOB PLAYER**", 
+        "**IBO PLAYER**", "**IBO PRO PLAYER**"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (FONTE GORDINHA E DESIGN) ---
+# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS E FONTES) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -52,11 +52,10 @@ st.markdown("""
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
-    /* Fonte Gordinha para Servidores e Nomes */
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
-    .servidor-destaque { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
+    .servidor-info { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
     
     .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
     
@@ -116,8 +115,15 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        # LISTA COM UNIPLAY EM SEGUNDO E TODOS EM MAIÚSCULO
-        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
+        
+        # BUSCA O SERVIDOR COM NEGRITO PARA MARCAR COMO SELECIONADO
+        srv_com_negrito = f"**{c['servidor'].upper()}**"
+        try:
+            idx_srv = st.session_state.lista_servidores.index(srv_com_negrito)
+        except:
+            idx_srv = 0
+            
+        eserv = col2.selectbox("SERVIDOR (GORDINHO)", st.session_state.lista_servidores, index=idx_srv)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -130,12 +136,13 @@ if st.session_state.get('cliente_selecionado') is not None:
         if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
-            sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv.upper(), esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
+            # LIMPA O NEGRITO (**) ANTES DE SALVAR NA PLANILHA
+            srv_limpo = eserv.replace("*", "")
+            sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, srv_limpo, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
         if b2.form_submit_button("⭐️RENOVAR +30 DIAS"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
-            # RENOVAÇÃO BASEADA NO DIA ATUAL DO BRASIL
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
@@ -178,7 +185,7 @@ if not df.empty:
                         <img src="{img}" class="img-servidor-card">
                         <div class="info-container">
                             <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-destaque">{r['servidor'].upper()}</span> | {r['sistema']}</span>
+                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-info">{r['servidor'].upper()}</span> | {r['sistema']}</span>
                         </div>
                         <div class="dias-box">
                             <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
@@ -194,14 +201,16 @@ if not df.empty:
             ca1, ca2 = st.columns(2)
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA")
-            nserv = ca2.selectbox("SERVIDOR", st.session_state.lista_servidores)
+            nserv = ca2.selectbox("SERVIDOR (GORDINHO)", st.session_state.lista_servidores)
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=5.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
             nwhats = ca1.text_input("WHATSAPP"); nobs = ca2.text_area("OBSERVAÇÃO"); nimg = st.file_uploader("LOGO", type=['png', 'jpg'])
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
                 blob = base64.b64encode(nimg.read()).decode() if nimg else ""
-                sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv.upper(), nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
+                # LIMPA O NEGRITO (**) ANTES DE SALVAR
+                srv_limpo_n = nserv.replace("*", "")
+                sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, srv_limpo_n, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
     with tab3:
@@ -247,11 +256,14 @@ if not df.empty:
         st.subheader("🛠️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
         if st.button("📡 SALVAR SERVIDOR"):
-            if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
+            # SALVA JÁ COM O FORMATO NEGRITO PARA A LISTA
+            srv_formatado = f"**{srv_nome.upper()}**"
+            if srv_nome and srv_formatado not in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.append(srv_formatado); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
-            if srv_nome.upper() in st.session_state.lista_servidores:
-                st.session_state.lista_servidores.remove(srv_nome.upper()); st.rerun()
+            srv_formatado = f"**{srv_nome.upper()}**"
+            if srv_formatado in st.session_state.lista_servidores:
+                st.session_state.lista_servidores.remove(srv_formatado); st.rerun()
         st.divider()
         if st.button("🔄 SINCRONIZAR"): st.rerun()
         buffer = io.BytesIO()
