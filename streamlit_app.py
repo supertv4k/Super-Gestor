@@ -127,7 +127,7 @@ if st.session_state.get('cliente_selecionado') is not None:
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
-        if b2.form_submit_button("⚡ RENOVAR +30 DIAS"):
+        if b2.form_submit_button("⭐️RENOVAR +30 DIAS"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
@@ -202,7 +202,7 @@ if not df.empty:
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
-        labels = ["❌ Vencidos", "📅 Hoje", "🌅 Amanhã", "⏳ 2 Dias", "⏳ 3 Dias", "🗓️ Todos"]
+        labels = ["🆘 VENCIDOS", "⏰ HOJE", "⚠️ AMANHÃ", "2️⃣ DIAS", "⏳ 3️⃣ DIAS", "🛗 TODOS"]
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
@@ -211,7 +211,7 @@ if not df.empty:
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
-            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⏰! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⚠️! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
             "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!",
             "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
@@ -238,9 +238,9 @@ if not df.empty:
                     c3.link_button("📲 COBRAR", url_whats)
 
     with tab4:
-        st.subheader("⚙️ AJUSTES DO SISTEMA")
+        st.subheader("🛠️ AJUSTES DO SISTEMA")
         srv_nome = st.text_input("NOME DO SERVIDOR")
-        if st.button("💾 SALVAR SERVIDOR"):
+        if st.button("📡 SALVAR SERVIDOR"):
             if srv_nome and srv_nome.upper() not in st.session_state.lista_servidores:
                 st.session_state.lista_servidores.append(srv_nome.upper()); st.rerun()
         if st.button("🗑️ EXCLUIR SERVIDOR"):
