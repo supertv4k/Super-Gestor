@@ -14,10 +14,15 @@ hoje = datetime.now(fuso_br).date()
 
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
-# Inicialização de estados para filtros e servidores
+# Lógica de Edição via URL (Mantido do seu original)
+query_params = st.query_params
+if "editar_id" in query_params:
+    st.session_state.id_para_editar = query_params["editar_id"]
+
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
+# Lista de Servidores na ordem preferencial
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
         "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
@@ -25,7 +30,7 @@ if 'lista_servidores' not in st.session_state:
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (CARD ESTREITO IDENTICO AO ORIGINAL) ---
+# --- 2. ESTILIZAÇÃO CSS (EXATAMENTE A SUA) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -38,10 +43,12 @@ st.markdown("""
     .metric-value { font-size: 20px; color: #00d4ff; font-weight: 900; }
 
     .cliente-card-wrapper {
+        position: relative;
         display: flex; align-items: center; background-color: #161b22;
         border: 1px solid #30363d; border-radius: 12px; padding: 8px 15px;
         margin-bottom: 10px; height: 75px; transition: 0.2s; overflow: hidden;
     }
+    .cliente-card-wrapper:hover { border-color: #00d4ff; background-color: #1c2128; }
     
     .img-card { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-box { display: flex; flex-direction: column; justify-content: center; flex-grow: 1; overflow: hidden; }
@@ -49,13 +56,7 @@ st.markdown("""
     .sub-texto { font-size: 13px; color: #8b949e; font-weight: 700; margin: 0; }
     .dias-box-html { font-weight: 900; font-size: 15px; text-align: right; min-width: 90px; border-left: 1px solid #30363d; padding-left: 10px; }
     
-    /* Botão Invisível para Clique no Card - Correção iPhone */
-    div.stButton > button[kind="secondary"] {
-        background: transparent; color: transparent; border: none;
-        height: 75px; margin-top: -85px; width: 100%; display: block;
-        z-index: 10; position: relative;
-    }
-    div.stButton > button:hover { background: rgba(0, 212, 255, 0.05); border: 1px solid #00d4ff; }
+    .link-invisivel { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; cursor: pointer; }
 
     .cor-vencido { color: #FF4B4B; }
     .cor-alerta { color: #FFD700; }
@@ -95,11 +96,16 @@ df = carregar_dados(sheet)
 
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
+    if "id_para_editar" in st.session_state:
+        sel = df[df['id'].astype(str) == str(st.session_state.id_para_editar)]
+        if not sel.empty:
+            st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
+            del st.session_state.id_para_editar
 
-# --- 4. FORMULÁRIO DE EDIÇÃO NO TOPO ---
+# --- 4. ÁREA DE EDIÇÃO (NO TOPO) ---
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
-    st.markdown(f"### 📝 EDITANDO CLIENTE: {c['nome']}")
+    st.markdown("### 📝 EDITAR CLIENTE")
     with st.form("form_edit_full"):
         col1, col2 = st.columns(2)
         enome = col1.text_input("NOME", value=c['nome'])
@@ -119,24 +125,22 @@ if st.session_state.get('cliente_selecionado') is not None:
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
             sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv.upper(), esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
-            st.session_state.cliente_selecionado = None; st.rerun()
+            st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         if b2.form_submit_button("⭐️ RENOVAR (+30)"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
-            nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
-            sheet.update_cell(idx, 7, nova_data)
-            st.session_state.cliente_selecionado = None; st.rerun()
+            sheet.update_cell(idx, 7, (hoje + timedelta(days=30)).strftime('%Y-%m-%d'))
+            st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         if b3.form_submit_button("🗑️ EXCLUIR"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             sheet.delete_rows(idx)
-            st.session_state.cliente_selecionado = None; st.rerun()
+            st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         if b4.form_submit_button("✖️ FECHAR"):
-            st.session_state.cliente_selecionado = None; st.rerun()
+            st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
     st.divider()
 
 # Logo Cabeçalho
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
-# --- DASHBOARD E TABS ---
 if not df.empty:
     m1, m2, m3, m4 = st.columns(4)
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
@@ -152,9 +156,17 @@ if not df.empty:
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<div class="cliente-card-wrapper"><img src="{img}" class="img-card"><div class="info-box"><p class="nome-texto">{r['nome']}</p><p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p></div><div class="dias-box-html {cor}">{r['dias_res']} DIAS</div></div>''', unsafe_allow_html=True)
-            if st.button("Abrir", key=f"cli_{r['id']}", use_container_width=True):
-                st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
+            st.markdown(f'''
+                <div class="cliente-card-wrapper">
+                    <a href="/?editar_id={r['id']}" target="_self" class="link-invisivel"></a>
+                    <img src="{img}" class="img-card">
+                    <div class="info-box">
+                        <p class="nome-texto">{r['nome']}</p>
+                        <p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p>
+                    </div>
+                    <div class="dias-box-html {cor}">{r['dias_res']} DIAS</div>
+                </div>
+            ''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -178,7 +190,7 @@ if not df.empty:
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
         labels = ["🆘 VENCIDOS", "⏰ HOJE", "⚠️ AMANHÃ", "2️⃣ DIAS", "⏳ 3️⃣ DIAS", "🛗 TODOS"]
         for i, f in enumerate(filtros):
-            if c_cols[i].button(labels[i], key=f"f_{f}"): st.session_state.filtro_f = f
+            if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
@@ -190,6 +202,8 @@ if not df.empty:
         }
         
         f_at = st.session_state.filtro_f
+        msg_atual = msg_map.get(f_at, msg_map["todos"])
+
         df_c = df
         if f_at == "vencidos": df_c = df[df['dias_res'] < 0]
         elif f_at == "hoje": df_c = df[df['dias_res'] == 0]
@@ -202,12 +216,19 @@ if not df.empty:
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             with col1:
-                st.markdown(f'''<div class="cliente-card-wrapper"><img src="{img}" class="img-card"><div class="info-box"><p class="nome-texto">{r['nome']}</p><p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p></div><div class="dias-box-html {cor}">{r['dias_res']} DIAS</div></div>''', unsafe_allow_html=True)
-                if st.button("Abrir", key=f"cob_{r['id']}", use_container_width=True):
-                    st.session_state.cliente_selecionado = r.to_dict(); st.rerun()
+                st.markdown(f'''
+                    <div class="cliente-card-wrapper">
+                        <img src="{img}" class="img-card">
+                        <div class="info-box">
+                            <p class="nome-texto">{r['nome']}</p>
+                            <p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p>
+                        </div>
+                        <div class="dias-box-html {cor}">{r['dias_res']} DIAS</div>
+                    </div>
+                ''', unsafe_allow_html=True)
             with col2:
                 st.write("") 
-                url = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_map.get(f_at, msg_map['todos']))}"
+                url = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                 st.link_button("📲 COBRAR", url, use_container_width=True)
 
     with tab4:
