@@ -14,7 +14,6 @@ hoje = datetime.now(fuso_br).date()
 
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
-# Inicialização de filtros e listas
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
@@ -25,7 +24,7 @@ if 'lista_servidores' not in st.session_state:
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (CARD COM BOTÃO SOBREPOSTO) ---
+# --- 2. ESTILIZAÇÃO CSS ORIGINAL (RESTAURADA) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -49,22 +48,13 @@ st.markdown("""
     .sub-texto { font-size: 13px; color: #8b949e; font-weight: 700; margin: 0; }
     .dias-box-html { font-weight: 900; font-size: 15px; text-align: right; min-width: 90px; border-left: 1px solid #30363d; padding-left: 10px; }
     
-    /* ESTILO PARA O BOTÃO INVISÍVEL QUE COBRE O CARD */
+    /* BOTÃO SOBRE O CARD */
     div.stButton > button[kind="secondary"] {
-        background: transparent;
-        color: transparent;
-        border: none;
-        height: 75px;
-        margin-top: -75px;
-        width: 100%;
-        display: block;
-        z-index: 10;
-        position: relative;
+        background: transparent; color: transparent; border: none;
+        height: 75px; margin-top: -75px; width: 100%; display: block;
+        z-index: 10; position: relative;
     }
-    div.stButton > button:hover {
-        background: rgba(0, 212, 255, 0.05);
-        border: 1px solid #00d4ff;
-    }
+    div.stButton > button:hover { background: rgba(0, 212, 255, 0.05); border: 1px solid #00d4ff; }
 
     .cor-vencido { color: #FF4B4B; }
     .cor-alerta { color: #FFD700; }
@@ -105,43 +95,6 @@ df = carregar_dados(sheet)
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
 
-# --- 4. INTERFACE DE EDIÇÃO ---
-if st.session_state.get('cliente_selecionado') is not None:
-    c = st.session_state.cliente_selecionado
-    st.markdown("### 📝 EDITAR CLIENTE")
-    with st.form("form_edit_full"):
-        col1, col2 = st.columns(2)
-        enome = col1.text_input("NOME", value=c['nome'])
-        euser = col2.text_input("USUÁRIO", value=c['usuario'])
-        esenha = col1.text_input("SENHA", value=c['senha'])
-        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
-        esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
-        evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
-        ecusto = col1.number_input("CUSTO", value=float(c['custo']))
-        emensal = col2.number_input("MENSALIDADE", value=float(c['mensalidade']))
-        ewhats = col1.text_input("WHATSAPP", value=c['whatsapp'])
-        eobs = col2.text_area("OBSERVAÇÃO", value=c['observacao'])
-        eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
-        
-        b1, b2, b3, b4 = st.columns(4)
-        if b1.form_submit_button("💾 SALVAR"):
-            idx = sheet.col_values(1).index(str(c['id'])) + 1
-            blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
-            sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv.upper(), esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
-            st.session_state.cliente_selecionado = None; st.rerun()
-        if b2.form_submit_button("⭐️ RENOVAR (+30)"):
-            idx = sheet.col_values(1).index(str(c['id'])) + 1
-            nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
-            sheet.update_cell(idx, 7, nova_data)
-            st.session_state.cliente_selecionado = None; st.rerun()
-        if b3.form_submit_button("🗑️ EXCLUIR"):
-            idx = sheet.col_values(1).index(str(c['id'])) + 1
-            sheet.delete_rows(idx)
-            st.session_state.cliente_selecionado = None; st.rerun()
-        if b4.form_submit_button("✖️ FECHAR"):
-            st.session_state.cliente_selecionado = None; st.rerun()
-    st.divider()
-
 # Cabeçalho
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
@@ -155,25 +108,47 @@ if not df.empty:
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
     with tab1:
+        # EDIÇÃO DENTRO DA TAB1
+        if st.session_state.get('cliente_selecionado') is not None:
+            c = st.session_state.cliente_selecionado
+            st.markdown(f"### 📝 EDITAR CLIENTE: {c['nome']}")
+            with st.form("form_edit_full"):
+                col1, col2 = st.columns(2)
+                enome = col1.text_input("NOME", value=c['nome'])
+                euser = col2.text_input("USUÁRIO", value=c['usuario'])
+                esenha = col1.text_input("SENHA", value=c['senha'])
+                eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
+                esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
+                evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
+                ecusto = col1.number_input("CUSTO", value=float(c['custo']))
+                emensal = col2.number_input("MENSALIDADE", value=float(c['mensalidade']))
+                ewhats = col1.text_input("WHATSAPP", value=c['whatsapp'])
+                eobs = col2.text_area("OBSERVAÇÃO", value=c['observacao'])
+                eimg = st.file_uploader("TROCAR LOGO", type=['png', 'jpg'])
+                
+                b1, b2, b3, b4 = st.columns(4)
+                if b1.form_submit_button("💾 SALVAR"):
+                    idx = sheet.col_values(1).index(str(c['id'])) + 1
+                    blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
+                    sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv.upper(), esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
+                    st.session_state.cliente_selecionado = None; st.rerun()
+                if b2.form_submit_button("⭐️ RENOVAR (+30)"):
+                    idx = sheet.col_values(1).index(str(c['id'])) + 1
+                    sheet.update_cell(idx, 7, (hoje + timedelta(days=30)).strftime('%Y-%m-%d'))
+                    st.session_state.cliente_selecionado = None; st.rerun()
+                if b3.form_submit_button("🗑️ EXCLUIR"):
+                    sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
+                    st.session_state.cliente_selecionado = None; st.rerun()
+                if b4.form_submit_button("✖️ FECHAR"):
+                    st.session_state.cliente_selecionado = None; st.rerun()
+            st.divider()
+
         busca = st.text_input("🔎 BUSCAR CLIENTE...")
         df_f = df[df['nome'].str.contains(busca, case=False)] if busca else df
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            
-            # Estrutura visual do Card
-            st.markdown(f'''
-                <div class="cliente-card-wrapper">
-                    <img src="{img}" class="img-card">
-                    <div class="info-box">
-                        <p class="nome-texto">{r['nome']}</p>
-                        <p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p>
-                    </div>
-                    <div class="dias-box-html {cor}">{r['dias_res']} DIAS</div>
-                </div>
-            ''', unsafe_allow_html=True)
-            
-            # Botão invisível posicionado exatamente sobre o card acima
+            st.markdown(f'''<div class="cliente-card-wrapper"><img src="{img}" class="img-card"><div class="info-box"><p class="nome-texto">{r['nome']}</p><p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p></div><div class="dias-box-html {cor}">{r['dias_res']} DIAS</div></div>''', unsafe_allow_html=True)
             if st.button("Abrir", key=f"edit_{r['id']}", use_container_width=True):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
@@ -226,16 +201,7 @@ if not df.empty:
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             with col1:
-                st.markdown(f'''
-                    <div class="cliente-card-wrapper">
-                        <img src="{img}" class="img-card">
-                        <div class="info-box">
-                            <p class="nome-texto">{r['nome']}</p>
-                            <p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p>
-                        </div>
-                        <div class="dias-box-html {cor}">{r['dias_res']} DIAS</div>
-                    </div>
-                ''', unsafe_allow_html=True)
+                st.markdown(f'''<div class="cliente-card-wrapper"><img src="{img}" class="img-card"><div class="info-box"><p class="nome-texto">{r['nome']}</p><p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p></div><div class="dias-box-html {cor}">{r['dias_res']} DIAS</div></div>''', unsafe_allow_html=True)
             with col2:
                 st.write("") 
                 url = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
