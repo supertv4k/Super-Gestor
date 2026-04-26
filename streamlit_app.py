@@ -7,8 +7,12 @@ import urllib.parse
 import base64
 import io
 import time
+import pytz  # IMPORTANTE: Adicione 'pytz' no seu requirements.txt
 
-# --- 1. CONFIGURAÇÃO ---
+# --- 1. CONFIGURAÇÃO DE FUSO HORÁRIO BRASIL ---
+fuso_br = pytz.timezone('America/Sao_Paulo')
+hoje = datetime.now(fuso_br).date()
+
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
 query_params = st.query_params
@@ -18,15 +22,15 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# ATUALIZAÇÃO DA LISTA DE SERVIDORES (SEQUÊNCIA SOLICITADA EM MAIÚSCULAS)
+# ATUALIZAÇÃO DA LISTA DE SERVIDORES (ORDEM SOLICITADA EM CAIXA ALTA)
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
-        "ONE PLAY", "MUNDO GF", "UNI TV", "P2 BRAZ", "PLAY TV", 
-        "P2 CINE", "P2 SPEED", "BLADE", "MEGA TV", "BOB PLAYER", 
-        "IBO PLAYER", "IBO PLAYER PRO"
+        "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
+        "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", 
+        "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (DESIGN DOS CARDS) ---
+# --- 2. ESTILIZAÇÃO CSS (FONTE GORDINHA E DESIGN) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -48,9 +52,12 @@ st.markdown("""
     }
     .cliente-card-html:hover { border-color: #00d4ff; background-color: #1c2128; }
     
+    /* Fonte Gordinha para Servidores e Nomes */
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
+    .servidor-destaque { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
+    
     .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
     
     .cor-vencido { color: #FF4B4B; font-weight: 900; }
@@ -88,7 +95,6 @@ def get_cor_classe(dias):
 
 sheet = conectar_gs()
 df = carregar_dados(sheet)
-hoje = datetime.now().date()
 
 # --- LÓGICA DE SELEÇÃO DE CLIENTE ---
 if not df.empty:
@@ -110,8 +116,8 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        # MANTIDA A ORDEM FIXA DA LISTA
-        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor']) if c['servidor'] in st.session_state.lista_servidores else 0)
+        # LISTA COM UNIPLAY EM SEGUNDO E TODOS EM MAIÚSCULO
+        eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -124,11 +130,12 @@ if st.session_state.get('cliente_selecionado') is not None:
         if b1.form_submit_button("💾 SALVAR ALTERAÇÕES"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
             blob = base64.b64encode(eimg.read()).decode() if eimg else c['logo_blob']
-            sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv, esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
+            sheet.update(f'A{idx}:L{idx}', [[c['id'], enome.upper(), euser, esenha, eserv.upper(), esist, evenc.strftime('%Y-%m-%d'), ecusto, emensal, ewhats, eobs, blob]])
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
 
         if b2.form_submit_button("⭐️RENOVAR +30 DIAS"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
+            # RENOVAÇÃO BASEADA NO DIA ATUAL DO BRASIL
             nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
             sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
@@ -171,7 +178,7 @@ if not df.empty:
                         <img src="{img}" class="img-servidor-card">
                         <div class="info-container">
                             <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | 🖥️ {r['sistema']}</span>
+                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-destaque">{r['servidor'].upper()}</span> | {r['sistema']}</span>
                         </div>
                         <div class="dias-box">
                             <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
@@ -187,7 +194,6 @@ if not df.empty:
             ca1, ca2 = st.columns(2)
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
             nsenha = ca1.text_input("SENHA")
-            # LISTA DE SERVIDORES NA ORDEM SOLICITADA
             nserv = ca2.selectbox("SERVIDOR", st.session_state.lista_servidores)
             nsist = ca1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0); nvenc = ca2.date_input("VENCIMENTO", value=hoje + timedelta(days=30), format="DD/MM/YYYY")
             ncusto = ca1.number_input("CUSTO", value=5.0); nmensal = ca2.number_input("MENSALIDADE", value=35.0)
@@ -195,7 +201,7 @@ if not df.empty:
             if st.form_submit_button("🚀 CADASTRAR"):
                 prox_id = int(df['id'].max() + 1) if not df.empty else 1
                 blob = base64.b64encode(nimg.read()).decode() if nimg else ""
-                sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv, nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
+                sheet.append_row([prox_id, nnome.upper(), nuser, nsenha, nserv.upper(), nsist, nvenc.strftime('%Y-%m-%d'), ncusto, nmensal, nwhats, nobs, blob])
                 st.rerun()
 
     with tab3:
@@ -233,7 +239,7 @@ if not df.empty:
                 with st.container():
                     c1, c2, c3 = st.columns([0.5, 4.3, 1.2])
                     c1.checkbox("", value=sel_all, key=f"chk_{r['id']}")
-                    c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e;">{r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
+                    c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e; font-weight:900;">{r["servidor"].upper()} - {r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
 
