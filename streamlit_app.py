@@ -14,7 +14,7 @@ hoje = datetime.now(fuso_br).date()
 
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
-# Lógica de Edição via URL (Mantido do seu original)
+# Lógica de Edição via URL
 query_params = st.query_params
 if "editar_id" in query_params:
     st.session_state.id_para_editar = query_params["editar_id"]
@@ -30,7 +30,7 @@ if 'lista_servidores' not in st.session_state:
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (EXATAMENTE A SUA) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -102,7 +102,7 @@ if not df.empty:
             st.session_state.cliente_selecionado = sel.iloc[0].to_dict()
             del st.session_state.id_para_editar
 
-# --- 4. ÁREA DE EDIÇÃO (NO TOPO) ---
+# --- 4. INTERFACE DE EDIÇÃO ---
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown("### 📝 EDITAR CLIENTE")
@@ -128,7 +128,8 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         if b2.form_submit_button("⭐️ RENOVAR (+30)"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
-            sheet.update_cell(idx, 7, (hoje + timedelta(days=30)).strftime('%Y-%m-%d'))
+            nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
+            sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.query_params.clear(); st.rerun()
         if b3.form_submit_button("🗑️ EXCLUIR"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
@@ -141,6 +142,7 @@ if st.session_state.get('cliente_selecionado') is not None:
 # Logo Cabeçalho
 st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
 
+# --- DASHBOARD E TABS ---
 if not df.empty:
     m1, m2, m3, m4 = st.columns(4)
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
