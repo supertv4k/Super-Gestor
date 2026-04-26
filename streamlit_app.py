@@ -14,7 +14,7 @@ hoje = datetime.now(fuso_br).date()
 
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
-# Lógica de filtros e servidores original
+# Lógica de Edição via URL e Estados
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
@@ -25,7 +25,7 @@ if 'lista_servidores' not in st.session_state:
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS (VOLTANDO AO PADRÃO QUE VOCÊ GOSTA) ---
+# --- 2. ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
@@ -49,7 +49,7 @@ st.markdown("""
     .sub-texto { font-size: 13px; color: #8b949e; font-weight: 700; margin: 0; }
     .dias-box-html { font-weight: 900; font-size: 15px; text-align: right; min-width: 90px; border-left: 1px solid #30363d; padding-left: 10px; }
     
-    /* BOTÃO INVISÍVEL SOBRE O CARD */
+    /* BOTÃO QUE COBRE O CARD PARA FUNCIONAR O CLIQUE */
     div.stButton > button[kind="secondary"] {
         background: transparent; color: transparent; border: none;
         height: 75px; margin-top: -75px; width: 100%; display: block;
@@ -96,7 +96,10 @@ df = carregar_dados(sheet)
 if not df.empty:
     df['dias_res'] = df['dt_venc_calc'].apply(lambda x: (x - hoje).days if pd.notnull(x) else 999)
 
-# --- 4. FORMULÁRIO DE EDIÇÃO ---
+# --- LOGO (CABEÇALHO) ---
+st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
+
+# --- 4. ÁREA DE EDIÇÃO (ABRE NO INÍCIO) ---
 if st.session_state.get('cliente_selecionado') is not None:
     c = st.session_state.cliente_selecionado
     st.markdown(f"### 📝 EDITAR CLIENTE: {c['nome']}")
@@ -122,20 +125,19 @@ if st.session_state.get('cliente_selecionado') is not None:
             st.session_state.cliente_selecionado = None; st.rerun()
         if b2.form_submit_button("⭐️ RENOVAR (+30)"):
             idx = sheet.col_values(1).index(str(c['id'])) + 1
-            sheet.update_cell(idx, 7, (hoje + timedelta(days=30)).strftime('%Y-%m-%d'))
+            nova_data = (hoje + timedelta(days=30)).strftime('%Y-%m-%d')
+            sheet.update_cell(idx, 7, nova_data)
             st.session_state.cliente_selecionado = None; st.rerun()
         if b3.form_submit_button("🗑️ EXCLUIR"):
-            sheet.delete_rows(sheet.col_values(1).index(str(c['id'])) + 1)
+            idx = sheet.col_values(1).index(str(c['id'])) + 1
+            sheet.delete_rows(idx)
             st.session_state.cliente_selecionado = None; st.rerun()
         if b4.form_submit_button("✖️ FECHAR"):
             st.session_state.cliente_selecionado = None; st.rerun()
     st.divider()
 
-# Logo Cabeçalho
-st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9BVx.png" class="logo-gestao"><img src="https://i.imgur.com/OkUAPQa.png" class="logo-supertv"></div>""", unsafe_allow_html=True)
-
+# --- DASHBOARD ---
 if not df.empty:
-    # Dashboard
     m1, m2, m3, m4 = st.columns(4)
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{len(df[df["dias_res"]<0])}</div></div>', unsafe_allow_html=True)
@@ -150,7 +152,16 @@ if not df.empty:
         for _, r in df_f.sort_values(by='dias_res').iterrows():
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
-            st.markdown(f'''<div class="cliente-card-wrapper"><img src="{img}" class="img-card"><div class="info-box"><p class="nome-texto">{r['nome']}</p><p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p></div><div class="dias-box-html {cor}">{r['dias_res']} DIAS</div></div>''', unsafe_allow_html=True)
+            st.markdown(f'''
+                <div class="cliente-card-wrapper">
+                    <img src="{img}" class="img-card">
+                    <div class="info-box">
+                        <p class="nome-texto">{r['nome']}</p>
+                        <p class="sub-texto">{r['servidor'].upper()} | {r['sistema']}</p>
+                    </div>
+                    <div class="dias-box-html {cor}">{r['dias_res']} DIAS</div>
+                </div>
+            ''', unsafe_allow_html=True)
             if st.button("Abrir", key=f"edit_{r['id']}", use_container_width=True):
                 st.session_state.cliente_selecionado = r.to_dict()
                 st.rerun()
@@ -177,7 +188,7 @@ if not df.empty:
         labels = ["🆘 VENCIDOS", "⏰ HOJE", "⚠️ AMANHÃ", "2️⃣ DIAS", " 3️⃣ DIAS", "👥 TODOS"]
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
         for i, f in enumerate(filtros):
-            if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
+            if c_cols[i].button(labels[i], key=f"btn_filtro_{f}"): st.session_state.filtro_f = f
         
         msg_map = {
             "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
