@@ -14,6 +14,7 @@ hoje = datetime.now(fuso_br).date()
 
 st.set_page_config(page_title="SUPERTV4K GESTÃO PRO", layout="wide")
 
+# Inicialização dos estados para não perder os filtros
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
@@ -24,7 +25,7 @@ if 'lista_servidores' not in st.session_state:
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
-# --- 2. ESTILIZAÇÃO CSS COMPLETA ---
+# --- 2. ESTILIZAÇÃO CSS (PADRÃO SUPERTV4K) ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
