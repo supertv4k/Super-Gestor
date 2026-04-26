@@ -151,7 +151,7 @@ if not df.empty:
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{len(df[df["dias_res"]<0])}</div></div>', unsafe_allow_html=True)
     m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{len(df[df["dias_res"]==0])}</div></div>', unsafe_allow_html=True)
-    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro</div><div class="metric-value" style="color:#00ff88">R$ {(df["mensalidade"].sum()-df["custo"].sum()):,.2f}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">💲 Lucro</div><div class="metric-value" style="color:#00ff88">R$ {(df["mensalidade"].sum()-df["custo"].sum()):,.2f}</div></div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
@@ -174,7 +174,7 @@ if not df.empty:
             ''', unsafe_allow_html=True)
 
     with tab2:
-        st.subheader("🚀 NOVO CADASTRO")
+        st.subheader("🚀CADASTRAR CLIENTE")
         with st.form("add_cli", clear_on_submit=True):
             ca1, ca2 = st.columns(2)
             nnome = ca1.text_input("NOME"); nuser = ca2.text_input("USUÁRIO")
@@ -190,10 +190,10 @@ if not df.empty:
                 st.rerun()
 
     with tab3:
-        st.subheader("🚨 COBRANÇAS")
+        st.subheader("🚨 ENVIAR COBRANÇAS")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
-        labels = ["🆘 VENCIDOS", "⏰ HOJE", "⚠️ AMANHÃ", "2️⃣ DIAS", "⏳ 3️⃣ DIAS", "🛗 TODOS"]
+        labels = ["🆘 VENCIDOS", "⏰ HOJE", "⚠️ AMANHÃ", "2️⃣ DIAS", " 3️⃣ DIAS", "👥 TODOS"]
         for i, f in enumerate(filtros):
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
@@ -235,7 +235,7 @@ if not df.empty:
             with col2:
                 st.write("") 
                 url = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
-                st.link_button("📲 COBRAR", url, use_container_width=True)
+                st.link_button("📲 ENVIAR COBRANÇA", url, use_container_width=True)
 
     with tab4:
         st.subheader("⚙️ AJUSTES E SERVIDORES")
@@ -248,7 +248,7 @@ if not df.empty:
             if s_nome.upper() in st.session_state.lista_servidores:
                 st.session_state.lista_servidores.remove(s_nome.upper()); st.rerun()
         st.divider()
-        if st.button("🔄 ATUALIZAR PLANILHA"): st.rerun()
+        if st.button("🔄 SINCRONIZAR GOOGLE SHEETS"): st.rerun()
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.drop(columns=['dt_venc_calc', 'dias_res']).to_excel(writer, index=False)
