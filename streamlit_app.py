@@ -22,7 +22,7 @@ if "editar_id" in query_params:
 if 'filtro_f' not in st.session_state:
     st.session_state.filtro_f = "vencidos"
 
-# LISTA DE SERVIDORES LIMPA E NA ORDEM CORRETA
+# LISTA DE SERVIDORES NA ORDEM CORRETA
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
         "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
@@ -55,7 +55,7 @@ st.markdown("""
     .img-servidor-card { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid #444; flex-shrink: 0; }
     .info-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
     .nome-c { font-weight: 900; font-size: 17px; color: white; text-transform: uppercase; word-wrap: break-word; line-height: 1.2; margin-bottom: 4px; }
-    .servidor-info { font-weight: 900; color: #00d4ff; text-transform: uppercase; } /* DEIXA O SERVIDOR GORDINHO NO CARD */
+    .servidor-info { font-weight: 900; color: #00d4ff; text-transform: uppercase; }
     
     .dias-box { flex-shrink: 0; margin-left: 15px; padding-left: 15px; border-left: 1px solid #30363d; width: 115px; text-align: right; }
     
@@ -115,11 +115,8 @@ if st.session_state.get('cliente_selecionado') is not None:
         enome = col1.text_input("NOME", value=c['nome'])
         euser = col2.text_input("USUÁRIO", value=c['usuario'])
         esenha = col1.text_input("SENHA", value=c['senha'])
-        
-        # Seleção de servidor (Limpa e com a ordem correta)
         eserv = col2.selectbox("SERVIDOR", st.session_state.lista_servidores, 
                                index=st.session_state.lista_servidores.index(c['servidor'].upper()) if c['servidor'].upper() in st.session_state.lista_servidores else 0)
-        
         esist = col1.selectbox("SISTEMA", ["P2P", "IPTV"], index=0 if c['sistema']=="P2P" else 1)
         evenc = col2.date_input("VENCIMENTO", value=pd.to_datetime(c['vencimento']).date(), format="DD/MM/YYYY")
         ecusto = col1.number_input("CUSTO", value=float(c['custo']))
@@ -155,7 +152,7 @@ if not df.empty:
     vencidos_count = len(df[df['dias_res'] < 0])
     vencem_hoje_count = len(df[df['dias_res'] == 0])
     ativos_count = len(df[df['dias_res'] >= 0])
-    lucro = (df["mensalidade"].sum() - df["custo"].sum())
+    lucro = df["mensalidade"].sum() - df["custo"].sum()
 
     m1, m2, m3, m4 = st.columns(4)
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{ativos_count}</div></div>', unsafe_allow_html=True)
@@ -172,22 +169,7 @@ if not df.empty:
             img = f"data:image/png;base64,{r['logo_blob']}" if r['logo_blob'] else "https://i.imgur.com/vH9XvI0.png"
             cor = get_cor_classe(r['dias_res'])
             data_br = r['dt_venc_calc'].strftime('%d/%m/%Y')
-            
-            st.markdown(f'''
-                <a href="/?editar_id={r['id']}" target="_self" class="card-link">
-                    <div class="cliente-card-html">
-                        <img src="{img}" class="img-servidor-card">
-                        <div class="info-container">
-                            <div class="nome-c">{r['nome']}</div>
-                            <span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-info">{r['servidor'].upper()}</span> | {r['sistema']}</span>
-                        </div>
-                        <div class="dias-box">
-                            <span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br>
-                            <small style="color:#8b949e;">{data_br}</small>
-                        </div>
-                    </div>
-                </a>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<a href="/?editar_id={r['id']}" target="_self" class="card-link"><div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r['nome']}</div><span style="color:#8b949e; font-size:14px;">🔑 {r['usuario']} | <span class="servidor-info">{r['servidor'].upper()}</span> | {r['sistema']}</span></div><div class="dias-box"><span class="{cor}" style="font-size:16px;">{r['dias_res']} DIAS</span><br><small style="color:#8b949e;">{data_br}</small></div></div></a>''', unsafe_allow_html=True)
 
     with tab2:
         st.subheader("🚀 NOVO CADASTRO")
@@ -206,7 +188,6 @@ if not df.empty:
                 st.rerun()
 
     with tab3:
-        # Lógica de cobrança mantida
         st.subheader("🚨 COBRANÇAS")
         c_cols = st.columns(6)
         filtros = ["vencidos", "hoje", "1dia", "2dias", "3dias", "todos"]
@@ -215,13 +196,24 @@ if not df.empty:
             if c_cols[i].button(labels[i]): st.session_state.filtro_f = f
         
         filtro = st.session_state.filtro_f
-        msg_map = { "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !...", "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE...", "todos": "Olá! Segue lembrete SUPERTV4K." }
+        msg_map = {
+            "vencidos": "🚨SUA ASSINATURA DE TV VENCEU !\n\nNÃO PREOCUPE, BASTA FAZER O PIX QUE REATIVAMOS PRA VOCÊ!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "hoje": "⚠️SUA ASSINATURA DE TV VENCE HOJE ⏰! \n\nNÃO FIQUE SEM TV, BASTA FAZER O PIX QUE RENOVAMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "1dia": "⚠️SUA ASSINATURA DE TV VENCE AMANHÃ ⚠️! \n\nNÃO FIQUE SEM TV, FAÇA O PIX E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "2dias": "⚠️SUA ASSINATURA DE TV VENCE EM 2️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!!!",
+            "3dias": "⚠️SUA ASSINATURA DE TV VENCE EM 3️⃣ DIAS ⏰! \n\nFAÇA O PIX AGORA E FIQUE TRANQUILO RENOVAREMOS PRA VOCÊ +30 DIAS!\n\n💠PIX CNPJ\n62.326.879/0001-13\n\n⚠️ NÃO ESQUEÇA DE ENVIAR O COMPROVANTE NO WHATSAPP!",
+            "todos": "Olá! Segue seu lembrete de renovação SUPERTV4K."
+        }
         msg_atual = msg_map.get(filtro, msg_map["todos"])
 
+        # --- CORREÇÃO DOS FILTROS AQUI ---
         df_c = df
         if filtro == "vencidos": df_c = df[df['dias_res'] < 0]
         elif filtro == "hoje": df_c = df[df['dias_res'] == 0]
-        # (Outros filtros continuam aqui...)
+        elif filtro == "1dia": df_c = df[df['dias_res'] == 1]
+        elif filtro == "2dias": df_c = df[df['dias_res'] == 2]
+        elif filtro == "3dias": df_c = df[df['dias_res'] == 3]
+        elif filtro == "todos": df_c = df
 
         if not df_c.empty:
             sel_all = st.checkbox(f"✅ Selecionar todos ({len(df_c)})", key=f"sel_all_{filtro}")
@@ -234,6 +226,8 @@ if not df.empty:
                     c2.markdown(f'<div class="cliente-card-html"><img src="{img}" class="img-servidor-card"><div class="info-container"><div class="nome-c">{r["nome"]}</div><span style="color:#8b949e; font-weight:900;">{r["servidor"].upper()} - {r["sistema"]}</span></div><div class="dias-box"><span class="{cor}">{r["dias_res"]} DIAS</span></div></div>', unsafe_allow_html=True)
                     url_whats = f"https://wa.me/55{r['whatsapp']}?text={urllib.parse.quote(msg_atual)}"
                     c3.link_button("📲 COBRAR", url_whats)
+        else:
+            st.info(f"Nenhum cliente encontrado para o filtro: {filtro.upper()}")
 
     with tab4:
         st.subheader("🛠️ AJUSTES DO SISTEMA")
