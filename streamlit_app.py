@@ -145,10 +145,14 @@ st.markdown("""<div class="header-container"><img src="https://i.imgur.com/CKq9B
 # --- DASHBOARD E TABS ---
 if not df.empty:
     m1, m2, m3, m4 = st.columns(4)
+    # Filtro para considerar apenas clientes NÃO vencidos nas métricas financeiras
+    df_ativos = df[df["dias_res"] >= 0]
+    lucro_ativo = df_ativos["mensalidade"].sum() - df_ativos["custo"].sum()
+
     m1.markdown(f'<div class="metric-card"><div class="metric-label">👤 Ativos</div><div class="metric-value">{len(df[df["dias_res"]>=0])}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-label">❌ Vencidos</div><div class="metric-value" style="color:#ff4b4b">{len(df[df["dias_res"]<0])}</div></div>', unsafe_allow_html=True)
     m3.markdown(f'<div class="metric-card"><div class="metric-label">⏰ Vence Hoje</div><div class="metric-value" style="color:#ffd700">{len(df[df["dias_res"]==0])}</div></div>', unsafe_allow_html=True)
-    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro</div><div class="metric-value" style="color:#00ff88">R$ {(df["mensalidade"].sum()-df["custo"].sum()):,.2f}</div></div>', unsafe_allow_html=True)
+    m4.markdown(f'<div class="metric-card"><div class="metric-label">💰 Lucro Líquido</div><div class="metric-value" style="color:#00ff88">R$ {lucro_ativo:,.2f}</div></div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs(["👤 CLIENTES", "➕ ADICIONAR", "🚨 COBRANÇA", "⚙️ AJUSTES"])
 
