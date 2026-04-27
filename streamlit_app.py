@@ -224,6 +224,7 @@ if not df.empty:
             with col1:
                 st.markdown(f'''
                     <div class="cliente-card-wrapper">
+                        <a href="/?editar_id={r['id']}" target="_self" class="link-invisivel"></a>
                         <img src="{img}" class="img-card">
                         <div class="info-box">
                             <p class="nome-texto">{r['nome']}</p>
