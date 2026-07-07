@@ -26,7 +26,7 @@ if 'filtro_f' not in st.session_state:
 if 'lista_servidores' not in st.session_state:
     st.session_state.lista_servidores = [
         "MUNDO GF", "UNIPLAY", "P2BRAZ", "UNITV", "PLAYTV", 
-        "P2CINE", "P2SPEED", "BLADE", "MEGATV", "BOB PLAYER", 
+        "P2CINE", "P2SPEED","EaiTV", "BLADE", "MEGATV", "BOB PLAYER", 
         "IBO PLAYER", "IBO PRO PLAYER"
     ]
 
